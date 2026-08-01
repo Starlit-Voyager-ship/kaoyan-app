@@ -1,0 +1,8 @@
+{
+  "appId": "com.kaoyan.studyhelper",
+  "appName": "考研学习助手",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}

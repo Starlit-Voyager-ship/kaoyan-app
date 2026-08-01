@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#B91C1C"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="32dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⏰"
+        android:textSize="72sp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="好友叫醒"
+        android:textColor="#FFFFFF"
+        android:textSize="32sp"
+        android:textStyle="bold"
+        android:layout_marginTop="16dp" />
+
+    <TextView
+        android:id="@+id/wake_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="该起床学习啦！"
+        android:textColor="#FECACA"
+        android:textSize="20sp"
+        android:layout_marginTop="12dp" />
+
+    <Button
+        android:id="@+id/wake_stop"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="我已起床，停止"
+        android:textSize="18sp"
+        android:layout_marginTop="40dp"
+        android:padding="16dp 32dp"
+        android:backgroundTint="#FFFFFF"
+        android:textColor="#B91C1C" />
+</LinearLayout>

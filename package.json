@@ -1,0 +1,19 @@
+{
+  "name": "kaoyan-study-helper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "考研学习助手 Capacitor 原生 App（含绕过免打扰叫醒原生插件）",
+  "scripts": {
+    "sync": "cap sync android",
+    "build:android": "cap build android",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/core": "^6.1.0",
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.0"
+  }
+}

@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+  <title>考研学习助手</title>
+  <script>
+    // 好友叫醒后端 WebSocket 地址。留空则使用同源 /ws（需后端与前端同域部署）。
+    // 部署独立后端时改为：window.APP_CONFIG = { wakeServer: 'wss://你的后端域名/ws' };
+    window.APP_CONFIG = window.APP_CONFIG || {};
+  </script>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/modules.css">
+  <link rel="stylesheet" href="css/pet.css">
+</head>
+<body>
+  <!-- 登录注册页 -->
+  <div id="auth-page" class="page active">
+    <div class="auth-container">
+      <div class="auth-logo">
+        <div class="logo-icon">📚</div>
+        <h1>考研学习助手</h1>
+        <p class="auth-subtitle">专注 · 高效 · 智能陪伴</p>
+      </div>
+      <div class="auth-form">
+        <div class="tab-switch">
+          <button class="tab-btn active" data-tab="login">登录</button>
+          <button class="tab-btn" data-tab="register">注册</button>
+        </div>
+        <!-- 登录表单 -->
+        <form id="login-form" class="form-panel active">
+          <div class="input-group">
+            <label>账号</label>
+            <input type="text" id="login-username" placeholder="输入账号" required>
+          </div>
+          <div class="input-group">
+            <label>密码</label>
+            <input type="password" id="login-password" placeholder="输入密码" required>
+          </div>
+          <button type="submit" class="btn-primary btn-block">登 录</button>
+          <p id="login-error" class="error-msg"></p>
+        </form>
+        <!-- 注册表单 -->
+        <form id="register-form" class="form-panel">
+          <div class="input-group">
+            <label>账号</label>
+            <input type="text" id="reg-username" placeholder="设置账号（3-16位）" required minlength="3" maxlength="16">
+          </div>
+          <div class="input-group">
+            <label>密码</label>
+            <input type="password" id="reg-password" placeholder="设置密码（6位以上）" required minlength="6">
+          </div>
+          <div class="input-group">
+            <label>确认密码</label>
+            <input type="password" id="reg-password2" placeholder="再次输入密码" required>
+          </div>
+          <button type="submit" class="btn-primary btn-block">注 册</button>
+          <p id="reg-error" class="error-msg"></p>
+          <p class="reg-hint">⚠️ 仅限5人以内注册使用</p>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主应用页 -->
+  <div id="app-page" class="page">
+    <!-- 顶部导航 -->
+    <header id="app-header">
+      <div class="header-left">
+        <button id="menu-toggle" class="icon-btn">☰</button>
+        <h2 id="page-title">首页</h2>
+      </div>
+      <div class="header-right">
+        <button id="pet-toggle" class="icon-btn" title="桌宠">🐾</button>
+        <button id="user-menu-btn" class="icon-btn" title="个人中心">👤</button>
+      </div>
+    </header>
+
+    <!-- 侧边导航 -->
+    <nav id="sidebar">
+      <div class="sidebar-header">
+        <div class="user-avatar" id="sidebar-avatar">👤</div>
+        <span id="sidebar-username">用户</span>
+        <button id="sidebar-close" class="icon-btn-small">✕</button>
+      </div>
+      <ul class="nav-list">
+        <li class="nav-item active" data-page="home"><span class="nav-icon">🏠</span><span>首页概览</span></li>
+        <li class="nav-item" data-page="pomodoro"><span class="nav-icon">🍅</span><span>专注计时</span></li>
+        <li class="nav-item" data-page="ai-assistant"><span class="nav-icon">🤖</span><span>AI助理</span></li>
+        <li class="nav-item nav-group-title">英语专项</li>
+        <li class="nav-item indent" data-page="vocab"><span class="nav-icon">📖</span><span>单词背诵</span></li>
+        <li class="nav-item indent" data-page="articles"><span class="nav-icon">📰</span><span>文章阅读</span></li>
+        <li class="nav-item indent" data-page="sentences"><span class="nav-icon">✍️</span><span>长难句解析</span></li>
+        <li class="nav-item indent" data-page="essay"><span class="nav-icon">📝</span><span>作文模板</span></li>
+        <li class="nav-item nav-group-title">数学专项</li>
+        <li class="nav-item indent" data-page="math-bank"><span class="nav-icon">📐</span><span>题库</span></li>
+        <li class="nav-item indent" data-page="math-weak"><span class="nav-icon">❌</span><span>薄弱错题</span></li>
+        <li class="nav-item" data-page="reports"><span class="nav-icon">📊</span><span>学习报表</span></li>
+        <li class="nav-item" data-page="pet"><span class="nav-icon">🐱</span><span>我的宠物</span></li>
+        <li class="nav-item" data-page="friend-wake"><span class="nav-icon">⏰</span><span>好友叫醒</span></li>
+        <li class="nav-item nav-group-title">预留模块</li>
+        <li class="nav-item disabled indent" data-page="politics"><span class="nav-icon">🏛️</span><span>政治模块</span><span class="coming-soon">即将上线</span></li>
+        <li class="nav-item disabled indent" data-page="major"><span class="nav-icon">📕</span><span>专业课模块</span><span class="coming-soon">即将上线</span></li>
+      </ul>
+      <div class="sidebar-footer">
+        <button id="settings-btn" class="nav-item"><span class="nav-icon">⚙️</span><span>设置</span></button>
+        <button id="logout-btn" class="nav-item text-danger"><span class="nav-icon">🚪</span><span>退出登录</span></button>
+      </div>
+    </nav>
+
+    <!-- 遮罩 -->
+    <div id="overlay" class="overlay"></div>
+
+    <!-- 主内容区 -->
+    <main id="app-content">
+      <!-- 首页概览 -->
+      <section id="page-home" class="content-section active">
+        <div class="home-stats">
+          <div class="stat-card" onclick="app.navigate('pomodoro')">
+            <div class="stat-icon">🍅</div>
+            <div class="stat-value" id="home-focus-today">0min</div>
+            <div class="stat-label">今日专注</div>
+          </div>
+          <div class="stat-card" onclick="app.navigate('vocab')">
+            <div class="stat-icon">📖</div>
+            <div class="stat-value" id="home-words-today">0</div>
+            <div class="stat-label">今日背词</div>
+          </div>
+          <div class="stat-card" onclick="app.navigate('math-bank')">
+            <div class="stat-icon">📐</div>
+            <div class="stat-value" id="home-math-today">0</div>
+            <div class="stat-label">今日录题</div>
+          </div>
+          <div class="stat-card" onclick="app.navigate('pet')">
+            <div class="stat-icon">🪙</div>
+            <div class="stat-value" id="home-coins">0</div>
+            <div class="stat-label">累计金币</div>
+          </div>
+        </div>
+        <div class="home-pet-preview" id="home-pet-preview">
+          <h3>🐾 我的宠物</h3>
+          <div class="pet-mini" id="home-pet-mini"></div>
+          <p id="home-pet-name">点击领取你的专属宠物</p>
+        </div>
+        <div class="home-quick-actions">
+          <h3>快捷入口</h3>
+          <div class="quick-grid">
+            <button class="quick-btn" onclick="app.navigate('ai-assistant')">
+              <span>🤖</span><span>AI问答</span>
+            </button>
+            <button class="quick-btn" onclick="app.navigate('pomodoro')">
+              <span>🍅</span><span>开始专注</span>
+            </button>
+            <button class="quick-btn" onclick="app.navigate('vocab')">
+              <span>📖</span><span>背单词</span>
+            </button>
+            <button class="quick-btn" onclick="app.navigate('reports')">
+              <span>📊</span><span>学习报表</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 专注计时页面 -->
+      <section id="page-pomodoro" class="content-section">
+        <div class="pomodoro-container">
+          <div class="timer-display">
+            <div class="timer-circle" id="timer-circle">
+              <svg viewBox="0 0 200 200">
+                <circle cx="100" cy="100" r="90" class="timer-bg"/>
+                <circle cx="100" cy="100" r="90" class="timer-progress" id="timer-progress"/>
+              </svg>
+              <div class="timer-text">
+                <span id="timer-time">25:00</span>
+                <span id="timer-status">准备开始</span>
+              </div>
+            </div>
+          </div>
+          <div class="timer-controls">
+            <button id="timer-start" class="btn-primary btn-lg">开始专注</button>
+            <button id="timer-pause" class="btn-secondary btn-lg" style="display:none">暂停</button>
+            <button id="timer-reset" class="btn-outline btn-lg">重置</button>
+          </div>
+          <div class="timer-settings">
+            <div class="setting-row">
+              <label>专注时长（分钟）</label>
+              <input type="number" id="focus-duration" value="25" min="1" max="120" class="setting-input">
+            </div>
+            <div class="setting-row">
+              <label>休息时长（分钟）</label>
+              <input type="number" id="break-duration" value="5" min="1" max="30" class="setting-input">
+            </div>
+          </div>
+          <div class="timer-stats">
+            <h3>📈 今日统计</h3>
+            <div class="stats-row">
+              <div class="stat-item">
+                <span class="stat-num" id="today-sessions">0</span>
+                <span>完成番茄数</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-num" id="today-total-minutes">0</span>
+                <span>累计分钟</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-num" id="total-all-minutes">0</span>
+                <span>总专注时长</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI助理页面 -->
+      <section id="page-ai-assistant" class="content-section">
+        <div class="ai-container">
+          <div class="ai-config-banner" id="ai-config-banner">
+            <p>⚠️ 请先在设置中配置 API Key</p>
+            <button class="btn-sm" onclick="app.navigate('settings')">去配置</button>
+          </div>
+          <div class="chat-area" id="chat-area">
+            <div class="chat-welcome" id="chat-welcome">
+              <div class="welcome-icon">🤖</div>
+              <h3>AI 学习助理</h3>
+              <p>上传题目图片或直接提问，我来帮你解答</p>
+              <div class="welcome-tips">
+                <span>📷 支持数学/英语/政治题目截图识别</span>
+                <span>💬 支持文字提问各学科问题</span>
+              </div>
+            </div>
+            <div class="chat-messages" id="chat-messages"></div>
+          </div>
+          <div class="chat-input-area">
+            <div class="chat-tools">
+              <button id="upload-image-btn" class="tool-btn" title="上传图片">📷</button>
+              <select id="ai-model-select" class="model-select">
+                <option value="deepseek">DeepSeek（问答）</option>
+                <option value="qwen-vl">千问VL（识图）</option>
+              </select>
+            </div>
+            <div class="chat-input-row">
+              <textarea id="chat-input" placeholder="输入问题或上传图片..." rows="1"></textarea>
+              <button id="chat-send" class="btn-primary">发送</button>
+            </div>
+            <input type="file" id="image-upload" accept="image/*" style="display:none">
+          </div>
+        </div>
+      </section>
+
+      <!-- 单词背诵页面 -->
+      <section id="page-vocab" class="content-section">
+        <div class="vocab-container">
+          <div class="vocab-tabs">
+            <button class="vocab-tab active" data-tab="learn">背单词</button>
+            <button class="vocab-tab" data-tab="test">单词测试</button>
+            <button class="vocab-tab" data-tab="all">词汇表</button>
+            <button class="vocab-tab" data-tab="wrong">错词本</button>
+          </div>
+          <!-- 背单词面板 -->
+          <div id="vocab-learn" class="vocab-panel active">
+            <div class="word-card" id="word-card">
+              <div class="word-main" id="current-word">点击开始背单词</div>
+              <div class="word-phonetic" id="word-phonetic"></div>
+              <div class="word-meaning" id="word-meaning" style="display:none"></div>
+              <div class="word-example" id="word-example" style="display:none"></div>
+            </div>
+            <div class="word-actions">
+              <button id="word-forget" class="btn-danger btn-lg">不认识 (←)</button>
+              <button id="word-show" class="btn-secondary btn-lg">查看释义</button>
+              <button id="word-know" class="btn-success btn-lg">认识 (→)</button>
+            </div>
+            <div class="word-progress">
+              <span id="word-progress-text">0 / 0</span>
+              <div class="progress-bar"><div class="progress-fill" id="word-progress-fill" style="width:0%"></div></div>
+            </div>
+          </div>
+          <!-- 测试面板 -->
+          <div id="vocab-test" class="vocab-panel">
+            <div class="test-mode-select">
+              <button class="test-mode-btn active" data-mode="random">随机50词测试</button>
+              <button class="test-mode-btn" data-mode="ebbinghaus">艾宾浩斯70词复习</button>
+            </div>
+            <div id="test-area" class="test-area">
+              <p class="test-placeholder">选择测试模式后开始</p>
+            </div>
+          </div>
+          <!-- 词汇表面板 -->
+          <div id="vocab-all" class="vocab-panel">
+            <div class="vocab-search">
+              <input type="text" id="vocab-search-input" placeholder="搜索单词..." class="search-input">
+            </div>
+            <div class="vocab-filter">
+              <button class="filter-btn active" data-filter="all">全部</button>
+              <button class="filter-btn" data-filter="today">今日新词</button>
+            </div>
+            <div class="vocab-list" id="vocab-list"></div>
+          </div>
+          <!-- 错词本面板 -->
+          <div id="vocab-wrong" class="vocab-panel">
+            <div class="wrong-list" id="wrong-word-list">
+              <p class="empty-hint">暂无错词，继续加油！</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 文章阅读页面 -->
+      <section id="page-articles" class="content-section">
+        <div class="articles-container">
+          <div class="articles-empty" id="articles-empty">
+            <div class="empty-icon">📰</div>
+            <h3>暂无文章</h3>
+            <p>通过AI助理上传英语文章，或手动添加</p>
+            <button class="btn-primary" id="add-article-btn">+ 添加文章</button>
+          </div>
+          <div class="article-list" id="article-list" style="display:none"></div>
+          <div class="article-reader" id="article-reader" style="display:none">
+            <button class="back-btn" id="article-back">← 返回列表</button>
+            <h2 id="reader-title"></h2>
+            <div class="reader-toolbar">
+              <button id="reader-translate-all" class="btn-sm btn-secondary">全文翻译</button>
+              <button id="reader-quiz" class="btn-sm btn-secondary">阅读答题</button>
+            </div>
+            <div class="reader-content" id="reader-content"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 长难句解析页面 -->
+      <section id="page-sentences" class="content-section">
+        <div class="sentences-container">
+          <div class="sentences-empty" id="sentences-empty">
+            <div class="empty-icon">✍️</div>
+            <h3>暂无长难句</h3>
+            <p>通过AI助理上传长难句图片，或在文章中选取句子</p>
+            <button class="btn-primary" id="add-sentence-btn">+ 添加句子</button>
+          </div>
+          <div class="sentence-list" id="sentence-list" style="display:none"></div>
+          <div class="sentence-detail" id="sentence-detail" style="display:none">
+            <button class="back-btn" id="sentence-back">← 返回</button>
+            <div class="sentence-original" id="sentence-original"></div>
+            <div class="sentence-analysis" id="sentence-analysis"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 作文模板页面 -->
+      <section id="page-essay" class="content-section">
+        <div class="essay-container">
+          <div class="essay-header">
+            <h3>作文模板 & 范文</h3>
+            <button class="btn-primary" id="add-essay-btn">+ 添加模板/范文</button>
+          </div>
+          <div class="essay-list" id="essay-list">
+            <div class="empty-hint">暂无内容，点击上方按钮添加</div>
+          </div>
+          <div class="essay-editor" id="essay-editor" style="display:none">
+            <button class="back-btn" id="essay-back">← 返回</button>
+            <div class="input-group">
+              <label>标题</label>
+              <input type="text" id="essay-title-input" placeholder="如：小作文图表模板">
+            </div>
+            <div class="input-group">
+              <label>分类</label>
+              <select id="essay-type-select">
+                <option value="small">小作文（应用文）</option>
+                <option value="big">大作文（短文）</option>
+                <option value="template">通用模板</option>
+                <option value="sample">范文</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>内容</label>
+              <textarea id="essay-content-input" rows="12" placeholder="输入作文模板或范文内容..."></textarea>
+            </div>
+            <div class="editor-actions">
+              <button id="essay-save" class="btn-primary">保存</button>
+              <button id="essay-delete" class="btn-danger" style="display:none">删除</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 数学题库页面 -->
+      <section id="page-math-bank" class="content-section">
+        <div class="math-bank-container">
+          <div class="bank-toolbar">
+            <button class="btn-primary btn-sm" id="math-add-btn">+ AI录入题目</button>
+            <div class="bank-filters">
+              <select id="math-source-filter" class="filter-select">
+                <option value="">全部来源</option>
+                <option value="真题">真题</option>
+                <option value="模拟题">模拟题</option>
+                <option value="练习题">练习题</option>
+                <option value="AI咨询">AI咨询</option>
+              </select>
+              <select id="math-topic-filter" class="filter-select">
+                <option value="">全部知识点</option>
+                <option value="行列式">行列式</option>
+                <option value="矩阵">矩阵</option>
+                <option value="向量">向量</option>
+                <option value="线性方程组">线性方程组</option>
+                <option value="特征值">特征值与特征向量</option>
+                <option value="二次型">二次型</option>
+              </select>
+            </div>
+          </div>
+          <div class="question-list" id="math-question-list">
+            <div class="empty-hint">暂无题目，可通过AI助理上传图片录入</div>
+          </div>
+          <div class="question-detail" id="question-detail" style="display:none">
+            <button class="back-btn" id="question-back">← 返回</button>
+            <div class="detail-images" id="detail-images"></div>
+            <div class="detail-info">
+              <p><strong>来源：</strong><span id="detail-source"></span></p>
+              <p><strong>知识点：</strong><span id="detail-topic"></span></p>
+              <p><strong>OCR文本：</strong><span id="detail-ocr"></span></p>
+              <p><strong>录入时间：</strong><span id="detail-time"></span></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 薄弱错题页面 -->
+      <section id="page-math-weak" class="content-section">
+        <div class="weak-container">
+          <h3>❌ 薄弱错题汇总</h3>
+          <p class="weak-desc">自动汇总你在AI助理中咨询过的所有数学题目及对应知识点</p>
+          <div class="weak-stats" id="weak-stats"></div>
+          <div class="weak-list" id="weak-list">
+            <div class="empty-hint">暂无薄弱点数据，多使用AI助理咨询数学问题吧</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 学习报表页面 -->
+      <section id="page-reports" class="content-section">
+        <div class="reports-container">
+          <div class="report-tabs">
+            <button class="report-tab active" data-report="daily">每日日报</button>
+            <button class="report-tab" data-report="weekly">每周周报</button>
+          </div>
+          <div id="report-daily" class="report-panel active">
+            <div class="report-generate">
+              <button class="btn-primary btn-lg" id="generate-daily">📊 生成今日日报</button>
+            </div>
+            <div class="report-content" id="daily-report-content"></div>
+          </div>
+          <div id="report-weekly" class="report-panel">
+            <div class="report-generate">
+              <button class="btn-primary btn-lg" id="generate-weekly">📈 生成本周周报</button>
+            </div>
+            <div class="report-content" id="weekly-report-content"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 宠物页面 -->
+      <section id="page-pet" class="content-section">
+        <div class="pet-container">
+          <div class="pet-display">
+            <div class="pet-avatar-large" id="pet-avatar-large"></div>
+            <div class="pet-info">
+              <h3 id="pet-name-display">未领取</h3>
+              <div class="pet-level">Lv.<span id="pet-level">1</span></div>
+              <div class="pet-exp-bar">
+                <div class="exp-fill" id="pet-exp-fill" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="pet-status-grid">
+            <div class="status-item">
+              <span class="status-icon">😊</span>
+              <span class="status-label">心情</span>
+              <div class="status-bar"><div class="status-fill mood" id="pet-mood-bar" style="width:80%"></div></div>
+            </div>
+            <div class="status-item">
+              <span class="status-icon">🍖</span>
+              <span class="status-label">饱食度</span>
+              <div class="status-bar"><div class="status-fill hunger" id="pet-hunger-bar" style="width:80%"></div></div>
+            </div>
+            <div class="status-item">
+              <span class="status-icon">💧</span>
+              <span class="status-label">口渴度</span>
+              <div class="status-bar"><div class="status-fill thirst" id="pet-thirst-bar" style="width:80%"></div></div>
+            </div>
+          </div>
+          <div class="pet-coins-display">
+            <span class="coins-icon">🪙</span>
+            <span id="pet-coins-count">0</span>
+            <span class="coins-label">金币</span>
+          </div>
+          <div class="pet-shop">
+            <h4>🛒 宠物商店</h4>
+            <div class="shop-items">
+              <div class="shop-item" data-item="food">
+                <span class="item-icon">🍖</span>
+                <span class="item-name">宠物食物</span>
+                <span class="item-price">🪙 10</span>
+                <button class="buy-btn" data-item="food" data-price="10">购买</button>
+              </div>
+              <div class="shop-item" data-item="water">
+                <span class="item-icon">🥤</span>
+                <span class="item-name">饮用水</span>
+                <span class="item-price">🪙 5</span>
+                <button class="buy-btn" data-item="water" data-price="5">购买</button>
+              </div>
+              <div class="shop-item" data-item="treat">
+                <span class="item-icon">🍰</span>
+                <span class="item-name">美味零食</span>
+                <span class="item-price">🪙 25</span>
+                <button class="buy-btn" data-item="treat" data-price="25">购买</button>
+              </div>
+            </div>
+          </div>
+          <div class="pet-actions">
+            <button id="claim-pet-btn" class="btn-primary btn-lg">🎁 领取专属宠物</button>
+            <button id="feed-pet-btn" class="btn-secondary" style="display:none">🍖 喂食</button>
+            <button id="switch-pet-btn" class="btn-outline" style="display:none">🔄 切换宠物</button>
+          </div>
+          <div class="pet-select" id="pet-select" style="display:none">
+            <span class="pet-select-label">🎨 选择宠物形象：</span>
+            <button class="pet-choice" data-type="ameath">
+              <img src="assets/pet/ameath_idle1.gif" alt="爱弥丝">
+              <span>爱弥丝</span>
+            </button>
+            <button class="pet-choice" data-type="bear">
+              <img src="assets/pet/custom_pet.png" alt="小灰熊">
+              <span>小灰熊</span>
+            </button>
+          </div>
+          <div class="coin-rules">
+            <h4>💡 金币获取规则</h4>
+            <ul>
+              <li>每完成1分钟有效专注 → +1金币</li>
+              <li>每背诵1个新单词 → +2金币</li>
+              <li>每完成1篇文章阅读 → +10金币</li>
+              <li>每收录1道数学题目 → +5金币</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 好友叫醒页面 -->
+      <section id="page-friend-wake" class="content-section">
+        <div class="wake-container">
+          <div class="wake-net-bar">
+            <span id="net-status">○ 连接中…</span>
+            <span id="native-status"></span>
+          </div>
+          <div class="wake-status" id="wake-status">
+            <h3>🔗 好友叫醒绑定</h3>
+            <p class="wake-desc">绑定后可远程叫醒对方；安装 APK 后由原生插件绕过免打扰强提醒</p>
+            <div class="bind-area" id="bind-area">
+              <div class="invite-code-area">
+                <label>我的邀请码</label>
+                <div class="code-display" id="my-invite-code">--</div>
+                <div class="code-btns">
+                  <button class="btn-sm btn-secondary" id="create-code-btn">生成</button>
+                  <button class="btn-sm btn-secondary" id="copy-code-btn">复制</button>
+                </div>
+              </div>
+              <div class="bind-input-area">
+                <label>输入对方邀请码绑定</label>
+                <div class="bind-row">
+                  <input type="text" id="bind-code-input" placeholder="输入邀请码" class="setting-input">
+                  <button class="btn-primary" id="bind-btn">绑定</button>
+                </div>
+              </div>
+              <div class="bind-info" id="bind-info"></div>
+            </div>
+          </div>
+          <div class="wake-control" id="wake-control" style="display:none">
+            <h4>叫醒控制</h4>
+            <p class="bound-with">已绑定：<span id="bound-partner"></span></p>
+            <div class="wake-button-area">
+              <button id="wake-btn" class="wake-trigger-btn">
+                <span class="wake-icon">⏰</span>
+                <span class="wake-text">长按叫醒TA</span>
+                <span class="wake-hint">长按3秒触发</span>
+              </button>
+            </div>
+            <button id="unbind-btn" class="btn-outline btn-sm">解除绑定</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 设置页面 -->
+      <section id="page-settings" class="content-section">
+        <div class="settings-container">
+          <h3>⚙️ 设置</h3>
+          <div class="settings-section">
+            <h4>API Key 配置</h4>
+            <div class="setting-row">
+              <label>DeepSeek API Key</label>
+              <input type="password" id="setting-deepseek-key" placeholder="sk-..." class="setting-input">
+            </div>
+            <div class="setting-row">
+              <label>DeepSeek API 地址</label>
+              <input type="text" id="setting-deepseek-base" placeholder="https://api.deepseek.com" class="setting-input" value="https://api.deepseek.com">
+            </div>
+            <div class="setting-row">
+              <label>千问VL API Key</label>
+              <input type="password" id="setting-qwen-key" placeholder="sk-..." class="setting-input">
+            </div>
+            <div class="setting-row">
+              <label>千问VL API 地址</label>
+              <input type="text" id="setting-qwen-base" placeholder="https://dashscope.aliyuncs.com/api/v1" class="setting-input" value="https://dashscope.aliyuncs.com/api/v1">
+            </div>
+            <button id="save-api-keys" class="btn-primary">保存API配置</button>
+            <p id="api-save-msg" class="success-msg"></p>
+          </div>
+          <div class="settings-section">
+            <h4>宠物设置</h4>
+            <div class="setting-row">
+              <label>宠物名称</label>
+              <input type="text" id="setting-pet-name" placeholder="给宠物起个名字" class="setting-input">
+            </div>
+            <div class="setting-row">
+              <label>桌宠模式</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-desktop-pet">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h4>数据管理</h4>
+            <button id="export-data" class="btn-secondary">导出数据</button>
+            <button id="clear-data" class="btn-danger">清除所有数据</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 桌宠悬浮窗 -->
+  <div id="desktop-pet" class="desktop-pet" style="display:none">
+    <div id="dp-pet-body" class="dp-body"></div>
+    <div id="dp-bubble" class="dp-bubble" style="display:none"></div>
+  </div>
+
+  <!-- 全局弹窗 -->
+  <div id="modal-overlay" class="modal-overlay" style="display:none">
+    <div id="modal-box" class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-title">提示</h3>
+        <button id="modal-close" class="modal-close">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <!-- Toast提示 -->
+  <div id="toast" class="toast" style="display:none"></div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/pomodoro.js"></script>
+  <script src="js/ai-assistant.js"></script>
+  <script src="js/english/vocabulary.js"></script>
+  <script src="js/english/articles.js"></script>
+  <script src="js/english/sentences.js"></script>
+  <script src="js/english/essay.js"></script>
+  <script src="js/math/question-bank.js"></script>
+  <script src="js/math/weak-points.js"></script>
+  <script src="js/reports.js"></script>
+  <script src="js/pet/pet-core.js"></script>
+  <script src="js/pet/pet-render.js"></script>
+  <script src="js/pet/pet-desktop.js"></script>
+  <script src="js/friend-wake.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // 注册 Service Worker（PWA 离线/可安装）；原生 App(WebView) 下跳过，避免异常
+    if ('serviceWorker' in navigator && !(window.Capacitor && Capacitor.isNativePlatform())) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

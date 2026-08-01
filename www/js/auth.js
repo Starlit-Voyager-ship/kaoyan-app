@@ -25,9 +25,32 @@ const Auth = {
     const user = Store.getCurrentUser();
     if (user) {
       this.enterApp(user, false);
+      // 本地模式 + 有Bmob凭证 → 提示用户重登以开启云端
+      if (this.cloudReady && !Bmob.isLoggedIn()) {
+        this._suggestCloudRelogin();
+      }
     } else {
       this.showAuthPage();
     }
+  },
+
+  /** 提示用户退出重登以开启云端同步 */
+  _suggestCloudRelogin() {
+    // 避免重复提示
+    if (localStorage.getItem('_cloud_suggested')) return;
+    localStorage.setItem('_cloud_suggested', '1');
+    setTimeout(() => {
+      Utils.showModal('🌐 开启云端同步', '当前为本地模式，退出后重新登录即可开启云端同步（支持跨设备数据互通、好友跨网络叫醒）', `
+        <button class="btn-primary" id="btn-relogin-cloud">退出并重新登录</button>
+        <button class="btn-outline" onclick="Utils.hideModal()">稍后再说</button>
+      `);
+      document.getElementById('btn-relogin-cloud').onclick = () => {
+        Utils.hideModal();
+        this.handleLogout();
+        // 清除提示标记，下次还会提示（直到成功走云端）
+        localStorage.removeItem('_cloud_suggested');
+      };
+    }, 1500); // 等 App 完全加载后再弹
   },
 
   bindEvents() {
@@ -93,9 +116,10 @@ const Auth = {
         await Bmob.login(username, password);
         this.cloudOk = true;
         this.useLocal = false;
+        localStorage.removeItem('_cloud_suggested'); // 云端成功，不再提示
         errorEl.textContent = '';
         this.enterApp(username);
-        Utils.toast(`欢迎回来，${username}！${this.cloudOk ? '（已开启云同步）' : ''}`);
+        Utils.toast(`欢迎回来，${username}！已开启云同步 ✅`);
         this._ensurePet(username);
         return;
       } catch (e) {

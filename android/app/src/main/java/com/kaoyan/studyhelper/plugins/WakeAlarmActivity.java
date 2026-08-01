@@ -12,6 +12,8 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.TextView;
 
+import com.kaoyan.studyhelper.R;
+
 /**
  * 全屏叫醒 Activity：锁屏可见、点亮屏幕，播放系统闹钟声（TYPE_ALARM 在 DND 下通常仍响），
  * 并震动，直到用户点击"停止"。

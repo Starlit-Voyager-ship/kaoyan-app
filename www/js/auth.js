@@ -110,33 +110,25 @@ const Auth = {
 
     // 尝试云端登录
     if (this.cloudReady) {
+      // 先检查是否有映射的云端账号（之前自动创建的后缀账号）
+      const cloudUser = localStorage.getItem('cloud_user_' + username) || username;
       try {
-        await Bmob.login(username, password);
+        await Bmob.login(cloudUser, password);
         this.cloudOk = true;
         this.useLocal = false;
         localStorage.removeItem('_cloud_suggested');
+        if (cloudUser !== username) localStorage.setItem('cloud_user_' + username, cloudUser);
         errorEl.textContent = '';
         this.enterApp(username);
         Utils.toast(`欢迎回来，${username}！已开启云同步 ✅`);
         this._ensurePet(username);
         return;
       } catch (e) {
-        console.warn('[Auth] 云端登录失败:', e.message);
-        // 账号在云端不存在 → 自动注册后再登录（本地老用户无缝上云）
-        if (/202|NotFound|found|不正确/i.test(e.message) || (e.status === 202)) {
-          console.log('[Auth] 云端账号不存在，尝试自动注册...');
-          try {
-            await Bmob.register(username, password);
-            this.cloudOk = true;
-            this.useLocal = false;
-            errorEl.textContent = '';
-            this.enterApp(username);
-            Utils.toast(`欢迎，${username}！已自动开通云同步 ✅`);
-            this._ensurePet(username);
-            return;
-          } catch (regErr) {
-            console.warn('[Auth] 自动注册也失败:', regErr.message);
-          }
+        console.warn('[Auth] 云端登录失败:', e.message, '| status:', e.status);
+        // 云端账号/密码不匹配 → 尝试自动修复
+        if (/202|101|NotFound|found|不正确|incorrect/i.test(e.message) || [202, 101, 404].includes(e.status)) {
+          const fixed = await this._fixCloudAccount(username, password, errorEl);
+          if (fixed) return;
         }
       }
     }
@@ -161,6 +153,48 @@ const Auth = {
     } catch (e2) {
       errorEl.textContent = '登录失败：' + (e2.message || '未知错误');
     }
+  },
+
+  // ---- 自动修复云端账号：原用户名被占 → 用后缀注册新账号 ----
+  async _fixCloudAccount(localName, password, errorEl) {
+    const suffixes = ['_c', '_cloud', '_2', '_2026'];
+    for (const suffix of suffixes) {
+      const cloudName = localName + suffix;
+      try {
+        // 先尝试登录这个后缀账号（可能之前已经创建过）
+        await Bmob.login(cloudName, password);
+        // ★ 云端账号名可能不同于本地名，但数据存储统一用本地用户名
+        Bmob.username = localName;
+        localStorage.setItem('cloud_user_' + localName, cloudName);
+        this.cloudOk = true;
+        this.useLocal = false;
+        errorEl.textContent = '';
+        this.enterApp(localName);
+        Utils.toast(`欢迎，${localName}！已开启云同步 ✅`);
+        this._ensurePet(localName);
+        return true;
+      } catch (_) {
+        // 登录失败 → 尝试注册
+        try {
+          await Bmob.register(cloudName, password);
+          // 注册成功，Bmob.register 已设置 session；统一用本地用户名存数据
+          Bmob.username = localName;
+          localStorage.setItem('cloud_user_' + localName, cloudName);
+          this.cloudOk = true;
+          this.useLocal = false;
+          errorEl.textContent = '';
+          this.enterApp(localName);
+          Utils.toast(`欢迎，${localName}！已自动开通云同步 ✅`);
+          this._ensurePet(localName);
+          return true;
+        } catch (_) {
+          // 这个后缀也被占了，继续试下一个
+          continue;
+        }
+      }
+    }
+    console.warn('[Auth] 所有后缀名都不可用，放弃云端');
+    return false;
   },
 
   // ---- 注册：先尝试云端，失败自动降级本地 ----

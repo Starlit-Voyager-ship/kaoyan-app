@@ -12,8 +12,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 配置 Node.js 22
-        uses: actions/setup-node@v4
+      # Node.js 22（GitHub 要求）
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -28,14 +28,27 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # ubuntu-latest 已预装 Android SDK，只需安装目标平台
-      - name: 安装 Android 构建工具
+      # 安装 Android SDK（ubuntu-latest 已不预装，需手动装）
+      - name: 安装 Android 命令行工具
+        run: |
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+          curl -sL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o cmdtools.zip
+          unzip -q cmdtools.zip
+          mv cmdline-tools latest
+          echo "ANDROID_HOME=$HOME/android-sdk" >> "$GITHUB_ENV"
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
+      - name: 安装 SDK 平台 + 构建工具 + 同意许可
         run: |
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
 
       - name: 编译 Debug APK
         working-directory: android
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace

@@ -13,7 +13,14 @@
   <script>
     // 好友叫醒后端 WebSocket 地址。留空则使用同源 /ws（需后端与前端同域部署）。
     // 部署独立后端时改为：window.APP_CONFIG = { wakeServer: 'wss://你的后端域名/ws' };
+    // ----------------
+    // Bmob 后端配置（国内 BaaS，免费额度支持多端数据同步 + 账号隔离）
     window.APP_CONFIG = window.APP_CONFIG || {};
+    window.APP_CONFIG.bmob = {
+      appId: 'd8d53879939a9d1336bab1991797e381',
+      restKey: 'f46de67801e8fa61b93327114ea188c1',
+      apiUrl: 'https://api2.bmob.cn/1'
+    };
   </script>
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/components.css">
@@ -663,6 +670,7 @@
   <div id="toast" class="toast" style="display:none"></div>
 
   <script src="js/utils.js"></script>
+  <script src="js/bmob.js"></script>
   <script src="js/store.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/pomodoro.js"></script>

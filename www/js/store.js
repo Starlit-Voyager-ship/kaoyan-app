@@ -1,5 +1,7 @@
 /* ========================================
-   数据存储层 - IndexedDB + localStorage
+   数据存储层 - Bmob 云同步 + 本地 IndexedDB 缓存
+   多端互通：登录后数据写入云端，换设备登录同账号自动拉取
+   数据隔离：每条云端记录带 userId + ACL，各账号仅可读写自己的数据
    ======================================== */
 
 const Store = {
@@ -8,105 +10,160 @@ const Store = {
   currentUser: null,
 
   async init() {
-    return new Promise((resolve, reject) => {
+    // 初始化本地缓存库（始终可用，离线兜底）
+    await this._initLocal();
+    // 初始化 Bmob（云端同步）
+    Bmob.init(window.APP_CONFIG && window.APP_CONFIG.bmob);
+    return;
+  },
+
+  _initLocal() {
+    return new Promise((resolve) => {
       const req = indexedDB.open(this.dbName, 1);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
-
-        // 用户表
-        if (!db.objectStoreNames.contains('users')) {
-          const us = db.createObjectStore('users', { keyPath: 'username' });
-          us.createIndex('inviteCode', 'inviteCode', { unique: true });
+        if (!db.objectStoreNames.contains('cache')) {
+          db.createObjectStore('cache', { keyPath: 'cid' });
         }
-
-        // 各模块数据表（均以 username+id 为复合设计，通过前缀隔离）
-        const stores = [
-          'pomodoro_records',     // 番茄钟记录
-          'ai_chats',             // AI对话记录
-          'vocab_words',          // 单词库
-          'articles',             // 文章
-          'sentences',            // 长难句
-          'essays',               // 作文模板
-          'math_questions',       // 数学题库
-          'math_weak_points',     // 薄弱错题
-          'pet_data',             // 宠物数据
-          'friend_bindings',      // 好友绑定
-          'reports'               // 报表缓存
-        ];
-        stores.forEach(name => {
-          if (!db.objectStoreNames.contains(name)) {
-            db.createObjectStore(name, { keyPath: 'id' });
-          }
-        });
       };
-      req.onsuccess = (e) => {
-        this.db = e.target.result;
-        resolve();
-      };
-      req.onerror = (e) => reject(e.target.error);
+      req.onsuccess = (e) => { this.db = e.target.result; resolve(); };
+      req.onerror = () => resolve(); // 即使本地库失败也不阻塞
     });
   },
 
-  // ---- 通用CRUD ----
+  // ---- 本地缓存（离线兜底）----
+  async _cachePut(cid, data) {
+    if (!this.db) return;
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('cache', 'readwrite');
+        tx.objectStore('cache').put({ cid, data });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      } catch { resolve(); }
+    });
+  },
+  async _cacheGet(cid) {
+    if (!this.db) return null;
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('cache', 'readonly');
+        const req = tx.objectStore('cache').get(cid);
+        req.onsuccess = () => resolve(req.result ? req.result.data : null);
+        req.onerror = () => resolve(null);
+      } catch { resolve(null); }
+    });
+  },
+
+  // ---- 云端 + 本地 双写 ----
   async put(storeName, data) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readwrite');
-      tx.objectStore(data.username ? storeName : storeName).put(data);
-      tx.oncomplete = () => resolve();
-      tx.onerror = (e) => reject(e.target.error);
-    });
+    const user = this.getCurrentUser();
+    const item = Object.assign({}, data, { username: user });
+    // 本地缓存
+    await this._cachePut(`${user}::${storeName}::${data.id}`, item);
+    // 云端同步（带 userId + ACL 隔离）
+    if (Bmob.isLoggedIn()) {
+      try { await Bmob.saveAppData(storeName, item); }
+      catch (e) { console.warn('[Store] 云端保存失败（稍后联网重试）', e.message); }
+    }
+    return;
   },
+
   async get(storeName, id) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readonly');
-      const req = tx.objectStore(storeName).get(id);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = (e) => reject(e.target.error);
-    });
+    const user = this.getCurrentUser();
+    const all = await this.getUserData(storeName, user);
+    return all.find(i => i.id === id) || null;
   },
+
   async getAll(storeName) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readonly');
-      const req = tx.objectStore(storeName).getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = (e) => reject(e.target.error);
-    });
+    const user = this.getCurrentUser();
+    return this._getUserDataFromCloudOrCache(storeName, user);
   },
+
   async delete(storeName, id) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readwrite');
-      tx.objectStore(storeName).delete(id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = (e) => reject(e.target.error);
-    });
+    const user = this.getCurrentUser();
+    await this._cachePut(`${user}::${storeName}::${id}`, null);
+    if (Bmob.isLoggedIn()) {
+      try { await Bmob.deleteAppData(storeName, id); } catch (e) {}
+    }
   },
+
   async clear(storeName) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readwrite');
-      tx.objectStore(storeName).clear();
-      tx.oncomplete = () => resolve();
-      tx.onerror = (e) => reject(e.target.error);
+    const user = this.getCurrentUser();
+    if (Bmob.isLoggedIn()) {
+      try { await Bmob.clearAppData(storeName); } catch (e) {}
+    }
+    // 清本地缓存
+    if (this.db) {
+      return new Promise((resolve) => {
+        try {
+          const tx = this.db.transaction('cache', 'readwrite');
+          const store = tx.objectStore('cache');
+          const req = store.openCursor();
+          req.onsuccess = (e) => {
+            const cur = e.target.result;
+            if (cur) {
+              if (cur.key.startsWith(`${user}::${storeName}::`)) cur.delete();
+              cur.continue();
+            } else resolve();
+          };
+          req.onerror = () => resolve();
+        } catch { resolve(); }
+      });
+    }
+  },
+
+  // ---- 按用户过滤（云端优先，回落本地缓存）----
+  async getUserData(storeName, username) {
+    return this._getUserDataFromCloudOrCache(storeName, username);
+  },
+
+  async _getUserDataFromCloudOrCache(storeName, username) {
+    if (Bmob.isLoggedIn() && Bmob.username === username) {
+      try {
+        const items = await Bmob.getAppData(storeName);
+        // 同步到本地缓存
+        for (const it of items) {
+          await this._cachePut(`${username}::${storeName}::${it.id}`, it);
+        }
+        return items;
+      } catch (e) {
+        console.warn('[Store] 云端读取失败，回落本地缓存', e.message);
+      }
+    }
+    return this._getUserDataFromCache(storeName, username);
+  },
+
+  async _getUserDataFromCache(storeName, username) {
+    if (!this.db) return [];
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('cache', 'readonly');
+        const store = tx.objectStore('cache');
+        const req = store.openCursor();
+        const out = [];
+        req.onsuccess = (e) => {
+          const cur = e.target.result;
+          if (cur) {
+            if (cur.key.startsWith(`${username}::${storeName}::`) && cur.value.data) {
+              out.push(cur.value.data);
+            }
+            cur.continue();
+          } else resolve(out);
+        };
+        req.onerror = () => resolve([]);
+      } catch { resolve([]); }
     });
   },
 
-  // ---- 按用户过滤 ----
-  async getUserData(storeName, username) {
-    const all = await this.getAll(storeName);
-    return all.filter(item => item.username === username);
-  },
-
-  // ---- 用户相关 ----
-  async getUsers() {
-    return this.getAll('users');
-  },
+  // ---- 用户相关（迁移自原 IndexedDB，现在走 Bmob 用户系统）----
+  async getUsers() { return []; }, // 已交由 Bmob 负责，前端不枚举
   async getUser(username) {
-    return this.get('users', username);
+    return { username, password: '' }; // 占位，登录由 Bmob 校验
   },
-  async saveUser(user) {
-    return this.put('users', user);
-  },
+  async saveUser() { /* 用户创建已由 Bmob 处理 */ },
 
-  // ---- 设置（localStorage）----
+  // ---- 设置（localStorage，按用户隔离）----
   getSettings(username) {
     const key = `settings_${username}`;
     try { return JSON.parse(localStorage.getItem(key)); } catch { return {}; }
@@ -132,47 +189,38 @@ const Store = {
   async getTodayFocusMinutes(username) {
     const today = Utils.today();
     const records = await this.getUserData('pomodoro_records', username);
-    return records
-      .filter(r => r.date === today && r.completed)
-      .reduce((sum, r) => sum + (r.duration || 0), 0);
+    return records.filter(r => r.date === today && r.completed)
+                  .reduce((sum, r) => sum + (r.duration || 0), 0);
   },
-
   async getTotalFocusMinutes(username) {
     const records = await this.getUserData('pomodoro_records', username);
-    return records
-      .filter(r => r.completed)
-      .reduce((sum, r) => sum + (r.duration || 0), 0);
+    return records.filter(r => r.completed).reduce((sum, r) => sum + (r.duration || 0), 0);
   },
-
   async getTodaySessions(username) {
     const today = Utils.today();
     const records = await this.getUserData('pomodoro_records', username);
     return records.filter(r => r.date === today && r.completed).length;
   },
-
   async getTodayWordCount(username) {
     const today = Utils.today();
     const words = await this.getUserData('vocab_words', username);
     return words.filter(w => w.firstLearned === today && !w.isWrong).length;
   },
-
   async getTodayMathCount(username) {
     const today = Utils.today();
     const questions = await this.getUserData('math_questions', username);
     return questions.filter(q => q.createdAt && q.createdAt.startsWith(today)).length;
   },
-
   async getCoins(username) {
-    const petData = await this.getPetData(username);
-    return petData?.coins || 0;
+    const pet = await this.getPetData(username);
+    return pet?.coins || 0;
   },
-
   async addCoins(username, amount) {
-    const petData = await this.getPetData(username);
-    if (petData) {
-      petData.coins = (petData.coins || 0) + amount;
-      await this.put('pet_data', petData);
-      return petData.coins;
+    const pet = await this.getPetData(username);
+    if (pet) {
+      pet.coins = (pet.coins || 0) + amount;
+      await this.put('pet_data', pet);
+      return pet.coins;
     }
     return 0;
   },

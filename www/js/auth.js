@@ -3,14 +3,26 @@
    ======================================== */
 
 const Auth = {
-  MAX_USERS: 5,
+  MAX_USERS: 5, // 软提示；硬人数限制由 Bmob 端按需配置（避免前端暴露 master key）
+  cloudReady: false,
 
   init() {
     this.bindEvents();
-    // 检查是否已登录
+    // Bmob 凭据就绪检查
+    Bmob.init(window.APP_CONFIG && window.APP_CONFIG.bmob);
+    this.cloudReady = Bmob.hasCredentials();
+
+    // 优先用已保存的云端会话
+    if (Bmob.isLoggedIn()) {
+      const user = Bmob.username;
+      Store.setCurrentUser(user);
+      this.enterApp(user, false);
+      return;
+    }
+    // 兼容旧版本地登录（无云端凭据时）
     const user = Store.getCurrentUser();
     if (user) {
-      this.enterApp(user);
+      this.enterApp(user, false);
     } else {
       this.showAuthPage();
     }
@@ -57,7 +69,7 @@ const Auth = {
     document.getElementById('app-page').classList.remove('active');
   },
 
-  enterApp(username) {
+  enterApp(username, syncFlag) {
     Store.setCurrentUser(username);
     document.getElementById('auth-page').classList.remove('active');
     document.getElementById('app-page').classList.add('active');
@@ -76,19 +88,24 @@ const Auth = {
       return;
     }
 
-    const user = await Store.getUser(username);
-    if (!user) {
-      errorEl.textContent = '账号不存在';
-      return;
-    }
-    if (user.password !== Utils.simpleHash(password)) {
-      errorEl.textContent = '密码错误';
-      return;
+    // 使用 Bmob 云端登录（多端互通）
+    if (this.cloudReady) {
+      try {
+        await Bmob.login(username, password);
+        errorEl.textContent = '';
+        this.enterApp(username);
+        Utils.toast(`欢迎回来，${username}！`);
+        this._ensurePet(username);
+        return;
+      } catch (e) {
+        errorEl.textContent = this._errMsg(e, '登录失败');
+        return;
+      }
     }
 
-    errorEl.textContent = '';
+    // 无云端凭据：降级本地（仅本机有效）
+    errorEl.textContent = '云端未配置，使用本地登录（仅本机）';
     this.enterApp(username);
-    Utils.toast(`欢迎回来，${username}！`);
   },
 
   async handleRegister() {
@@ -111,53 +128,57 @@ const Auth = {
       return;
     }
 
-    // 检查人数限制
-    const users = await Store.getUsers();
-    if (users.length >= this.MAX_USERS) {
-      errorEl.textContent = `注册人数已达上限(${this.MAX_USERS}人)，无法继续注册`;
-      return;
+    // Bmob 云端注册（多端互通，数据隔离由 ACL 保证）
+    if (this.cloudReady) {
+      try {
+        await Bmob.register(username, password);
+        errorEl.textContent = '';
+        this.enterApp(username);
+        Utils.toast(`注册成功！欢迎 ${username}`);
+        this._ensurePet(username);
+        return;
+      } catch (e) {
+        errorEl.textContent = this._errMsg(e, '注册失败');
+        return;
+      }
     }
 
-    // 检查重名
-    if (users.find(u => u.username === username)) {
-      errorEl.textContent = '该账号已被注册';
-      return;
+    errorEl.textContent = '云端未配置，无法注册云端账号';
+  },
+
+  // 确保宠物数据存在（注册后或登录旧账号首登）
+  async _ensurePet(username) {
+    const pet = await Store.getPetData(username);
+    if (!pet) {
+      await Store.savePetData({
+        id: `pet_${username}`,
+        username,
+        claimed: false,
+        name: '',
+        level: 1,
+        exp: 0,
+        coins: 0,
+        mood: 80,
+        hunger: 80,
+        thirst: 80,
+        petType: 'ameath',
+        inventory: { food: 0, water: 0, treat: 0 },
+        totalCoinsEarned: 0,
+        createdAt: new Date().toISOString()
+      });
     }
+  },
 
-    // 创建用户
-    const newUser = {
-      username,
-      password: Utils.simpleHash(password),
-      inviteCode: Utils.inviteCode(),
-      createdAt: new Date().toISOString()
-    };
-
-    await Store.saveUser(newUser);
-
-    // 初始化宠物数据
-    await Store.savePetData({
-      id: `pet_${username}`,
-      username,
-      claimed: false,
-      name: '',
-      level: 1,
-      exp: 0,
-      coins: 0,
-      mood: 80,
-      hunger: 80,
-      thirst: 80,
-      petType: 'ameath',
-      inventory: { food: 0, water: 0, treat: 0 },
-      totalCoinsEarned: 0,
-      createdAt: new Date().toISOString()
-    });
-
-    errorEl.textContent = '';
-    this.enterApp(username);
-    Utils.toast(`注册成功！欢迎 ${username}`);
+  _errMsg(e, prefix) {
+    const m = (e && e.message) || '';
+    if (/username|already|exist/i.test(m)) return '该账号已被注册';
+    if (/password|unauthorized|login/i.test(m)) return '账号或密码错误';
+    if (/Failed to fetch|NetworkError/i.test(m)) return '网络错误，请检查网络连接';
+    return prefix + '：' + m;
   },
 
   handleLogout() {
+    Bmob.logout();
     Store.logout();
     DesktopPet.hide();
     document.getElementById('app-page').classList.remove('active');

@@ -71,12 +71,21 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tail -200
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tail -100
+
+      - name: 查找 APK 文件
+        run: |
+          echo "=== 搜索所有 APK ==="
+          find . -name "*.apk" -type f 2>/dev/null || echo "未找到任何 APK"
+          echo "=== android/app/build 目录结构 ==="
+          find android/app/build -maxdepth 5 -type f 2>/dev/null | head -30 || echo "build 目录不存在"
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
           name: kaoyan-study-helper-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: |
+            **/*.apk
+            android/**/*.apk
           if-no-files-found: warn
         if: always()

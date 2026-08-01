@@ -67,18 +67,29 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           cat local.properties
 
-      - name: 编译 Debug APK
+      - name: 编译 Debug APK（强制清理重建）
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tail -100
+
+          # 先看有哪些可用任务
+          echo "=== 可用的 assemble 任务 ==="
+          ./gradlew tasks --all --no-daemon 2>&1 | grep -i "assemble\|apk" || echo "(无匹配)"
+
+          # 强制清理后重新编译
+          echo "=== 开始 clean + assembleDebug ==="
+          ./gradlew clean assembleDebug --no-daemon --stacktrace --warning-mode all 2>&1 | tail -150
 
       - name: 查找 APK 文件
         run: |
           echo "=== 搜索所有 APK ==="
-          find . -name "*.apk" -type f 2>/dev/null || echo "未找到任何 APK"
-          echo "=== android/app/build 目录结构 ==="
-          find android/app/build -maxdepth 5 -type f 2>/dev/null | head -30 || echo "build 目录不存在"
+          find . -name "*.apk" -type f 2>/dev/null && echo "--- 找到 APK ---" || echo "未找到任何 .apk 文件"
+          echo ""
+          echo "=== build/outputs 目录 ==="
+          find android -path "*/build/outputs*" -type f 2>/dev/null | head -20 || echo "outputs 目录不存在"
+          echo ""
+          echo "=== app/build 完整结构(前30行) ==="
+          find android/app/build -maxdepth 6 -type f 2>/dev/null | head -30 || echo "app/build 不存在或为空"
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4

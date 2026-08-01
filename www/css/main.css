@@ -405,4 +405,34 @@ main { margin-top: var(--header-height); }
   .content-section { padding: 14px; }
   #app-header { padding: 0 12px; }
   h3 { font-size: 1.1rem; }
+
+  /* 手机端侧边栏：占屏幕 80%，易关闭 */
+  #sidebar {
+    width: 80%;
+    max-width: 280px;
+    left: -100%; /* 默认完全隐藏在屏幕外 */
+  }
+  #sidebar.open { left: 0; }
+
+  /* 关闭按钮加大，方便手指点击 */
+  #sidebar-close {
+    font-size: 1.4rem !important;
+    padding: 8px !important;
+    min-width: 40px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 遮罩层确保覆盖全屏、可点击关闭 */
+  .overlay.show {
+    display: block !important;
+  }
+
+  /* 导航项行高加大，方便点击 */
+  .nav-item {
+    padding: 13px 20px;
+    font-size: 1rem;
+  }
 }

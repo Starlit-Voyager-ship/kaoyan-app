@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>登录流程诊断</title>
+<style>
+  body{font-family:system-ui;padding:20px;max-width:760px;margin:0 auto;line-height:1.7;color:#222}
+  h1{color:#4f46e5}
+  .box{background:#0f172a;color:#4ade80;padding:14px;border-radius:8px;font-family:monospace;font-size:13px;white-space:pre-wrap;min-height:120px;max-height:420px;overflow:auto}
+  button{padding:12px 20px;margin:8px 6px 0 0;font-size:15px;border:none;border-radius:8px;background:#4f46e5;color:#fff;cursor:pointer}
+  .warn{background:#fffbeb;color:#92400e;padding:12px;border-radius:8px;margin:12px 0}
+  input{padding:8px;font-size:15px;border:1px solid #ccc;border-radius:6px;width:200px}
+</style>
+</head>
+<body>
+  <h1>🔍 登录流程诊断（精确复刻 Auth.handleLogin）</h1>
+  <div class="warn" id="proto"></div>
+
+  <p>账号：<input id="u" value="15330091616"><br>
+     密码：<input id="p" type="password" value="123456"></p>
+  <button onclick="diagnose()">① 跑完整登录诊断（会真实注册/登录云端）</button>
+  <button onclick="clearLog()">清空</button>
+
+  <div class="box" id="log">点击上方按钮开始…</div>
+
+<script>
+const APP_ID='d8d53879939a9d1336bab1991797e381';
+const REST_KEY='f46de67801e8fa61b93327114ea188c1';
+const API='https://api.bmobcloud.com/1';
+
+document.getElementById('proto').textContent = '当前协议：'+location.protocol+' | 来源：'+location.href;
+
+function L(s){const e=document.getElementById('log');e.textContent+=s+'\n';e.scrollTop=e.scrollHeight;}
+function clearLog(){document.getElementById('log').textContent='';}
+
+async function bmobRequest(method,path,body,needAuth){
+  const url=API+path;
+  const headers={'X-Bmob-Application-Id':APP_ID,'X-Bmob-REST-API-Key':REST_KEY,'Content-Type':'application/json'};
+  const opt={method,headers};
+  if(body!==undefined)opt.body=JSON.stringify(body);
+  const res=await fetch(url,opt);
+  const text=await res.text();
+  let data=null;try{data=JSON.parse(text);}catch{data={raw:text};}
+  if(!res.ok){const msg=(data&&(data.error||data.message))||('HTTP '+res.status);const err=new Error(msg);err.status=res.status;throw err;}
+  return data;
+}
+async function trySuffix(local,password){
+  const suffixes=['','_c','_cloud','_2','_2026'];
+  for(const s of suffixes){
+    const name=local+s;
+    try{
+      const d=await bmobRequest('POST','/login',{username:name,password},false);
+      L('  ✅ 登录成功 → 云端账号名: '+name+'  (本地名: '+local+')');
+      L('  sessionToken: '+d.sessionToken.slice(0,24)+'...');
+      return {ok:true,name,local};
+    }catch(e){
+      if(/202|101|NotFound|found|incorrect/i.test(e.message)||[202,101,404].includes(e.status)){
+        // 尝试注册
+        try{
+          const d=await bmobRequest('POST','/users',{username:name,password},false);
+          L('  ✅ 注册并登录成功 → 云端账号名: '+name+'  (本地名: '+local+')');
+          return {ok:true,name,local};
+        }catch(reg){
+          L('  后缀 '+name+' 也不可用: '+reg.message);
+          continue;
+        }
+      } else {
+        L('  网络错误/其他: '+e.message+' (status '+(e.status||'')+')');
+        return {ok:false,netErr:true};
+      }
+    }
+  }
+  return {ok:false};
+}
+
+async function diagnose(){
+  clearLog();
+  const local=document.getElementById('u').value.trim();
+  const password=document.getElementById('p').value;
+  L('=== 开始：本地名='+local+' ===');
+  L('协议: '+location.protocol);
+  if(location.protocol==='file:'){L('❌ file:// 会被浏览器拦截跨域 fetch，本测试也会失败！请用 http://localhost:8765/login-test.html');return;}
+
+  const r=await trySuffix(local,password);
+  if(r.netErr){
+    L('\n❌ 网络层失败：说明浏览器连不到 api.bmobcloud.com（可能是代理/防火墙/file协议）。云端无法启用。');
+  } else if(r.ok){
+    L('\n✅ 云端可用！应用应显示「● 云端同步已开启」。');
+    L('   本地名「'+r.local+'」对应云端账号「'+r.name+'」');
+    L('   若应用仍本地模式 → 浏览器缓存了旧 JS，请用 reset.html 清空缓存后重登。');
+  } else {
+    L('\n❌ 所有云端账号名都不可用。');
+  }
+}
+</script>
+</body>
+</html>

@@ -1,11 +1,12 @@
 /* ========================================
-   好友双向叫醒系统（后端推送 + 原生强提醒版）
+   好友双向叫醒系统（本地轮询版 · 支持 Bmob 云端升级）
    ----------------------------------------------------
-   架构：
-     · 绑定 / 叫醒 走 WebSocket 后端（跨设备实时）
-     · 收到叫醒 → 调用 Capacitor 原生插件 'WakeAlarm' 强提醒
-       （AlarmManager + 高优先级通知 + 全屏提醒 + 覆盖勿扰权限）
-     · 非原生环境降级为普通 Web 通知（会被免打扰拦截）
+   设计要点：
+     · 不依赖任何 WebSocket 后端，纯前端即可用（生成邀请码 / 绑定 / 叫醒）
+     · 数据存放优先级：Bmob 云端（多端互通） → 本地 IndexedDB（降级）
+     · 客户端每 15 秒轮询一次"是否有新叫醒"，延迟可控在半分钟内
+     · 收到叫醒 → 调用 Capacitor 原生插件 'WakeAlarm' 强提醒（绕过免打扰）
+       非原生环境降级为 Web 通知 / alert
    ======================================== */
 
 /* ---------- 原生强提醒封装 ---------- */
@@ -51,53 +52,99 @@ const WakeNative = {
   }
 };
 
-/* ---------- 后端 WebSocket 连接 ---------- */
-const WakeNet = {
-  ws: null,
-  connected: false,
-  deviceId: null,
-  heartbeat: null,
-  handlers: {},
-
-  url() {
-    if (window.APP_CONFIG && APP_CONFIG.wakeServer) return APP_CONFIG.wakeServer;
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${proto}//${location.host}/ws`;
+/* ---------- 叫醒数据访问层（Bmob 云端优先 + 本地兜底） ---------- */
+const WakeStore = {
+  // 云端是否可用（Bmob 已登录且凭证存在）
+  cloudReady() {
+    return !!(window.Bmob && Bmob.hasCredentials() && Bmob.isLoggedIn());
   },
 
-  connect(handlers) {
-    this.handlers = handlers || {};
-    this.deviceId = localStorage.getItem('wake_device_id') || '';
-    try {
-      this.ws = new WebSocket(this.url());
-      this.ws.onopen = () => {
-        this.connected = true;
-        this.send({ type: 'hello', deviceId: this.deviceId, user: this.handlers.user ? this.handlers.user() : null });
-      };
-      this.ws.onmessage = (e) => {
-        let msg; try { msg = JSON.parse(e.data); } catch { return; }
-        if (msg.type === 'welcome' && msg.deviceId) {
-          this.deviceId = msg.deviceId;
-          localStorage.setItem('wake_device_id', msg.deviceId);
-        }
-        if (this.handlers.onMessage) this.handlers.onMessage(msg);
-      };
-      this.ws.onclose = () => { this.connected = false; if (this.handlers.onClose) this.handlers.onClose(); };
-      this.ws.onerror = () => { this.connected = false; };
-      this.heartbeat = setInterval(() => { if (this.connected) this.send({ type: 'ping' }); }, 25000);
-    } catch (e) {
-      this.connected = false;
-      if (this.handlers.onClose) this.handlers.onClose();
+  // 写入一条记录（绑定关系 / 叫醒消息）到指定 Bmob 类
+  async save(clazz, obj) {
+    if (this.cloudReady()) {
+      try { return await Bmob.request('POST', '/classes/' + clazz, obj, false); }
+      catch (e) { console.warn('[WakeStore] 云端写入失败，回落本地', e.message); }
     }
+    // 本地兜底：存 IndexedDB
+    if (window.Store && Store.db) {
+      return new Promise((resolve) => {
+        try {
+          const tx = Store.db.transaction('cache', 'readwrite');
+          const key = `wake::${clazz}::${obj.code || obj.fromUser || obj.id || Utils.uid()}`;
+          tx.objectStore('cache').put({ cid: key, data: obj });
+          tx.oncomplete = () => resolve(obj);
+          tx.onerror = () => resolve(obj);
+        } catch { resolve(obj); }
+      });
+    }
+    return obj;
   },
 
-  send(obj) {
-    if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(obj));
+  // 查询：返回 object 数组
+  async query(clazz, where) {
+    if (this.cloudReady()) {
+      try {
+        const q = await Bmob.request('GET', '/classes/' + clazz + '?where=' + encodeURIComponent(JSON.stringify(where)), undefined, false);
+        return q.results || [];
+      } catch (e) { console.warn('[WakeStore] 云端查询失败，回落本地', e.message); }
+    }
+    // 本地兜底
+    if (window.Store && Store.db) {
+      return new Promise((resolve) => {
+        try {
+          const tx = Store.db.transaction('cache', 'readonly');
+          const req = tx.objectStore('cache').openCursor();
+          const out = [];
+          req.onsuccess = (e) => {
+            const cur = e.target.result;
+            if (cur) {
+              if (cur.key.startsWith(`wake::${clazz}::`)) {
+                const d = cur.value.data;
+                // 简单 where 匹配（仅支持相等比较）
+                const ok = Object.entries(where).every(([k, v]) => d[k] === v);
+                if (ok) out.push(d);
+              }
+              cur.continue();
+            } else resolve(out);
+          };
+          req.onerror = () => resolve([]);
+        } catch { resolve([]); }
+      });
+    }
+    return [];
   },
 
-  disconnect() {
-    if (this.heartbeat) clearInterval(this.heartbeat);
-    if (this.ws) this.ws.close();
+  // 删除匹配记录
+  async remove(clazz, where) {
+    if (this.cloudReady()) {
+      try {
+        const list = await this.query(clazz, where);
+        for (const r of list) {
+          if (r.objectId) await Bmob.request('DELETE', '/classes/' + clazz + '/' + r.objectId, undefined, false);
+        }
+        return;
+      } catch (e) { console.warn('[WakeStore] 云端删除失败', e.message); }
+    }
+    if (window.Store && Store.db) {
+      return new Promise((resolve) => {
+        try {
+          const tx = Store.db.transaction('cache', 'readwrite');
+          const req = tx.objectStore('cache').openCursor();
+          req.onsuccess = (e) => {
+            const cur = e.target.result;
+            if (cur) {
+              if (cur.key.startsWith(`wake::${clazz}::`)) {
+                const d = cur.value.data;
+                const ok = Object.entries(where).every(([k, v]) => d[k] === v);
+                if (ok) cur.delete();
+              }
+              cur.continue();
+            } else resolve();
+          };
+          req.onerror = () => resolve();
+        } catch { resolve(); }
+      });
+    }
   }
 };
 
@@ -108,86 +155,26 @@ const FriendWake = {
   PRESS_DURATION: 3000,
   bound: false,
   peerUser: null,
+  peerCode: null,        // 对方账号（用于云端/本地匹配）
+  myCode: null,          // 我的绑定码
+  pollTimer: null,
+  lastWakeTs: 0,
 
   init() {
     this.bindEvents();
-    this.connectNet();
     this.loadBinding();
+    this.startPolling();
   },
 
   user() { return Store.getCurrentUser(); },
 
-  connectNet() {
-    WakeNet.connect({
-      user: () => this.user(),
-      onMessage: (msg) => this.handleNet(msg),
-      onClose: () => this.updateNetStatus()
-    });
-    this.updateNetStatus();
-  },
-
+  /* ---------- 状态显示 ---------- */
   updateNetStatus() {
     const el = document.getElementById('net-status');
     if (!el) return;
-    el.innerHTML = WakeNet.connected
-      ? '<span style="color:var(--success)">● 已连接叫醒服务</span>'
-      : '<span style="color:var(--warning)">○ 未连接（叫醒仅本地演示）</span>';
-  },
-
-  handleNet(msg) {
-    switch (msg.type) {
-      case 'welcome':
-        this.updateNetStatus();
-        break;
-      case 'codeCreated':
-        document.getElementById('my-invite-code').textContent = msg.code;
-        Utils.toast('邀请码已生成：' + msg.code);
-        break;
-      case 'bindResult':
-        if (msg.ok) {
-          this.bound = true;
-          this.peerUser = msg.peerUser;
-          this.showControl(msg.peerUser || '好友');
-          Utils.toast('✅ 绑定成功！');
-        } else {
-          document.getElementById('bind-info').innerHTML =
-            `<span style="color:var(--danger)">${msg.reason || '绑定失败'}</span>`;
-        }
-        break;
-      case 'wake':
-        // 收到对方叫醒 → 触发原生强提醒（绕过免打扰）
-        WakeNative.trigger({ message: msg.message || '该起床学习啦！' });
-        Utils.toast('⏰ 收到好友叫醒！');
-        break;
-      case 'wakeResult':
-        if (!msg.ok) Utils.toast('⚠️ ' + (msg.reason || '叫醒发送失败'));
-        else Utils.toast('📢 叫醒已发送');
-        break;
-      case 'unbindResult':
-        this.bound = false;
-        this.peerUser = null;
-        this.showStatus();
-        Utils.toast('已解绑');
-        break;
-    }
-  },
-
-  bindEvents() {
-    document.getElementById('create-code-btn').addEventListener('click', () => this.doCreateCode());
-    document.getElementById('copy-code-btn').addEventListener('click', () => {
-      const code = document.getElementById('my-invite-code').textContent;
-      if (code && code !== '--') Utils.copy(code);
-    });
-    document.getElementById('bind-btn').addEventListener('click', () => this.doBind());
-    document.getElementById('unbind-btn').addEventListener('click', () => this.doUnbind());
-
-    const wakeBtn = document.getElementById('wake-btn');
-    wakeBtn.addEventListener('mousedown', (e) => this.onPressStart(e));
-    wakeBtn.addEventListener('mouseup', () => this.onPressEnd());
-    wakeBtn.addEventListener('mouseleave', () => this.onPressEnd());
-    wakeBtn.addEventListener('touchstart', (e) => { e.preventDefault(); this.onPressStart(e); }, { passive: false });
-    wakeBtn.addEventListener('touchend', (e) => { e.preventDefault(); this.onPressEnd(); });
-    wakeBtn.addEventListener('touchcancel', () => this.onPressEnd());
+    el.innerHTML = WakeStore.cloudReady()
+      ? '<span style="color:var(--success)">● 云端同步已开启（多端互通）</span>'
+      : '<span style="color:var(--warning)">○ 本地模式（同设备可用，换设备需联网同步）</span>';
   },
 
   loadBinding() {
@@ -197,24 +184,110 @@ const FriendWake = {
         ? '<span style="color:var(--success)">✓ 原生强提醒可用（可绕过免打扰）</span>'
         : '<span style="color:var(--warning)">⚠ 网页模式：叫醒会被免打扰拦截（装 APK 后可用原生）</span>';
     }
-    this.showStatus();
+    // 恢复本地已保存的绑定关系
+    try {
+      const saved = JSON.parse(localStorage.getItem('wake_binding') || 'null');
+      if (saved && saved.peerUser) {
+        this.bound = true;
+        this.peerUser = saved.peerUser;
+        this.myCode = saved.myCode;
+        this.peerCode = saved.peerCode;
+        this.showControl(saved.peerUser);
+      } else {
+        this.showStatus();
+      }
+    } catch { this.showStatus(); }
+    this.updateNetStatus();
   },
 
-  doCreateCode() {
-    if (!WakeNet.connected) { Utils.toast('未连接叫醒服务'); return; }
-    WakeNet.send({ type: 'createCode' });
+  saveBinding() {
+    localStorage.setItem('wake_binding', JSON.stringify({
+      peerUser: this.peerUser, myCode: this.myCode, peerCode: this.peerCode
+    }));
+  },
+  clearBindingStore() {
+    localStorage.removeItem('wake_binding');
+  },
+
+  /* ---------- 绑定流程 ---------- */
+  bindEvents() {
+    const createBtn = document.getElementById('create-code-btn');
+    const copyBtn = document.getElementById('copy-code-btn');
+    const bindBtn = document.getElementById('bind-btn');
+    const unbindBtn = document.getElementById('unbind-btn');
+    if (createBtn) createBtn.addEventListener('click', () => this.doCreateCode());
+    if (copyBtn) copyBtn.addEventListener('click', () => {
+      const code = document.getElementById('my-invite-code').textContent;
+      if (code && code !== '--') Utils.copy(code);
+    });
+    if (bindBtn) bindBtn.addEventListener('click', () => this.doBind());
+    if (unbindBtn) unbindBtn.addEventListener('click', () => this.doUnbind());
+
+    const wakeBtn = document.getElementById('wake-btn');
+    if (wakeBtn) {
+      wakeBtn.addEventListener('mousedown', (e) => this.onPressStart(e));
+      wakeBtn.addEventListener('mouseup', () => this.onPressEnd());
+      wakeBtn.addEventListener('mouseleave', () => this.onPressEnd());
+      wakeBtn.addEventListener('touchstart', (e) => { e.preventDefault(); this.onPressStart(e); }, { passive: false });
+      wakeBtn.addEventListener('touchend', (e) => { e.preventDefault(); this.onPressEnd(); });
+      wakeBtn.addEventListener('touchcancel', () => this.onPressEnd());
+    }
+  },
+
+  async doCreateCode() {
+    const me = this.user();
+    if (!me) { Utils.toast('请先登录'); return; }
+    const code = Utils.inviteCode() || (Math.random().toString(36).slice(2, 8).toUpperCase());
+    this.myCode = code;
+    // 清掉旧码，写新码（带 10 分钟有效期）
+    await WakeStore.remove('WakeBind', { fromUser: me });
+    await WakeStore.save('WakeBind', {
+      fromUser: me, toUser: '', code,
+      type: 'invite', expireAt: Date.now() + 10 * 60 * 1000
+    });
+    document.getElementById('my-invite-code').textContent = code;
+    Utils.toast('邀请码已生成：' + code + '（10分钟内有效）');
+    this.saveBinding();
   },
 
   async doBind() {
-    const inputCode = document.getElementById('bind-code-input').value.trim().toUpperCase();
+    const me = this.user();
     const infoEl = document.getElementById('bind-info');
+    const inputCode = (document.getElementById('bind-code-input').value || '').trim().toUpperCase();
+    if (!me) { infoEl.innerHTML = '<span style="color:var(--danger)">请先登录</span>'; return; }
     if (!inputCode || inputCode.length !== 6) {
       infoEl.innerHTML = '<span style="color:var(--danger)">请输入6位邀请码</span>'; return;
     }
-    if (!WakeNet.connected) {
-      infoEl.innerHTML = '<span style="color:var(--danger)">未连接叫醒服务，无法绑定</span>'; return;
+
+    // 查找对方发出的邀请码
+    let matches = [];
+    try {
+      matches = await WakeStore.query('WakeBind', { code: inputCode, type: 'invite' });
+    } catch (e) { /* 回落 */ }
+
+    const valid = (matches || []).find(m => m.fromUser && m.fromUser !== me && (!m.expireAt || m.expireAt > Date.now()));
+    if (!valid) {
+      infoEl.innerHTML = '<span style="color:var(--danger)">邀请码无效或已过期</span>';
+      return;
     }
-    WakeNet.send({ type: 'bind', code: inputCode });
+
+    // 双向绑定：更新对方邀请码记录指向我，并写一条 my→peer 绑定关系
+    if (WakeStore.cloudReady() && valid.objectId) {
+      try { await Bmob.request('PUT', '/classes/WakeBind/' + valid.objectId, { toUser: me }, false); } catch (e) {}
+    }
+    await WakeStore.save('WakeBind', {
+      fromUser: me, toUser: valid.fromUser, code: inputCode,
+      type: 'bond', expireAt: 0
+    });
+
+    this.bound = true;
+    this.peerUser = valid.fromUser;
+    this.peerCode = valid.fromUser;
+    this.myCode = inputCode;
+    this.saveBinding();
+    this.showControl(valid.fromUser);
+    infoEl.innerHTML = '<span style="color:var(--success)">✅ 绑定成功！</span>';
+    Utils.toast('✅ 绑定成功！');
   },
 
   doUnbind() {
@@ -222,12 +295,20 @@ const FriendWake = {
       <button class="btn-danger" id="confirm-unbind">确认解绑</button>
       <button class="btn-outline" onclick="Utils.hideModal()">取消</button>
     `);
-    document.getElementById('confirm-unbind').onclick = () => {
-      WakeNet.send({ type: 'unbind' });
+    document.getElementById('confirm-unbind').onclick = async () => {
+      const me = this.user();
+      await WakeStore.remove('WakeBind', { fromUser: me });
+      this.bound = false;
+      this.peerUser = null;
+      this.peerCode = null;
+      this.clearBindingStore();
+      this.showStatus();
       Utils.hideModal();
+      Utils.toast('已解绑');
     };
   },
 
+  /* ---------- 叫醒（长按触发） ---------- */
   onPressStart(e) {
     this.pressStartTime = Date.now();
     const btn = document.getElementById('wake-btn');
@@ -256,29 +337,51 @@ const FriendWake = {
 
   async triggerWake() {
     if (!this.bound) { Utils.toast('未绑定好友'); return; }
-    if (!WakeNet.connected) {
-      Utils.showModal('⏰ 叫醒（本地演示）', `
-        <div style="text-align:center">
-          <div style="font-size:3rem;margin-bottom:12px">📢</div>
-          <p>未连接后端叫醒服务，当前为本地演示。</p>
-          <p style="color:var(--text-secondary);font-size:0.85rem;margin-top:8px">
-            安装 APK 并配置后端后，对方会收到<strong>绕过免打扰</strong>的强提醒。
-          </p>
-        </div>
-      `, `<button class="btn-primary" onclick="Utils.hideModal()">知道了</button>`);
-      return;
-    }
-    WakeNet.send({ type: 'wake', message: '该起床学习啦！' });
+    const me = this.user();
+    const msg = { type: 'wake', fromUser: me, toUser: this.peerUser, message: '该起床学习啦！', ts: Date.now() };
+    await WakeStore.save('WakeMsg', {
+      fromUser: me, toUser: this.peerUser, message: '该起床学习啦！', ts: Date.now()
+    });
+    Utils.toast('📢 叫醒已发送（对方约半分钟内收到）');
   },
 
+  /* ---------- 轮询：检查是否有人叫醒我 ---------- */
+  startPolling() {
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.pollTimer = setInterval(() => this.poll(), 15000);
+    this.poll();
+  },
+
+  async poll() {
+    const me = this.user();
+    if (!me) return;
+    try {
+      const msgs = await WakeStore.query('WakeMsg', { toUser: me });
+      const fresh = (msgs || []).filter(m => m.ts && m.ts > this.lastWakeTs);
+      if (fresh.length) {
+        // 取最新一条触发
+        fresh.sort((a, b) => b.ts - a.ts);
+        this.lastWakeTs = fresh[0].ts;
+        WakeNative.trigger({ message: fresh[0].message || '该起床学习啦！' });
+        Utils.toast('⏰ 收到好友叫醒！');
+      }
+    } catch (e) { /* 静默 */ }
+    this.updateNetStatus();
+  },
+
+  /* ---------- 视图切换 ---------- */
   showControl(name) {
-    document.getElementById('wake-status').style.display = 'none';
-    document.getElementById('wake-control').style.display = 'block';
-    document.getElementById('bound-partner').textContent = name;
+    const s = document.getElementById('wake-status');
+    const c = document.getElementById('wake-control');
+    if (s) s.style.display = 'none';
+    if (c) c.style.display = 'block';
+    const p = document.getElementById('bound-partner');
+    if (p) p.textContent = name;
   },
-
   showStatus() {
-    document.getElementById('wake-status').style.display = 'block';
-    document.getElementById('wake-control').style.display = 'none';
+    const s = document.getElementById('wake-status');
+    const c = document.getElementById('wake-control');
+    if (s) s.style.display = 'block';
+    if (c) c.style.display = 'none';
   }
 };

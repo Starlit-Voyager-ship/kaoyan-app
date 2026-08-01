@@ -14,6 +14,10 @@ const Store = {
     await this._initLocal();
     // 初始化 Bmob（云端同步）
     Bmob.init(window.APP_CONFIG && window.APP_CONFIG.bmob);
+    // 自动探测可用 API 域名，写错/失效域名时自动回退（提升云端连通率）
+    if (Bmob.hasCredentials()) {
+      try { await Bmob.resolveApiUrl(); } catch (e) { console.warn('[Store] API 域名探测失败', e); }
+    }
     return;
   },
 

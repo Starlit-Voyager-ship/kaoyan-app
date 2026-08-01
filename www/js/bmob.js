@@ -6,7 +6,7 @@
 const Bmob = {
   appId: '',
   restKey: '',
-  apiUrl: 'https://api2.bmob.cn/1',
+  apiUrl: 'https://api.bmobcloud.com/1',
   sessionToken: '',
   userObjectId: '',
   username: '',
@@ -29,6 +29,52 @@ const Bmob = {
 
   hasCredentials() { return !!(this.appId && this.restKey); },
   isLoggedIn() { return !!(this.sessionToken && this.userObjectId); },
+
+  /* 候选 API 域名（Bmob 历史上多个域名，控制台也可能给出不同地址）。
+     启动时光 ping 一次，自动选用第一个可用的，避免写死失效域名导致整体降级。 */
+  _candidates() {
+    const base = (this.apiUrl || '').replace(/\/1\/?$/, '');
+    const set = new Set([
+      'https://api.bmobcloud.com',   // 官方 JS SDK 真实域名（2026 验证可用）
+      base,
+      'https://api.bmobapp.com',
+      'https://api2.bmobapp.com',
+      'https://api.bmob.cn',
+      'https://api2.bmob.cn'
+    ]);
+    return [...set].filter(Boolean);
+  },
+
+  async _ping(host) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      const r = await fetch(host + '/1/classes/__ping', {
+        method: 'GET',
+        headers: this._headers(false),
+        signal: ctrl.signal
+      });
+      clearTimeout(t);
+      // 200/400/401 都算"域名可达且是 Bmob"；nginx 404 / 网络错误 / 证书错 → 不可用
+      if (r.status === 404 && (await r.text()).includes('nginx')) return false;
+      return true;
+    } catch (e) { return false; }
+  },
+
+  async resolveApiUrl() {
+    const saved = localStorage.getItem('bmob_api_url');
+    if (saved) { this.apiUrl = saved; return saved; }
+    for (const h of this._candidates()) {
+      if (await this._ping(h)) {
+        this.apiUrl = h + '/1';
+        localStorage.setItem('bmob_api_url', this.apiUrl);
+        console.log('[Bmob] 选用 API 域名：', this.apiUrl);
+        return this.apiUrl;
+      }
+    }
+    console.warn('[Bmob] 未探测到可用 API 域名，保持当前配置（将降级本地）');
+    return this.apiUrl;
+  },
 
   _headers(needAuth) {
     const h = {

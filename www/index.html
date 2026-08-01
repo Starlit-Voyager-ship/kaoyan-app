@@ -11,15 +11,15 @@
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
   <title>考研学习助手</title>
   <script>
-    // 好友叫醒后端 WebSocket 地址。留空则使用同源 /ws（需后端与前端同域部署）。
-    // 部署独立后端时改为：window.APP_CONFIG = { wakeServer: 'wss://你的后端域名/ws' };
-    // ----------------
     // Bmob 后端配置（国内 BaaS，免费额度支持多端数据同步 + 账号隔离）
+    // 注意：Bmob 每个应用有独立的 API 域名。请在 Bmob 控制台「应用设置 → 应用密钥」
+    //       中复制你的专属 REST API 地址（形如 https://你的域名/1），替换下面的 apiUrl。
+    //       若 apiUrl 连不上，应用会自动降级为「本地模式」（数据仅本机可用，叫醒仍可同设备使用）。
     window.APP_CONFIG = window.APP_CONFIG || {};
     window.APP_CONFIG.bmob = {
       appId: 'd8d53879939a9d1336bab1991797e381',
       restKey: 'f46de67801e8fa61b93327114ea188c1',
-      apiUrl: 'https://api2.bmob.cn/1'
+      apiUrl: 'https://api.bmobcloud.com/1'
     };
   </script>
   <link rel="stylesheet" href="css/main.css">

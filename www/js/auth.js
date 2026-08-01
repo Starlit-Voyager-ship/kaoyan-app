@@ -1,25 +1,27 @@
 /* ========================================
    认证系统 - 登录/注册/登出
+   云端(Bmob)优先 + 本地(IndexedDB)自动降级
    ======================================== */
 
 const Auth = {
-  MAX_USERS: 5, // 软提示；硬人数限制由 Bmob 端按需配置（避免前端暴露 master key）
+  MAX_USERS: 5,
   cloudReady: false,
+  cloudOk: false,    // 云端实际可用（首次成功调用后设为 true）
+  useLocal: false,   // 是否正在使用本地模式
 
   init() {
     this.bindEvents();
-    // Bmob 凭据就绪检查
     Bmob.init(window.APP_CONFIG && window.APP_CONFIG.bmob);
     this.cloudReady = Bmob.hasCredentials();
 
-    // 优先用已保存的云端会话
-    if (Bmob.isLoggedIn()) {
+    // 优先恢复云端会话
+    if (this.cloudReady && Bmob.isLoggedIn()) {
       const user = Bmob.username;
       Store.setCurrentUser(user);
       this.enterApp(user, false);
       return;
     }
-    // 兼容旧版本地登录（无云端凭据时）
+    // 兼容旧版本地登录
     const user = Store.getCurrentUser();
     if (user) {
       this.enterApp(user, false);
@@ -29,7 +31,6 @@ const Auth = {
   },
 
   bindEvents() {
-    // Tab切换
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -39,19 +40,16 @@ const Auth = {
       });
     });
 
-    // 登录表单
     document.getElementById('login-form').addEventListener('submit', (e) => {
       e.preventDefault();
       this.handleLogin();
     });
 
-    // 注册表单
     document.getElementById('register-form').addEventListener('submit', (e) => {
       e.preventDefault();
       this.handleRegister();
     });
 
-    // 登出
     document.getElementById('logout-btn').addEventListener('click', () => {
       Utils.showModal('确认退出', '确定要退出登录吗？', `
         <button class="btn-danger" id="confirm-logout">退出</button>
@@ -69,7 +67,7 @@ const Auth = {
     document.getElementById('app-page').classList.remove('active');
   },
 
-  enterApp(username, syncFlag) {
+  enterApp(username) {
     Store.setCurrentUser(username);
     document.getElementById('auth-page').classList.remove('active');
     document.getElementById('app-page').classList.add('active');
@@ -78,6 +76,7 @@ const Auth = {
     app.initAllModules();
   },
 
+  // ---- 登录：先尝试云端，失败自动降级本地 ----
   async handleLogin() {
     const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
@@ -88,33 +87,52 @@ const Auth = {
       return;
     }
 
-    // 使用 Bmob 云端登录（多端互通）
+    // 尝试云端登录
     if (this.cloudReady) {
       try {
         await Bmob.login(username, password);
+        this.cloudOk = true;
+        this.useLocal = false;
         errorEl.textContent = '';
         this.enterApp(username);
-        Utils.toast(`欢迎回来，${username}！`);
+        Utils.toast(`欢迎回来，${username}！${this.cloudOk ? '（已开启云同步）' : ''}`);
         this._ensurePet(username);
         return;
       } catch (e) {
-        errorEl.textContent = this._errMsg(e, '登录失败');
-        return;
+        console.warn('[Auth] 云端登录失败，降级本地:', e.message);
+        // 不卡住，继续尝试本地
       }
     }
 
-    // 无云端凭据：降级本地（仅本机有效）
-    errorEl.textContent = '云端未配置，使用本地登录（仅本机）';
-    this.enterApp(username);
+    // 降级：本地登录
+    try {
+      const user = await Store.getUser(username);
+      if (!user) {
+        errorEl.textContent = '账号不存在（本地模式）';
+        return;
+      }
+      if (user.password !== Utils.simpleHash(password)) {
+        errorEl.textContent = '账号或密码错误';
+        return;
+      }
+
+      this.useLocal = true;
+      errorEl.textContent = '';
+      this.enterApp(username);
+      Utils.toast(`欢迎回来，${username}！（本地模式，数据仅本机）`);
+      this._ensurePet(username);
+    } catch (e2) {
+      errorEl.textContent = '登录失败：' + (e2.message || '未知错误');
+    }
   },
 
+  // ---- 注册：先尝试云端，失败自动降级本地 ----
   async handleRegister() {
     const username = document.getElementById('reg-username').value.trim();
     const password = document.getElementById('reg-password').value;
     const password2 = document.getElementById('reg-password2').value;
     const errorEl = document.getElementById('reg-error');
 
-    // 验证
     if (!username || username.length < 3 || username.length > 16) {
       errorEl.textContent = '账号需3-16位';
       return;
@@ -128,25 +146,54 @@ const Auth = {
       return;
     }
 
-    // Bmob 云端注册（多端互通，数据隔离由 ACL 保证）
+    // 尝试云端注册
     if (this.cloudReady) {
       try {
         await Bmob.register(username, password);
+        this.cloudOk = true;
+        this.useLocal = false;
         errorEl.textContent = '';
         this.enterApp(username);
-        Utils.toast(`注册成功！欢迎 ${username}`);
+        Utils.toast(`注册成功！欢迎 ${username}（已开启云同步）`);
         this._ensurePet(username);
         return;
       } catch (e) {
-        errorEl.textContent = this._errMsg(e, '注册失败');
-        return;
+        console.warn('[Auth] 云端注册失败，降级本地:', e.message);
+        if (/already|exist/i.test(e.message)) {
+          errorEl.textContent = '该账号已被注册';
+          return;
+        }
+        // 其他错误 → 降级本地
       }
     }
 
-    errorEl.textContent = '云端未配置，无法注册云端账号';
+    // 降级：本地注册
+    const users = await Store.getUsers();
+    if (users.length >= this.MAX_USERS) {
+      errorEl.textContent = `注册人数已达上限(${this.MAX_USERS}人)`;
+      return;
+    }
+    if (users.find(u => u.username === username)) {
+      errorEl.textContent = '该账号已被注册';
+      return;
+    }
+
+    const newUser = {
+      username,
+      password: Utils.simpleHash(password),
+      inviteCode: Utils.inviteCode(),
+      createdAt: new Date().toISOString()
+    };
+
+    await Store.saveUser(newUser);
+
+    this.useLocal = true;
+    errorEl.textContent = '';
+    this.enterApp(username);
+    Utils.toast(`注册成功！欢迎 ${username}（本地模式）`);
+    this._ensurePet(username);
   },
 
-  // 确保宠物数据存在（注册后或登录旧账号首登）
   async _ensurePet(username) {
     const pet = await Store.getPetData(username);
     if (!pet) {
@@ -169,14 +216,6 @@ const Auth = {
     }
   },
 
-  _errMsg(e, prefix) {
-    const m = (e && e.message) || '';
-    if (/username|already|exist/i.test(m)) return '该账号已被注册';
-    if (/password|unauthorized|login/i.test(m)) return '账号或密码错误';
-    if (/Failed to fetch|NetworkError/i.test(m)) return '网络错误，请检查网络连接';
-    return prefix + '：' + m;
-  },
-
   handleLogout() {
     Bmob.logout();
     Store.logout();
@@ -185,7 +224,6 @@ const Auth = {
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('overlay').classList.remove('show');
 
-    // 清空表单
     document.getElementById('login-username').value = '';
     document.getElementById('login-password').value = '';
     document.getElementById('login-error').textContent = '';

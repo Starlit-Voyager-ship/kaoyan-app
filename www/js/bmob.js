@@ -65,9 +65,8 @@ const Bmob = {
     return data;
   },
   async login(username, password) {
-    const path = '/login?username=' + encodeURIComponent(username) +
-                 '&password=' + encodeURIComponent(password);
-    const data = await this.request('GET', path, undefined, false);
+    // 官方文档：登录用 POST + JSON body（不是 GET）
+    const data = await this.request('POST', '/login', { username, password }, false);
     this._setSession(data);
     return data;
   },

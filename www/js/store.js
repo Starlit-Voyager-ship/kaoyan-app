@@ -19,11 +19,14 @@ const Store = {
 
   _initLocal() {
     return new Promise((resolve) => {
-      const req = indexedDB.open(this.dbName, 1);
+      const req = indexedDB.open(this.dbName, 2); // 版本号升级以添加 users 表
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains('cache')) {
           db.createObjectStore('cache', { keyPath: 'cid' });
+        }
+        if (!db.objectStoreNames.contains('users')) {
+          db.createObjectStore('users', { keyPath: 'id' });
         }
       };
       req.onsuccess = (e) => { this.db = e.target.result; resolve(); };
@@ -156,12 +159,43 @@ const Store = {
     });
   },
 
-  // ---- 用户相关（迁移自原 IndexedDB，现在走 Bmob 用户系统）----
-  async getUsers() { return []; }, // 已交由 Bmob 负责，前端不枚举
-  async getUser(username) {
-    return { username, password: '' }; // 占位，登录由 Bmob 校验
+  // ---- IndexedDB 本地读写辅助（用于用户管理等纯本地数据）----
+  _localGetAll(storeName) {
+    return new Promise((resolve) => {
+      if (!this.db) return resolve([]);
+      try {
+        const tx = this.db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      } catch { resolve([]); }
+    });
   },
-  async saveUser() { /* 用户创建已由 Bmob 处理 */ },
+  _localPut(storeName, key, value) {
+    return new Promise((resolve) => {
+      if (!this.db) return resolve();
+      try {
+        const tx = this.db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        store.put(Object.assign({}, value, { id: key }));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      } catch { resolve(); }
+    });
+  },
+
+  // ---- 用户相关（IndexedDB 本地存储，用于 Bmob 不可用时的降级）----
+  async getUsers() {
+    return this._localGetAll('users');
+  },
+  async getUser(username) {
+    const users = await this._localGetAll('users');
+    return users.find(u => u.username === username) || null;
+  },
+  async saveUser(user) {
+    return this._localPut('users', user.username, user);
+  },
 
   // ---- 设置（localStorage，按用户隔离）----
   getSettings(username) {

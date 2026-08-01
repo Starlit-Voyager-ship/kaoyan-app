@@ -236,18 +236,26 @@ const FriendWake = {
 
   async doCreateCode() {
     const me = this.user();
-    if (!me) { Utils.toast('请先登录'); return; }
-    const code = Utils.inviteCode() || (Math.random().toString(36).slice(2, 8).toUpperCase());
-    this.myCode = code;
-    // 清掉旧码，写新码（带 10 分钟有效期）
-    await WakeStore.remove('WakeBind', { fromUser: me });
-    await WakeStore.save('WakeBind', {
-      fromUser: me, toUser: '', code,
-      type: 'invite', expireAt: Date.now() + 10 * 60 * 1000
-    });
-    document.getElementById('my-invite-code').textContent = code;
-    Utils.toast('邀请码已生成：' + code + '（10分钟内有效）');
-    this.saveBinding();
+    if (!me) { Utils.toast('⚠️ 请先登录后再生成邀请码'); return; }
+    try {
+      const code = Utils.inviteCode() || (Math.random().toString(36).slice(2, 8).toUpperCase());
+      this.myCode = code;
+      // 清掉旧码，写新码（带 10 分钟有效期）
+      await WakeStore.remove('WakeBind', { fromUser: me });
+      await WakeStore.save('WakeBind', {
+        fromUser: me, toUser: '', code,
+        type: 'invite', expireAt: Date.now() + 10 * 60 * 1000
+      });
+      document.getElementById('my-invite-code').textContent = code;
+      Utils.toast('✅ 邀请码已生成：' + code + '（10分钟内有效）');
+      this.saveBinding();
+    } catch (e) {
+      console.error('[FriendWake] 生成邀请码失败:', e);
+      // 兜底：即使存储失败也显示一个码（纯展示用，对方绑定时查不到会提示无效）
+      const fallback = 'LOCAL' + Math.random().toString(36).slice(2, 8).toUpperCase();
+      document.getElementById('my-invite-code').textContent = fallback;
+      Utils.toast('⚠️ 本地存储异常，邀请码可能无法同步');
+    }
   },
 
   async doBind() {

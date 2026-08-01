@@ -203,6 +203,9 @@ main { margin-top: var(--header-height); }
 }
 .overlay.show { display: block; }
 
+/* 通用工具类 */
+.hidden { display: none !important; }
+
 /* 按钮通用 */
 .icon-btn {
   width: 38px; height: 38px;
@@ -425,10 +428,8 @@ main { margin-top: var(--header-height); }
     justify-content: center;
   }
 
-  /* 遮罩层确保覆盖全屏、可点击关闭 */
-  .overlay.show {
-    display: block !important;
-  }
+  /* 手机端不显示遮罩层（侧边栏已占80%屏幕，遮罩会拦截右侧按钮点击） */
+  .overlay { display: none !important; }
 
   /* 导航项行高加大，方便点击 */
   .nav-item {

@@ -688,12 +688,23 @@
   <script src="js/friend-wake.js?v=20260801"></script>
   <script src="js/app.js?v=20260801"></script>
   <script>
-    // 注册 Service Worker（PWA 离线/可安装）；原生 App(WebView) 下跳过，避免异常
-    if ('serviceWorker' in navigator && !(window.Capacitor && Capacitor.isNativePlatform())) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
-      });
-    }
+    // 桌面 Web 调试阶段：不注册 Service Worker 缓存（避免加载到过期 JS，导致云端修复一直不生效）。
+    // 同时每次启动都主动注销可能存在的旧 SW 并清空旧缓存，打破"改了代码仍加载旧版"的死循环。
+    // 原生 App(Capacitor/WebView) 下也不需要 SW，打包时保持禁用即可。
+    (function () {
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            regs.forEach(function (r) { r.unregister(); });
+          });
+        }
+        if (window.caches) {
+          caches.keys().then(function (keys) {
+            keys.forEach(function (k) { caches.delete(k); });
+          });
+        }
+      } catch (e) { /* 忽略 */ }
+    })();
   </script>
 </body>
 </html>

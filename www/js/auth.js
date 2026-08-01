@@ -114,15 +114,30 @@ const Auth = {
         await Bmob.login(username, password);
         this.cloudOk = true;
         this.useLocal = false;
-        localStorage.removeItem('_cloud_suggested'); // 云端成功，不再提示
+        localStorage.removeItem('_cloud_suggested');
         errorEl.textContent = '';
         this.enterApp(username);
         Utils.toast(`欢迎回来，${username}！已开启云同步 ✅`);
         this._ensurePet(username);
         return;
       } catch (e) {
-        console.warn('[Auth] 云端登录失败，降级本地:', e.message);
-        // 不卡住，继续尝试本地
+        console.warn('[Auth] 云端登录失败:', e.message);
+        // 账号在云端不存在 → 自动注册后再登录（本地老用户无缝上云）
+        if (/202|NotFound|found|不正确/i.test(e.message) || (e.status === 202)) {
+          console.log('[Auth] 云端账号不存在，尝试自动注册...');
+          try {
+            await Bmob.register(username, password);
+            this.cloudOk = true;
+            this.useLocal = false;
+            errorEl.textContent = '';
+            this.enterApp(username);
+            Utils.toast(`欢迎，${username}！已自动开通云同步 ✅`);
+            this._ensurePet(username);
+            return;
+          } catch (regErr) {
+            console.warn('[Auth] 自动注册也失败:', regErr.message);
+          }
+        }
       }
     }
 
@@ -130,7 +145,7 @@ const Auth = {
     try {
       const user = await Store.getUser(username);
       if (!user) {
-        errorEl.textContent = '账号不存在（本地模式）';
+        errorEl.textContent = '账号不存在';
         return;
       }
       if (user.password !== Utils.simpleHash(password)) {
@@ -141,7 +156,7 @@ const Auth = {
       this.useLocal = true;
       errorEl.textContent = '';
       this.enterApp(username);
-      Utils.toast(`欢迎回来，${username}！（本地模式，数据仅本机）`);
+      Utils.toast(`欢迎回来，${username}！（本地模式）`);
       this._ensurePet(username);
     } catch (e2) {
       errorEl.textContent = '登录失败：' + (e2.message || '未知错误');

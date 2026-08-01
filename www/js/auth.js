@@ -14,43 +14,41 @@ const Auth = {
     Bmob.init(window.APP_CONFIG && window.APP_CONFIG.bmob);
     this.cloudReady = Bmob.hasCredentials();
 
-    // 优先恢复云端会话
+    // ① 有云端会话 → 直接进入云端模式
     if (this.cloudReady && Bmob.isLoggedIn()) {
       const user = Bmob.username;
       Store.setCurrentUser(user);
       this.enterApp(user, false);
       return;
     }
-    // 兼容旧版本地登录
-    const user = Store.getCurrentUser();
-    if (user) {
-      this.enterApp(user, false);
-      // 本地模式 + 有Bmob凭证 → 提示用户重登以开启云端
-      if (this.cloudReady && !Bmob.isLoggedIn()) {
-        this._suggestCloudRelogin();
+
+    // ② 有本地缓存用户
+    const cachedUser = Store.getCurrentUser();
+    if (cachedUser) {
+      if (this.cloudReady) {
+        // ★ 有Bmob凭证但没云端session → 停在登录页，预填用户名，强制走云端登录（云端失败才降级本地）
+        this.showAuthPage();
+        // 预填用户名，方便用户直接输密码
+        document.getElementById('login-username').value = cachedUser;
+        // 切到登录tab
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.form-panel').forEach(p => p.classList.remove('active'));
+        const loginTab = document.querySelector('.tab-btn[data-tab="login"]');
+        const loginPanel = document.getElementById('login-form');
+        if (loginTab) loginTab.classList.add('active');
+        if (loginPanel) loginPanel.classList.add('active');
+        // 提示一下
+        setTimeout(() => {
+          Utils.toast('请重新登录以开启云端同步 ↑', 3000);
+        }, 500);
+      } else {
+        // 没有Bmob凭证 → 纯本地模式，直接进入
+        this.enterApp(cachedUser, false);
       }
     } else {
+      // ③ 没有任何用户 → 显示登录页
       this.showAuthPage();
     }
-  },
-
-  /** 提示用户退出重登以开启云端同步 */
-  _suggestCloudRelogin() {
-    // 避免重复提示
-    if (localStorage.getItem('_cloud_suggested')) return;
-    localStorage.setItem('_cloud_suggested', '1');
-    setTimeout(() => {
-      Utils.showModal('🌐 开启云端同步', '当前为本地模式，退出后重新登录即可开启云端同步（支持跨设备数据互通、好友跨网络叫醒）', `
-        <button class="btn-primary" id="btn-relogin-cloud">退出并重新登录</button>
-        <button class="btn-outline" onclick="Utils.hideModal()">稍后再说</button>
-      `);
-      document.getElementById('btn-relogin-cloud').onclick = () => {
-        Utils.hideModal();
-        this.handleLogout();
-        // 清除提示标记，下次还会提示（直到成功走云端）
-        localStorage.removeItem('_cloud_suggested');
-      };
-    }, 1500); // 等 App 完全加载后再弹
   },
 
   bindEvents() {

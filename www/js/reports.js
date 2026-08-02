@@ -104,7 +104,7 @@ const Reports = {
 
     const reportEl = document.getElementById('weekly-report-content');
     reportEl.innerHTML = `
-      <h4>📈 ${week.start} ~ ${week.end} ���度学习报告</h4>
+      <h4>📈 ${week.start} ~ ${week.end} 周度学习报告</h4>
       <div class="report-stat-row"><span class="label">总专注时长</span><span class="value">${totalMinutes} 分钟 (${sessions}个番茄)</span></div>
       <div class="report-stat-row"><span class="label">日均专注</span><span class="value">${avgDaily} 分钟/天</span></div>
       <div class="report-stat-row"><span class="label">新学单词</span><span class="value">${weekNewWords} 个</span></div>

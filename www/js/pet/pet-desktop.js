@@ -113,7 +113,7 @@ const DesktopPet = {
   },
 
   show() {
-    const settings = Store.getSettings(Store.getCurrentUser());
+    const settings = Store.getSettings(Store.getCurrentUser()) || {};
     if (settings.desktopPet === false) return;
 
     if (!PetCore.data || !PetCore.data.claimed) return;

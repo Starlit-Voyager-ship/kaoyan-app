@@ -190,7 +190,7 @@ const app = {
 
     // 如果已领取宠物且开启了桌宠，显示桌宠
     if (PetCore.data?.claimed) {
-      const settings = Store.getSettings(Store.getCurrentUser());
+      const settings = Store.getSettings(Store.getCurrentUser()) || {};
       if (settings.desktopPet !== false) {
         setTimeout(() => DesktopPet.show(), 500);
       }

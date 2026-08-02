@@ -103,7 +103,7 @@ const Sentences = {
     };
 
     if (useAI) {
-      const settings = Store.getSettings(user);
+      const settings = Store.getSettings(user) || {};
       if (settings.deepseekKey) {
         try {
           sentence.analysis = await this.analyzeWithAI(settings, text);

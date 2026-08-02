@@ -82,7 +82,7 @@ const Pomodoro = {
 
     // 保存设置
     const user = Store.getCurrentUser();
-    const settings = Store.getSettings(user);
+    const settings = Store.getSettings(user) || {};
     settings.focusDuration = focusMin;
     settings.breakDuration = parseInt(document.getElementById('break-duration').value) || 5;
     Store.saveSettings(user, settings);

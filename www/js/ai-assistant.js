@@ -41,7 +41,7 @@ const AIAssistant = {
 
   checkConfig() {
     const user = Store.getCurrentUser();
-    const settings = Store.getSettings(user);
+    const settings = Store.getSettings(user) || {};
     const hasDS = settings.deepseekKey && settings.deepseekKey.length > 10;
     const hasQW = settings.qwenKey && settings.qwenKey.length > 10;
 
@@ -109,7 +109,7 @@ const AIAssistant = {
     if (!text && !this.pendingImage) return;
 
     const user = Store.getCurrentUser();
-    const settings = Store.getSettings(user);
+    const settings = Store.getSettings(user) || {};
 
     if (model === 'deepseek' && !settings.deepseekKey) {
       Utils.toast('请先配置 DeepSeek API Key');

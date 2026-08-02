@@ -115,7 +115,7 @@ const Articles = {
   translateAll() {
     if (!this.currentArticle) return;
     // 调用DeepSeek翻译（如果配置了的话）
-    const settings = Store.getSettings(Store.getCurrentUser());
+    const settings = Store.getSettings(Store.getCurrentUser()) || {};
     if (!settings.deepseekKey) {
       Utils.toast('请先在设置中配置 DeepSeek API Key 以使用翻译功能');
       return;

@@ -102,12 +102,16 @@ const Auth = {
       return;
     }
 
+    // 若有映射的云端账号（之前自动创建的后缀账号），优先用它登录；数据仍用本地用户名
+    const cloudUser = localStorage.getItem('cloud_user_' + username) || username;
+
     // 尝试云端登录（有凭证就优先走云端）
     if (this.cloudReady || Bmob.hasCredentials()) {
       try {
-        await Bmob.login(username, password);
+        await Bmob.login(cloudUser, password);
         this.cloudOk = true;
         this.useLocal = false;
+        if (cloudUser !== username) localStorage.setItem('cloud_user_' + username, cloudUser);
         errorEl.textContent = '';
         this.enterApp(username);
         Utils.toast(`欢迎回来，${username}！已开启云同步 ✅`);
@@ -115,7 +119,7 @@ const Auth = {
         return;
       } catch (e) {
         console.warn('[Auth] 云端登录失败:', e.message, '| status:', e.status);
-        // 账号不存在/密码不对 → 自动注册云端账号再登录（本地老用户无缝上云）
+        // 账号不存在/密码不对 → 先尝试用本地用户名直接注册
         if (/202|101|NotFound|found|不正确|incorrect/i.test(e.message) || [202, 101, 404].includes(e.status)) {
           try {
             await Bmob.register(username, password);
@@ -127,11 +131,14 @@ const Auth = {
             this._ensurePet(username);
             return;
           } catch (regErr) {
-            console.warn('[Auth] 自动注册也失败:', regErr.message);
-            // 注册失败（比如用户名真被占了）→ 继续降级本地
+            console.warn('[Auth] 原用户名注册失败:', regErr.message, '→ 尝试后缀账号');
+            // ★ 关键修复：原用户名在云端已存在（密码不匹配）时，用 _c/_cloud 等后缀账号登录/注册
+            const fixed = await this._fixCloudAccount(username, password, errorEl);
+            if (fixed) return;
           }
         }
-        // 其他错误（网络等）→ 继续降级本地
+        // 其他错误或仍失败 → 降级本地（明确提示，不再静默吞掉）
+        if (window.Utils) Utils.toast('⚠️ 云端登录失败，已使用本地模式（数据仅本机）', 4000);
       }
     }
 
@@ -139,7 +146,7 @@ const Auth = {
     try {
       const user = await Store.getUser(username);
       if (!user) {
-        errorEl.textContent = '账号不存在';
+        errorEl.textContent = '账号不存在（本地也没有该账号）';
         return;
       }
       if (user.password !== Utils.simpleHash(password)) {

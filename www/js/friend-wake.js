@@ -305,6 +305,12 @@ const FriendWake = {
         ? '<span style="color:var(--success)">✓ 原生强提醒可用（可绕过免打扰）</span>'
         : '<span style="color:var(--warning)">⚠ 网页模式：叫醒会被免打扰拦截（装 APK 后可用原生）</span>';
     }
+    // 原生平台：应用打开即申请通知权限（Android 13+ 会弹窗，用户允许即可正常弹出强提醒）
+    if (WakeNative.available()) {
+      try {
+        Capacitor.Plugins.WakeAlarm.requestNotifyPermission();
+      } catch (e) { /* 忽略 */ }
+    }
     // 原生平台：检测是否已获得"覆盖勿扰"权限，未授权则引导（否则响铃在 DND 下被静音）
     if (WakeNative.available()) {
       try {

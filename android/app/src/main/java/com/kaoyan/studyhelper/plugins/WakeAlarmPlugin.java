@@ -5,10 +5,12 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.JSObject;
+import android.app.Activity;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.provider.Settings;
-import android.app.NotificationManager;
 
 /**
  * 好友叫醒原生插件（Capacitor 桥）
@@ -86,6 +88,34 @@ public class WakeAlarmPlugin extends Plugin {
         } catch (Exception ignore) {}
         Intent intent = new Intent(getContext(), WakeGuardService.class);
         getContext().stopService(intent);
+        JSObject ret = new JSObject();
+        ret.put("ok", true);
+        call.resolve(ret);
+    }
+
+    /** 停止前台播放服务（响铃 + 震动） */
+    @PluginMethod
+    public void stopWake(PluginCall call) {
+        try {
+            getContext().stopService(new Intent(getContext(), WakePlayerService.class));
+        } catch (Exception ignore) {}
+        JSObject ret = new JSObject();
+        ret.put("ok", true);
+        call.resolve(ret);
+    }
+
+    /** 申请 Android 13+ 通知权限（POST_NOTIFICATIONS），用于正常弹出强提醒通知。
+     *  应用在原生平台初始化时调用，系统会弹窗，用户允许即可。 */
+    @PluginMethod
+    public void requestNotifyPermission(PluginCall call) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                Activity act = getActivity();
+                if (act != null) {
+                    act.requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 2001);
+                }
+            }
+        } catch (Exception ignore) {}
         JSObject ret = new JSObject();
         ret.put("ok", true);
         call.resolve(ret);

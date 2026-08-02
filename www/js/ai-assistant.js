@@ -228,7 +228,7 @@ const AIAssistant = {
     const user = Store.getCurrentUser();
     const settings = Store.getSettings(user) || {};
     if (!settings.deepseekKey) { Utils.toast('请先配置 DeepSeek Key'); return; }
-    if (img && !settings.qwenKey) { Utils.toast('含图片的提问需配置千问VL Key 用于识图'); return; }
+    if (img && !settings.qwenKey) { Utils.toast('发送图片需配置「千问VL(DashScope)」Key（与 DeepSeek Key 分开，在设置页填写）'); return; }
 
     const userMsg = {
       id: Utils.uid(),
@@ -303,12 +303,15 @@ const AIAssistant = {
       { type: 'text', text: '请识别图片内容并以 JSON 返回（只返回 JSON，不要额外文字）：' +
         '{"type":"math|english|other","topic":"若为数学题请填知识点(行列式/矩阵/向量/线性方程组/特征值与特征向量/二次型/其他)","errorHint":"若可见明显错因请简述，否则为空字符串","text":"提取的题目或文章文字"}。' }
     ];
-    const res = await fetch(`${settings.qwenBase || 'https://dashscope.aliyuncs.com/api/v1'}/chat/completions`, {
+    const res = await fetch(`${settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.qwenKey}` },
       body: JSON.stringify({ model: 'qwen-vl-max', messages: [{ role: 'user', content }], max_tokens: 2000 })
     });
-    if (!res.ok) throw new Error(`千问VL错误 (${res.status})`);
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`千问VL错误 (${res.status}): ${txt.slice(0, 200)}`);
+    }
     const data = await res.json();
     return this.parseJSON(data.choices[0].message.content);
   },
@@ -319,12 +322,15 @@ const AIAssistant = {
       { type: 'image_url', image_url: { url: imageData } },
       { type: 'text', text: '请识别图片中的题目或内容，提取完整文字，不要解答。' }
     ];
-    const res = await fetch(`${settings.qwenBase || 'https://dashscope.aliyuncs.com/api/v1'}/chat/completions`, {
+    const res = await fetch(`${settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.qwenKey}` },
       body: JSON.stringify({ model: 'qwen-vl-max', messages: [{ role: 'user', content }], max_tokens: 2000 })
     });
-    if (!res.ok) throw new Error(`千问VL错误 (${res.status})`);
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`千问VL错误 (${res.status}): ${txt.slice(0, 200)}`);
+    }
     const data = await res.json();
     return data.choices[0].message.content;
   },

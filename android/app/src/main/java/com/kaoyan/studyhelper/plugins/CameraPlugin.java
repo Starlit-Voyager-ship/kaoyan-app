@@ -51,7 +51,7 @@ public class CameraPlugin extends Plugin {
         this.pendingCall = call;
         String perm = Manifest.permission.CAMERA;
         if (ContextCompat.checkSelfPermission(getContext(), perm) == PackageManager.PERMISSION_GRANTED) {
-            launchCamera();
+            launchCamera(call);
         } else {
             getActivity().requestPermissions(new String[]{perm}, REQ_CAMERA_PERM);
         }
@@ -62,7 +62,7 @@ public class CameraPlugin extends Plugin {
         this.pendingCall = call;
         String perm = galleryPermission();
         if (ContextCompat.checkSelfPermission(getContext(), perm) == PackageManager.PERMISSION_GRANTED) {
-            launchGallery();
+            launchGallery(call);
         } else {
             getActivity().requestPermissions(new String[]{perm}, REQ_GALLERY_PERM);
         }
@@ -78,20 +78,18 @@ public class CameraPlugin extends Plugin {
     protected void handleRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.handleRequestPermissionsResult(requestCode, permissions, grantResults);
         PluginCall call = pendingCall;
+        pendingCall = null;
         boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
         if (requestCode == REQ_CAMERA_PERM) {
-            pendingCall = null;
             if (call == null) return;
-            if (granted) launchCamera(); else call.reject("相机权限被拒绝");
+            if (granted) launchCamera(call); else call.reject("相机权限被拒绝");
         } else if (requestCode == REQ_GALLERY_PERM) {
-            pendingCall = null;
             if (call == null) return;
-            if (granted) launchGallery(); else call.reject("相册权限被拒绝");
+            if (granted) launchGallery(call); else call.reject("相册权限被拒绝");
         }
     }
 
-    private void launchCamera() {
-        PluginCall call = pendingCall;
+    private void launchCamera(PluginCall call) {
         if (call == null) return;
         try {
             cameraTempFile = new File(getContext().getCacheDir(),
@@ -100,23 +98,21 @@ public class CameraPlugin extends Plugin {
                     getContext(), getContext().getPackageName() + ".fileprovider", cameraTempFile);
             Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             intent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
-            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            // 部分 OEM 相机写回文件需要读权限
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivityForResult(call, intent, REQ_CAMERA);
         } catch (Exception e) {
-            pendingCall = null;
             call.reject("启动相机失败: " + e.getMessage());
         }
     }
 
-    private void launchGallery() {
-        PluginCall call = pendingCall;
+    private void launchGallery(PluginCall call) {
         if (call == null) return;
         try {
             Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
             intent.setType("image/*");
             startActivityForResult(call, intent, REQ_GALLERY);
         } catch (Exception e) {
-            pendingCall = null;
             call.reject("启动相册失败: " + e.getMessage());
         }
     }
@@ -132,9 +128,15 @@ public class CameraPlugin extends Plugin {
             return;
         }
         try {
-            Bitmap bitmap;
+            Bitmap bitmap = null;
             if (requestCode == REQ_CAMERA) {
-                bitmap = decodeSampledFile(cameraTempFile.getAbsolutePath());
+                // 优先读 EXTRA_OUTPUT 文件；部分相机不写该文件，直接回传 URI，则回退
+                if (cameraTempFile != null && cameraTempFile.exists() && cameraTempFile.length() > 0) {
+                    bitmap = decodeSampledFile(cameraTempFile.getAbsolutePath());
+                }
+                if (bitmap == null && data != null && data.getData() != null) {
+                    bitmap = decodeSampledUri(data.getData());
+                }
             } else {
                 Uri uri = data != null ? data.getData() : null;
                 if (uri == null) { call.reject("未选择图片"); return; }

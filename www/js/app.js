@@ -224,7 +224,7 @@ const app = {
     settings.deepseekKey = document.getElementById('setting-deepseek-key').value.trim();
     settings.deepseekBase = document.getElementById('setting-deepseek-base').value.trim() || 'https://api.deepseek.com';
     settings.qwenKey = document.getElementById('setting-qwen-key').value.trim();
-    settings.qwenBase = document.getElementById('setting-qwen-base').value.trim() || 'https://dashscope.aliyuncs.com/api/v1';
+    settings.qwenBase = document.getElementById('setting-qwen-base').value.trim() || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
     settings.desktopPet = document.getElementById('setting-desktop-pet').checked;
 
     if (document.getElementById('setting-pet-name').value.trim()) {
@@ -250,7 +250,7 @@ const app = {
     document.getElementById('setting-deepseek-key').value = settings.deepseekKey || '';
     document.getElementById('setting-deepseek-base').value = settings.deepseekBase || 'https://api.deepseek.com';
     document.getElementById('setting-qwen-key').value = settings.qwenKey || '';
-    document.getElementById('setting-qwen-base').value = settings.qwenBase || 'https://dashscope.aliyuncs.com/api/v1';
+    document.getElementById('setting-qwen-base').value = settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
     document.getElementById('setting-desktop-pet').checked = settings.desktopPet !== false;
     document.getElementById('setting-pet-name').value = settings.petName || (PetCore.data?.name || '');
   },

@@ -36,10 +36,8 @@ public class WakeAlarmActivity extends Activity {
     }
 
     private void stopAlarm() {
-        // 停止前台播放服务（响铃 + 震动），服务 onDestroy 会清理资源
-        try {
-            getApplicationContext().stopService(new Intent(getApplicationContext(), WakePlayerService.class));
-        } catch (Exception ignore) {}
+        // 停止前台播放服务，并向发送方写云端回执（提示"对方已关闭闹钟"）
+        WakePlayerService.stopAndNotify(getApplicationContext());
         finish();
     }
 }

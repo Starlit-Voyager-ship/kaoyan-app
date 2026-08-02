@@ -160,6 +160,7 @@ public class WakeGuardService extends Service {
             long maxTs = lastTs;
             long latestValidTs = lastTs;
             String latestMsg = "该起床学习啦！";
+            String latestFrom = "";
             boolean hasValid = false;
 
             for (int i = 0; i < results.length(); i++) {
@@ -172,6 +173,7 @@ public class WakeGuardService extends Service {
                         from != null && !from.isEmpty() && !from.equals(username)) {
                     latestValidTs = ts;
                     latestMsg = m.optString("message", latestMsg);
+                    latestFrom = from;
                     hasValid = true;
                 }
             }
@@ -187,8 +189,9 @@ public class WakeGuardService extends Service {
             persist();
 
             // 仅当存在真正有效的新叫醒才拉起强提醒
+            // fromUser=发送方，toUser=接收方自己（username），供停止回执定位发送方
             if (hasValid) {
-                WakeAlarmHelper.fire(this, latestMsg, true, true, true);
+                WakeAlarmHelper.fire(this, latestMsg, true, true, true, latestFrom, username);
             }
 
         } catch (Exception e) {

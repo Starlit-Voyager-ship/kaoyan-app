@@ -43,6 +43,12 @@
             android:excludeFromRecents="true"
             android:exported="false" />
 
+        <!-- 通知栏「停止」按钮广播接收器（锁屏/后台也能关闭叫醒） -->
+        <receiver
+            android:name=".plugins.WakeStopReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
         <!-- 前台守护服务：锁屏/后台持续轮询云端叫醒 -->
         <service
             android:name=".plugins.WakeGuardService"

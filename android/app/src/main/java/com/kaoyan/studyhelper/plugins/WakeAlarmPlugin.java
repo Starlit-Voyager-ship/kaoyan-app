@@ -27,7 +27,9 @@ public class WakeAlarmPlugin extends Plugin {
         boolean sound = call.getBoolean("sound", true);
         boolean fullScreen = call.getBoolean("fullScreen", true);
         boolean vibrate = call.getBoolean("vibrate", true);
-        WakeAlarmHelper.fire(getContext(), message, sound, fullScreen, vibrate);
+        String fromUser = call.getString("fromUser", "");
+        String toUser = call.getString("toUser", "");
+        WakeAlarmHelper.fire(getContext(), message, sound, fullScreen, vibrate, fromUser, toUser);
         JSObject ret = new JSObject();
         ret.put("ok", true);
         call.resolve(ret);

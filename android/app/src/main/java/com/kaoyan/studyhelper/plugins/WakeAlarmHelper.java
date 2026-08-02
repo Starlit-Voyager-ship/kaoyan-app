@@ -12,13 +12,16 @@ import android.content.Intent;
  */
 public class WakeAlarmHelper {
 
-    /** 触发强提醒：启动前台服务播放闹钟声 + 震动 */
-    public static void fire(Context ctx, String message, boolean sound, boolean fullScreen, boolean vibrate) {
+    /** 触发强提醒：启动前台服务播放闹钟声 + 震动；fromUser=发送方, toUser=接收方(自己) */
+    public static void fire(Context ctx, String message, boolean sound, boolean fullScreen, boolean vibrate,
+                            String fromUser, String toUser) {
         try {
             Intent svc = new Intent(ctx, WakePlayerService.class);
             svc.putExtra("message", message);
             svc.putExtra("sound", sound);
             svc.putExtra("vibrate", vibrate);
+            svc.putExtra("fromUser", fromUser);
+            svc.putExtra("toUser", toUser);
             ctx.startForegroundService(svc);
         } catch (Exception e) {
             // 兜底：极端情况下尝试直接启动 Activity（仅前台场景有效）

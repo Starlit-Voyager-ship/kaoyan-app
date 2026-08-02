@@ -37,7 +37,9 @@ const WakeNative = {
       message: opts.message || '该起床学习啦！',
       sound: opts.sound !== false,
       fullScreen: opts.fullScreen !== false,
-      vibrate: opts.vibrate !== false
+      vibrate: opts.vibrate !== false,
+      fromUser: opts.fromUser || '',   // 发送方账号（peer）
+      toUser: opts.toUser || ''        // 接收方自己（me）
     };
     if (this.available()) {
       try {
@@ -534,15 +536,27 @@ const FriendWake = {
         return;
       }
       this.lastPending = fresh.length;
-      if (fresh.length) {
-        // 取最新一条触发
-        fresh.sort((a, b) => b.ts - a.ts);
-        this.lastWakeTs = fresh[0].ts;
-        try { localStorage.setItem('wake_lastts_' + me, String(this.lastWakeTs)); } catch (e) {}
-        this.lastPending = 0;
-        WakeNative.trigger({ message: fresh[0].message || '该起床学习啦！' });
+      // 分类：叫醒（wake）与关闭回执（closed）
+      const wakes = fresh.filter(m => (m.type || 'wake') === 'wake');
+      const closed = fresh.filter(m => m.type === 'closed');
+      if (wakes.length) {
+        wakes.sort((a, b) => b.ts - a.ts);
+        WakeNative.trigger({
+          message: wakes[0].message || '该起床学习啦！',
+          fromUser: wakes[0].fromUser,   // 发送方
+          toUser: me                      // 接收方自己
+        });
         Utils.toast('⏰ 收到好友叫醒！');
       }
+      if (closed.length) {
+        closed.sort((a, b) => b.ts - a.ts);
+        Utils.toast('🔕 ' + (closed[0].fromUser || '对方') + ' 已关闭闹钟');
+      }
+      // 推进游标到最新消息（含 closed），避免重复提示
+      const maxTs = fresh.reduce((mx, m) => Math.max(mx, m.ts), this.lastWakeTs);
+      this.lastWakeTs = maxTs;
+      try { localStorage.setItem('wake_lastts_' + me, String(this.lastWakeTs)); } catch (e) {}
+      this.lastPending = 0;
     } catch (e) { /* 静默 */ }
     this.updateNetStatus();
   },

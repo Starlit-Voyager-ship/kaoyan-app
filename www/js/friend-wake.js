@@ -172,7 +172,8 @@ const FriendWake = {
   updateNetStatus() {
     const el = document.getElementById('net-status');
     if (!el) return;
-    if (WakeStore.cloudReady()) {
+    const ready = WakeStore.cloudReady();
+    if (ready) {
       el.innerHTML = '<span style="color:var(--success)">● 云端同步已开启</span>';
     } else {
       el.innerHTML = '<span style="color:var(--danger)">⚠ 未连接云端（请重新登录）</span>' +
@@ -181,6 +182,13 @@ const FriendWake = {
         const btn = document.getElementById('btn-relogin-wake');
         if (btn) btn.onclick = () => { Auth.handleLogout(); };
       }, 100);
+    }
+    // 同步到底部全局状态栏（如果存在）
+    const footerEl = document.getElementById('footer-net-status');
+    if (footerEl) {
+      footerEl.innerHTML = ready
+        ? '<span style="color:var(--success)">● 云端同步已开启</span>'
+        : '<span style="color:var(--warning)">○ 本地模式</span>';
     }
   },
 

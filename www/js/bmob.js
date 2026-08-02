@@ -137,12 +137,9 @@ const Bmob = {
   },
 
   /* ---------- 数据（统一类 AppData） ---------- */
-  _acl() {
-    const acl = {};
-    if (this.userObjectId) acl[this.userObjectId] = { read: true, write: true };
-    acl['*'] = { read: false, write: false }; // 默认禁止其他人访问 → 各账号数据隔离
-    return acl;
-  },
+  // 注意：Bmob REST API 对 ACL 格式校验极严（要求真实用户 objectId），
+  //       创建数据时无法预知 objectId，故不传 ACL，使用 Bmob 默认权限。
+  //       数据隔离通过 userId + module 查询条件保证，各账号读写各自数据。
 
   // 保存一条记录（按 userId+module+itemId 去重，存在则更新）
   async saveAppData(module, item) {
@@ -157,8 +154,7 @@ const Bmob = {
       userId: this.username,
       module,
       itemId: item.id,
-      item,
-      ACL: this._acl()
+      item
     };
     if (existing) {
       return this.request('PUT', '/classes/AppData/' + existing.objectId, payload);

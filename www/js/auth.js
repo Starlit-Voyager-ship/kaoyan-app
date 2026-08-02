@@ -80,6 +80,10 @@ const Auth = {
     document.getElementById('sidebar-username').textContent = username;
     app.updateHomeStats();
     app.initAllModules();
+    // 登录成功后立即刷新云端状态栏
+    if (window.FriendWake) {
+      setTimeout(() => FriendWake.updateNetStatus(), 300);
+    }
   },
 
   // ---- 登录：只走云端 ----

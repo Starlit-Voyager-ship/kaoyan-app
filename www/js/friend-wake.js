@@ -168,16 +168,15 @@ const FriendWake = {
 
   user() { return Store.getCurrentUser(); },
 
-  /* ---------- 状态显示 ---------- */
+  /* ---------- 状态显示（纯云端） ---------- */
   updateNetStatus() {
     const el = document.getElementById('net-status');
     if (!el) return;
     if (WakeStore.cloudReady()) {
-      el.innerHTML = '<span style="color:var(--success)">● 云端同步已开启（多端互通）</span>';
+      el.innerHTML = '<span style="color:var(--success)">● 云端同步已开启</span>';
     } else {
-      el.innerHTML = '<span style="color:var(--warning)">○ 本地模式（同设备可用）</span>' +
-        ' <button id="btn-relogin-wake" style="font-size:0.75rem;padding:2px 8px;margin-left:4px;border:1px solid var(--warning);color:var(--warning);background:transparent;border-radius:4px;cursor:pointer;">退出重登开云端</button>';
-      // 绑定重登按钮
+      el.innerHTML = '<span style="color:var(--danger)">⚠ 未连接云端（请重新登录）</span>' +
+        ' <button id="btn-relogin-wake" style="font-size:0.75rem;padding:2px 8px;margin-left:4px;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:4px;cursor:pointer;">退出重登</button>';
       setTimeout(() => {
         const btn = document.getElementById('btn-relogin-wake');
         if (btn) btn.onclick = () => { Auth.handleLogout(); };

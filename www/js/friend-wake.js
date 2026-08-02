@@ -55,8 +55,35 @@ const WakeNative = {
 /* ---------- 叫醒数据访问层（Bmob 云端优先 + 本地兜底） ---------- */
 const WakeStore = {
   // 云端是否可用（Bmob 已登录且凭证存在）
+  // 注意：脚本加载顺序可能导致首次调用时 Bmob 尚未初始化，
+  //       因此内置重试：首次返回 false 时 1s 后再查一次
+  _cloudReadyCache: null,
+  _cloudReadyTimer: null,
+
   cloudReady() {
-    return !!(window.Bmob && Bmob.hasCredentials() && Bmob.isLoggedIn());
+    // 用 typeof 检测（const 声明不一定挂到 window.Bmob）
+    const hasBmob = (typeof Bmob !== 'undefined');
+    const hasCreds = hasBmob && Bmob.hasCredentials();
+    const loggedIn = hasCreds && Bmob.isLoggedIn();
+    const result = !!(hasBmob && hasCreds && loggedIn);
+
+    // 缓存结果，避免每次轮询都打日志
+    if (result !== this._cloudReadyCache) {
+      this._cloudReadyCache = result;
+      console.log('[FriendWake] cloudReady:', result,
+        '| loggedIn:', loggedIn, '| user:', hasCreds ? (Bmob.username || '-') : '-');
+    }
+
+    // 首次检测到 Bmob 不存在 → 1s 后自动重试（应对脚本加载时序问题）
+    if (!hasBmob && !this._cloudReadyTimer) {
+      this._cloudReadyTimer = setTimeout(() => {
+        this._cloudReadyTimer = null;
+        this._cloudReadyCache = null; // 清缓存让下次重新打日志
+        // 注意：这里 this 指向 WakeStore，必须用 FriendWake.updateNetStatus
+        if (window.FriendWake) FriendWake.updateNetStatus();
+      }, 1000);
+    }
+    return result;
   },
 
   // 写入一条记录（绑定关系 / 叫醒消息）到指定 Bmob 类

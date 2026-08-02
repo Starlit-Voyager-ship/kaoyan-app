@@ -9,6 +9,23 @@
        非原生环境降级为 Web 通知 / alert
    ======================================== */
 
+/* ---------- 注册本地原生插件（WakeAlarm 无 web 实现，纯桥接到 Android 原生） ---------- */
+/* 说明：WakeAlarm 的 Java 代码直接放在 android/app 的 app module 中，
+   原生侧会被 @CapacitorPlugin 注解自动注册；但 web 侧不会自动写入
+   capacitor.plugins.json，导致 Capacitor.Plugins.WakeAlarm 为 undefined、
+   WakeNative.available() 误判为不可用，从而降级为浏览器通知（仅有系统默认震动）。
+   这里在原生平台手动注册插件桥，才能调用原生的全屏+响铃+震动强提醒。 */
+(function registerWakeAlarmPlugin() {
+  try {
+    if (window.Capacitor && Capacitor.isNativePlatform() && !Capacitor.Plugins.WakeAlarm) {
+      Capacitor.registerPlugin('WakeAlarm');
+      console.log('[WakeNative] 已注册 WakeAlarm 原生插件桥');
+    }
+  } catch (e) {
+    console.warn('[WakeNative] 注册失败，将降级 Web 通知', e);
+  }
+})();
+
 /* ---------- 原生强提醒封装 ---------- */
 const WakeNative = {
   available() {
@@ -225,6 +242,25 @@ const FriendWake = {
       nativeEl.innerHTML = WakeNative.available()
         ? '<span style="color:var(--success)">✓ 原生强提醒可用（可绕过免打扰）</span>'
         : '<span style="color:var(--warning)">⚠ 网页模式：叫醒会被免打扰拦截（装 APK 后可用原生）</span>';
+    }
+    // 原生平台：检测是否已获得"覆盖勿扰"权限，未授权则引导（否则响铃在 DND 下被静音）
+    if (WakeNative.available()) {
+      try {
+        Capacitor.Plugins.WakeAlarm.canOverrideDnd().then(r => {
+          if (r && r.granted !== true) {
+            const tip = document.getElementById('dnd-tip');
+            if (tip) {
+              tip.style.display = 'block';
+              tip.innerHTML = '⚠ 未授权"绕过免打扰"：开启勿扰/静音时响铃可能不响。' +
+                '<button id="btn-dnd" style="margin-left:8px;font-size:0.75rem;padding:2px 8px;border:1px solid var(--primary);color:var(--primary);background:transparent;border-radius:4px;cursor:pointer;">去授权</button>';
+              setTimeout(() => {
+                const b = document.getElementById('btn-dnd');
+                if (b) b.onclick = () => Capacitor.Plugins.WakeAlarm.requestDndAccess();
+              }, 100);
+            }
+          }
+        }).catch(() => {});
+      } catch (e) { /* 忽略 */ }
     }
     // 恢复本地已保存的绑定关系
     try {

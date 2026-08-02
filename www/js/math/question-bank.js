@@ -77,6 +77,7 @@ const MathBank = {
 
     document.getElementById('detail-source').textContent = question.source || '-';
     document.getElementById('detail-topic').textContent = question.topic || '-';
+    document.getElementById('detail-error').textContent = question.errorReason || '-';
     document.getElementById('detail-ocr').textContent = question.ocrText || '-';
     document.getElementById('detail-time').textContent =
       question.createdAt ? new Date(question.createdAt).toLocaleString() : '-';

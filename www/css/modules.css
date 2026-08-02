@@ -264,6 +264,68 @@
 #chat-input:focus { border-color: var(--primary); }
 #chat-send { align-self: flex-end; }
 
+/* ===== AI 双 Tab ===== */
+.ai-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.ai-tab {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+.ai-tab.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+  background: var(--primary-bg);
+}
+.ai-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+/* 上传归档 */
+.upload-drop {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-md);
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  margin-bottom: 12px;
+  overflow: hidden;
+  padding: 8px;
+}
+.upload-empty { text-align: center; color: var(--text-secondary); }
+.upload-img { max-width: 100%; max-height: 280px; border-radius: var(--radius-sm); }
+.upload-tools { display: flex; gap: 8px; margin-bottom: 12px; }
+.upload-tools .tool-btn { width: auto; padding: 0 14px; gap: 4px; }
+.upload-meta { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.upload-meta label {
+  display: flex; flex-direction: column;
+  font-size: 0.82rem; color: var(--text-secondary); gap: 4px;
+}
+.upload-meta select, .upload-meta input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.upload-result { margin-top: 12px; }
+.result-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+.result-title { font-weight: 600; margin-bottom: 8px; color: var(--primary); }
+.result-body { color: var(--text); white-space: pre-wrap; line-height: 1.6; font-size: 0.88rem; }
+.btn-block { width: 100%; }
+
 /* --- 单词模块 --- */
 .vocab-tabs {
   display: flex;

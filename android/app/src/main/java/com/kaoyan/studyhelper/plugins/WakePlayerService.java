@@ -78,7 +78,6 @@ public class WakePlayerService extends Service {
                     AudioAttributes aa = new AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_ALARM)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .setFlags(AudioAttributes.FLAG_BYPASS_DND)
                             .build();
                     ringtone.setAudioAttributes(aa);
                     // 闹钟音量为 0 时兜底调高，确保真能叫醒（需 MODIFY_AUDIO_SETTINGS）

@@ -207,6 +207,7 @@ const FriendWake = {
   lastSendTo: '',
   lastPollTs: 0,
   lastPending: 0,
+  _lastUser: null,
   _guardStarted: false,
 
   init() {
@@ -503,16 +504,35 @@ const FriendWake = {
 
   async poll() {
     const me = this.user();
-    if (!me) return;
+    if (!me) { this._lastUser = null; return; }
+    // 账号切换：按账号恢复已读游标，避免跨账号串扰 / 误把别人历史当自己的
+    if (me !== this._lastUser) {
+      this._lastUser = me;
+      const saved = parseInt(localStorage.getItem('wake_lastts_' + me) || '0', 10);
+      this.lastWakeTs = isNaN(saved) ? 0 : saved;
+    }
     this.lastPollTs = Date.now();
     try {
       const msgs = await WakeStore.query('WakeMsg', { toUser: me });
-      const fresh = (msgs || []).filter(m => m.ts && m.ts > this.lastWakeTs);
+      const fresh = (msgs || []).filter(m =>
+        m.ts && m.ts > this.lastWakeTs &&
+        m.fromUser && m.fromUser !== me &&   // 排除脏数据 / 自己发给自己
+        m.toUser === me                       // 严格归属
+      );
+      // 全新账号（游标仍为 0）：推进到当前时刻并跳过历史垃圾，不再误触发
+      if (this.lastWakeTs === 0) {
+        this.lastWakeTs = Date.now();
+        try { localStorage.setItem('wake_lastts_' + me, String(this.lastWakeTs)); } catch (e) {}
+        this.lastPending = 0;
+        this.updateNetStatus();
+        return;
+      }
       this.lastPending = fresh.length;
       if (fresh.length) {
         // 取最新一条触发
         fresh.sort((a, b) => b.ts - a.ts);
         this.lastWakeTs = fresh[0].ts;
+        try { localStorage.setItem('wake_lastts_' + me, String(this.lastWakeTs)); } catch (e) {}
         this.lastPending = 0;
         WakeNative.trigger({ message: fresh[0].message || '该起床学习啦！' });
         Utils.toast('⏰ 收到好友叫醒！');

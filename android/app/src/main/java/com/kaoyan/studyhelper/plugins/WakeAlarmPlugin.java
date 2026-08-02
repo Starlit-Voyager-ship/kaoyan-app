@@ -80,6 +80,10 @@ public class WakeAlarmPlugin extends Plugin {
     /** 停止守护服务 */
     @PluginMethod
     public void stopGuard(PluginCall call) {
+        // 停止守护时清空持久游标，避免系统重建后回退到旧账号 / 旧时间戳
+        try {
+            getContext().getSharedPreferences("wake_guard", Context.MODE_PRIVATE).edit().clear().apply();
+        } catch (Exception ignore) {}
         Intent intent = new Intent(getContext(), WakeGuardService.class);
         getContext().stopService(intent);
         JSObject ret = new JSObject();

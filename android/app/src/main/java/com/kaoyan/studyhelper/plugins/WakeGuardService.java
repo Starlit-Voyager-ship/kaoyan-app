@@ -29,8 +29,11 @@ import java.util.concurrent.TimeUnit;
  * 前台守护服务：即使 App 锁屏 / 退到后台，也持续轮询 Bmob 云端是否有新叫醒。
  * 收到新叫醒 → 直接拉起 WakeAlarmActivity（全屏 + 响铃 + 震动）。
  *
- * 为什么需要它：网页版（Capacitor WebView）在后台/锁屏时定时器会被系统挂起，
- * 导致"手机没收到叫醒"。原生前台服务持有前台通知 + 唤醒锁，能稳定保持轮询。
+ * 关键修复（v=r）：
+ *   1. lastTs 按 username 隔离持久化，避免切换账号时串扰；
+ *   2. 新账号首次轮询（lastTs 仍为 0）会把游标推进到当前时刻并跳过历史，
+ *      防止"一登录就把历史/调试垃圾当成新叫醒"疯狂触发；
+ *   3. 过滤掉 fromUser 为空 / 自己发给自己 的脏数据。
  */
 public class WakeGuardService extends Service {
 
@@ -51,11 +54,8 @@ public class WakeGuardService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
-        appId = sp.getString("appId", "");
-        restKey = sp.getString("restKey", "");
-        username = sp.getString("username", "");
-        lastTs = sp.getLong("lastTs", 0);
+        // lastTs 不在此读取：按 username 隔离，在 onStartCommand 拿到账号后再恢复，
+        // 避免跨账号串扰；新账号首次为 0，首轮 poll 会跳过历史。
     }
 
     @Override
@@ -67,14 +67,11 @@ public class WakeGuardService extends Service {
             if (a != null) appId = a;
             if (r != null) restKey = r;
             if (u != null) username = u;
-            if (intent.hasExtra("lastTs")) lastTs = intent.getLongExtra("lastTs", lastTs);
-            // 持久化，供服务被系统重建后恢复
-            SharedPreferences.Editor e = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
-            e.putString("appId", appId);
-            e.putString("restKey", restKey);
-            e.putString("username", username);
-            e.putLong("lastTs", lastTs);
-            e.apply();
+            // 按账号隔离恢复游标；首次（从未处理过）为 0
+            if (username != null && !username.isEmpty()) {
+                lastTs = getSharedPreferences(PREFS, MODE_PRIVATE).getLong("lastTs_" + username, 0);
+            }
+            persist();
         }
 
         startForeground(NOTIFY_ID, buildNotification());
@@ -84,6 +81,15 @@ public class WakeGuardService extends Service {
             scheduler.scheduleWithFixedDelay(this::poll, 0, POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
         }
         return START_STICKY; // 被系统杀掉后尽量自动重启
+    }
+
+    private void persist() {
+        SharedPreferences.Editor e = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
+        e.putString("appId", appId);
+        e.putString("restKey", restKey);
+        e.putString("username", username);
+        if (username != null && !username.isEmpty()) e.putLong("lastTs_" + username, lastTs);
+        e.apply();
     }
 
     private android.app.Notification buildNotification() {
@@ -113,7 +119,7 @@ public class WakeGuardService extends Service {
     }
 
     private void poll() {
-        if (username == null || username.isEmpty() || appId.isEmpty()) return;
+        if (username == null || username.isEmpty() || appId == null || appId.isEmpty()) return;
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm != null && wakeLock == null) {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeGuard::poll");
@@ -150,21 +156,40 @@ public class WakeGuardService extends Service {
             JSONArray results = json.optJSONArray("results");
             if (results == null || results.length() == 0) return;
 
+            long now = System.currentTimeMillis();
             long maxTs = lastTs;
+            long latestValidTs = lastTs;
             String latestMsg = "该起床学习啦！";
+            boolean hasValid = false;
+
             for (int i = 0; i < results.length(); i++) {
                 JSONObject m = results.getJSONObject(i);
                 long ts = m.optLong("ts", 0);
-                if (ts > maxTs) {
-                    maxTs = ts;
+                if (ts > maxTs) maxTs = ts;
+                String from = m.optString("fromUser", "");
+                // 有效性过滤：来自非空、且非自己、且确实比游标新；排除脏数据 / 自环
+                if (ts > lastTs && ts > latestValidTs &&
+                        from != null && !from.isEmpty() && !from.equals(username)) {
+                    latestValidTs = ts;
                     latestMsg = m.optString("message", latestMsg);
+                    hasValid = true;
                 }
             }
-            lastTs = maxTs;
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putLong("lastTs", lastTs).apply();
 
-            // 拉起全屏强提醒
-            WakeAlarmHelper.fire(this, latestMsg, true, true, true);
+            // 新账号首次轮询（lastTs 仍为 0）：把游标推进到当前时刻，跳过历史垃圾，避免误触发
+            if (lastTs == 0) {
+                lastTs = now;
+                persist();
+                return;
+            }
+
+            lastTs = maxTs;
+            persist();
+
+            // 仅当存在真正有效的新叫醒才拉起强提醒
+            if (hasValid) {
+                WakeAlarmHelper.fire(this, latestMsg, true, true, true);
+            }
 
         } catch (Exception e) {
             // 网络异常等，下一轮继续

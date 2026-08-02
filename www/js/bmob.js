@@ -6,6 +6,7 @@
 const Bmob = {
   appId: '',
   restKey: '',
+  // 默认用官方已经验证可用的真实域名（避免写死失效域名导致整体降级）
   apiUrl: 'https://api.bmobcloud.com/1',
   sessionToken: '',
   userObjectId: '',
@@ -16,7 +17,9 @@ const Bmob = {
     cfg = cfg || (window.APP_CONFIG && window.APP_CONFIG.bmob) || {};
     this.appId = cfg.appId || '';
     this.restKey = cfg.restKey || '';
-    this.apiUrl = cfg.apiUrl || 'https://api2.bmob.cn/1';
+    this.apiUrl = (cfg.apiUrl && cfg.apiUrl.indexOf('api2.bmob.cn') === -1)
+      ? cfg.apiUrl
+      : 'https://api.bmobcloud.com/1';
     try {
       const s = JSON.parse(localStorage.getItem('bmob_session') || 'null');
       if (s && s.sessionToken) {

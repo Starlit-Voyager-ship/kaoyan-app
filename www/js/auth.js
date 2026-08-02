@@ -22,29 +22,23 @@ const Auth = {
       return;
     }
 
-    // ② 有本地缓存用户
+    // ② 有本地缓存用户 → 强制停在登录页让用户输密码（云端优先，失败才降级本地）
+    //    注意：不再"无凭证就直接进本地模式"，因为浏览器可能只在本地缓存，
+    //          而 Bmob 云端其实有这个账号。统一走登录页是最稳妥的。
     const cachedUser = Store.getCurrentUser();
     if (cachedUser) {
-      if (this.cloudReady) {
-        // ★ 有Bmob凭证但没云端session → 停在登录页，预填用户名，强制走云端登录（云端失败才降级本地）
-        this.showAuthPage();
-        // 预填用户名，方便用户直接输密码
-        document.getElementById('login-username').value = cachedUser;
-        // 切到登录tab
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.form-panel').forEach(p => p.classList.remove('active'));
-        const loginTab = document.querySelector('.tab-btn[data-tab="login"]');
-        const loginPanel = document.getElementById('login-form');
-        if (loginTab) loginTab.classList.add('active');
-        if (loginPanel) loginPanel.classList.add('active');
-        // 提示一下
-        setTimeout(() => {
-          Utils.toast('请重新登录以开启云端同步 ↑', 3000);
-        }, 500);
-      } else {
-        // 没有Bmob凭证 → 纯本地模式，直接进入
-        this.enterApp(cachedUser, false);
-      }
+      this.showAuthPage();
+      document.getElementById('login-username').value = cachedUser;
+      // 切到登录tab
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.form-panel').forEach(p => p.classList.remove('active'));
+      const loginTab = document.querySelector('.tab-btn[data-tab="login"]');
+      const loginPanel = document.getElementById('login-form');
+      if (loginTab) loginTab.classList.add('active');
+      if (loginPanel) loginPanel.classList.add('active');
+      setTimeout(() => {
+        Utils.toast('请输入密码登录（优先云端同步）↑', 3000);
+      }, 500);
     } else {
       // ③ 没有任何用户 → 显示登录页
       this.showAuthPage();
@@ -108,16 +102,12 @@ const Auth = {
       return;
     }
 
-    // 尝试云端登录
-    if (this.cloudReady) {
-      // 先检查是否有映射的云端账号（之前自动创建的后缀账号）
-      const cloudUser = localStorage.getItem('cloud_user_' + username) || username;
+    // 尝试云端登录（有凭证就优先走云端）
+    if (this.cloudReady || Bmob.hasCredentials()) {
       try {
-        await Bmob.login(cloudUser, password);
+        await Bmob.login(username, password);
         this.cloudOk = true;
         this.useLocal = false;
-        localStorage.removeItem('_cloud_suggested');
-        if (cloudUser !== username) localStorage.setItem('cloud_user_' + username, cloudUser);
         errorEl.textContent = '';
         this.enterApp(username);
         Utils.toast(`欢迎回来，${username}！已开启云同步 ✅`);
@@ -125,11 +115,23 @@ const Auth = {
         return;
       } catch (e) {
         console.warn('[Auth] 云端登录失败:', e.message, '| status:', e.status);
-        // 云端账号/密码不匹配 → 尝试自动修复
+        // 账号不存在/密码不对 → 自动注册云端账号再登录（本地老用户无缝上云）
         if (/202|101|NotFound|found|不正确|incorrect/i.test(e.message) || [202, 101, 404].includes(e.status)) {
-          const fixed = await this._fixCloudAccount(username, password, errorEl);
-          if (fixed) return;
+          try {
+            await Bmob.register(username, password);
+            this.cloudOk = true;
+            this.useLocal = false;
+            errorEl.textContent = '';
+            this.enterApp(username);
+            Utils.toast(`欢迎，${username}！已自动开通云同步 ✅`);
+            this._ensurePet(username);
+            return;
+          } catch (regErr) {
+            console.warn('[Auth] 自动注册也失败:', regErr.message);
+            // 注册失败（比如用户名真被占了）→ 继续降级本地
+          }
         }
+        // 其他错误（网络等）→ 继续降级本地
       }
     }
 

@@ -58,7 +58,7 @@ public class WakeAlarmPlugin extends Plugin {
         String appId = call.getString("appId", "");
         String restKey = call.getString("restKey", "");
         String username = call.getString("username", "");
-        long lastTs = call.getLong("lastTs", 0);
+        long lastTs = call.getLong("lastTs", 0L);
         Intent intent = new Intent(getContext(), WakeGuardService.class);
         intent.putExtra("appId", appId);
         intent.putExtra("restKey", restKey);

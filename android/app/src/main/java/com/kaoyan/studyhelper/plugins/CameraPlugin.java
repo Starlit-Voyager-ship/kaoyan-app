@@ -11,6 +11,8 @@ import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.pm.PackageManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
@@ -23,6 +25,7 @@ import androidx.core.content.ContextCompat;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.util.List;
 
 /**
  * 相机 / 相册 原生插件（Capacitor 桥）
@@ -98,11 +101,30 @@ public class CameraPlugin extends Plugin {
                     getContext(), getContext().getPackageName() + ".fileprovider", cameraTempFile);
             Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             intent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
-            // 部分 OEM 相机写回文件需要读权限
             intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
             intent.addCategory(Intent.CATEGORY_DEFAULT);
-            // 国产机常见：相册应用注册了 ACTION_IMAGE_CAPTURE 且为默认，强制弹出选择器让用户选真正的相机
-            startActivityForResult(call, Intent.createChooser(intent, "拍照"), REQ_CAMERA);
+
+            // 关键修复：很多国产机（小米/OPPO/vivo 等）把「相册」注册成了 ACTION_IMAGE_CAPTURE 的默认处理者，
+            // 直接 startActivity 会被相册拦截。这里枚举所有能处理该 Intent 的 Activity，
+            // 排除相册/图库类应用，优先指定真正的相机 App；找不到才退回选择器。
+            PackageManager pm = getContext().getPackageManager();
+            List<ResolveInfo> resolved = pm.queryIntentActivities(intent, 0);
+            String cameraPkg = null;
+            for (ResolveInfo ri : resolved) {
+                String pkg = ri.activityInfo.packageName.toLowerCase();
+                if (pkg.contains("gallery") || pkg.contains("photos") || pkg.contains("album")) continue;
+                if (pkg.contains("camera") || pkg.contains("snapcam") || pkg.contains("camera2")) {
+                    cameraPkg = ri.activityInfo.packageName;
+                    break;
+                }
+            }
+            if (cameraPkg != null) {
+                intent.setPackage(cameraPkg);
+                startActivityForResult(call, intent, REQ_CAMERA);
+            } else {
+                // 没找到独立相机 App，退回选择器让用户手动选
+                startActivityForResult(call, Intent.createChooser(intent, "拍照"), REQ_CAMERA);
+            }
         } catch (Exception e) {
             call.reject("启动相机失败: " + e.getMessage());
         }

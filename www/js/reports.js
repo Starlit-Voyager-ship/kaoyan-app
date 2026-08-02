@@ -149,7 +149,7 @@ const Reports = {
     if (data.totalMinutes >= 120) suggestions.push('今天的专注时长很棒！保持这个节奏，注意适当休息。');
     if (data.todayWords < 5) suggestions.push('单词背诵量偏低，建议每天至少新学15-20个单词。');
     if (data.wrongWords > 5) suggestions.push(`错词数量较多(${data.wrongWords}个)，建议重点回顾错词本，加强记忆。`);
-    if (data.todayMath === 0) suggestions.push('今天还没有录入数学题目，遇到不会的题记得用AI助理拍照录入。`);
+    if (data.todayMath === 0) suggestions.push('今天还没有录入数学题目，遇到不会的题记得用AI助理拍照录入。');
     if (data.sessions > 0) suggestions.push(`完成了${data.sessions}个番茄钟，每分钟都算数！继续加油！`);
 
     if (suggestions.length === 0) suggestions.push('继续保持良好的学习节奏！');

@@ -219,7 +219,7 @@ const app = {
 
   async saveApiSettings() {
     const user = Store.getCurrentUser();
-    const settings = Store.getSettings(user);
+    const settings = Store.getSettings(user) || {};
 
     settings.deepseekKey = document.getElementById('setting-deepseek-key').value.trim();
     settings.deepseekBase = document.getElementById('setting-deepseek-base').value.trim() || 'https://api.deepseek.com';
@@ -245,7 +245,7 @@ const app = {
 
   loadSettingsUI() {
     const user = Store.getCurrentUser();
-    const settings = Store.getSettings(user);
+    const settings = Store.getSettings(user) || {};
 
     document.getElementById('setting-deepseek-key').value = settings.deepseekKey || '';
     document.getElementById('setting-deepseek-base').value = settings.deepseekBase || 'https://api.deepseek.com';

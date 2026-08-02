@@ -100,7 +100,9 @@ public class CameraPlugin extends Plugin {
             intent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
             // 部分 OEM 相机写回文件需要读权限
             intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivityForResult(call, intent, REQ_CAMERA);
+            intent.addCategory(Intent.CATEGORY_DEFAULT);
+            // 国产机常见：相册应用注册了 ACTION_IMAGE_CAPTURE 且为默认，强制弹出选择器让用户选真正的相机
+            startActivityForResult(call, Intent.createChooser(intent, "拍照"), REQ_CAMERA);
         } catch (Exception e) {
             call.reject("启动相机失败: " + e.getMessage());
         }

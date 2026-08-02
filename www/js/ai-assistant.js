@@ -13,8 +13,8 @@ const AI_SYSTEM_PROMPT = `你是一个专业的考研学习AI助理。用户正�
 4. 学习建议：提供个性化学习建议
 
 注意：
-- 回答要简洁明了，重点突出
-- 数学题要有完整步骤
+- 回答要简洁明了，重点突出，段落自然，不要每行只写几个词
+- 数学题要有完整步骤；数学公式请使用标准 LaTeX 格式（行内用 \\( ... \\)，块级用 \\[ ... \\] 或 $$ ... $$），页面会自动渲染，避免使用 $...$ 简写
 - 英语翻译要准确自然
 - 使用中文回答`;
 
@@ -368,13 +368,15 @@ const AIAssistant = {
     this.messages.forEach(msg => {
       const row = document.createElement('div');
       row.className = `msg-row ${msg.role}`;
-      row.innerHTML = `
-        <div class="msg-avatar">${msg.role === 'user' ? '👤' : '🤖'}</div>
-        <div class="msg-bubble">
-          ${msg.image ? `<img src="${msg.image}" class="msg-image" onclick="window.open(this.src)">` : ''}
-          <div>${this.escapeHtml(msg.content)}</div>
-          <div class="msg-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
-        </div>`;
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.innerHTML = `
+        ${msg.image ? `<img src="${msg.image}" class="msg-image" onclick="window.open(this.src)">` : ''}
+        <div class="msg-body">${this.formatContent(msg.content)}</div>
+        <div class="msg-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>`;
+      this.renderMath(bubble);
+      row.innerHTML = `<div class="msg-avatar">${msg.role === 'user' ? '👤' : '🤖'}</div>`;
+      row.appendChild(bubble);
       container.appendChild(row);
     });
     container.scrollTop = container.scrollHeight;
@@ -384,6 +386,34 @@ const AIAssistant = {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  },
+
+  formatContent(text) {
+    if (!text) return '';
+    // 1) 先转义 HTML，防止模型输出恶意标签
+    const safe = this.escapeHtml(text);
+    // 2) 按空行分段落，让中文排版像豆包一样自然（不是每行都硬换行）
+    return safe.split(/\n\s*\n/).map(p => {
+      if (!p.trim()) return '';
+      // 若该段包含列表行（1. / - / *），保留换行；否则把单行换行合并成自然段落
+      const hasList = /^\s*(\d+[\.\、)]|[-*+])\s+/m.test(p);
+      return '<p>' + (hasList ? p.replace(/\n/g, '<br>') : p.replace(/\n/g, ' ')) + '</p>';
+    }).join('');
+  },
+
+  renderMath(el) {
+    if (typeof renderMathInElement === 'undefined') return;
+    try {
+      renderMathInElement(el, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '\\[', right: '\\]', display: true },
+          { left: '\\(', right: '\\)', display: false }
+        ],
+        throwOnError: false,
+        errorColor: '#ef4444'
+      });
+    } catch (e) { console.warn('KaTeX 渲染失败', e); }
   },
 
   showTyping() {

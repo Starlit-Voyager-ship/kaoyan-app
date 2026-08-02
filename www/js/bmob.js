@@ -94,9 +94,11 @@ const Bmob = {
     const url = this.apiUrl + path;
     const opts = { method, headers: this._headers(needAuth) };
     if (body !== undefined) opts.body = JSON.stringify(body);
+    console.log('[Bmob] ▶', method, path, '| body:', body ? JSON.stringify(body).substring(0,100) : '(none)', '| auth:', !!needAuth);
     const res = await fetch(url, opts);
     let data = null;
     const text = await res.text();
+    console.log('[Bmob] ◀ status:', res.status, '| response:', text.substring(0,200));
     if (text) { try { data = JSON.parse(text); } catch { data = { raw: text }; } }
     if (!res.ok) {
       const msg = (data && (data.error || data.message)) || ('HTTP ' + res.status);

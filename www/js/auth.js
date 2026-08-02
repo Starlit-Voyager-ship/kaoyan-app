@@ -85,8 +85,10 @@ const Auth = {
   // ---- 登录：只走云端 ----
   async handleLogin() {
     const username = document.getElementById('login-username').value.trim();
-    const password = document.getElementById('login-password').value;
+    const password = (document.getElementById('login-password').value || '').trim();
     const errorEl = document.getElementById('login-error');
+
+    console.log('[Auth] 🔐 handleLogin() 开始 | user:', username, 'pwd长度:', password.length);
 
     if (!username || !password) {
       errorEl.textContent = '请输入账号和密码';
@@ -98,8 +100,9 @@ const Auth = {
 
     try {
       // Step 1: 尝试用云端账号登录
-      console.log('[Auth] → 云端登录:', cloudUser);
-      await Bmob.login(cloudUser, password);
+      console.log('[Auth] → Step1 云端登录:', cloudUser, '| API:', (window.Bmob && Bmob.apiUrl) || 'N/A');
+      const loginData = await Bmob.login(cloudUser, password);
+      console.log('[Auth] ✅ 云端登录成功:', JSON.stringify(loginData));
       this.cloudOk = true;
       if (cloudUser !== username) localStorage.setItem('cloud_user_' + username, cloudUser);
       errorEl.textContent = '';
@@ -108,7 +111,8 @@ const Auth = {
       this._ensurePet(username);
       return;
     } catch (e) {
-      console.warn('[Auth] 云端登录失败:', e.message, '| status:', e.status);
+      console.warn('[Auth] ❌ Step1 云端登录失败:', e.message, '| status:', e.status, '| name:', e.name);
+      console.warn('[Auth]    完整错误对象:', JSON.stringify(e).substring(0, 300));
 
       // Step 2: 账号不存在/密码不对 → 用原用户名尝试注册
       if (/202|101|NotFound|found|不正确|incorrect/i.test(e.message) || [202, 101, 404].includes(e.status)) {

@@ -724,5 +724,156 @@
       } catch (e) { /* 忽略 */ }
     })();
   </script>
+  <!-- ===== 🔥 内联云端登录（绕过外部 auth.js 缓存）===== -->
+  <!-- 原因：浏览器持续缓存旧版 js/auth.js（即使服务器已返回 no-store 头），
+       导致所有云端修复（纯云端模式、_fixCloudAccount 等）全部无效。
+       此内联脚本在所有外部 JS 加载后强制覆盖关键函数。 -->
+  <script>
+  (function(){
+    var TAG='[InlineAuth]';
+    var API='https://api.bmobcloud.com/1';
+    var APP_ID='d8d53879939a9d1336bab1991797e381';
+    var REST_KEY='f46de67801e8fa61b93327114ea188c1';
+
+    function hdr(auth){
+      var h={'Content-Type':'application/json','X-Bmob-Application-Id':APP_ID,'X-Bmob-REST-API-Key':REST_KEY};
+      if(auth&&Bmob.sessionToken) h['X-Bmob-Session-Token']=Bmob.sessionToken;
+      return h;
+    }
+    function req(method,path,body,auth){
+      return fetch(API+path,{method:method,headers:hdr(auth),body:body!==undefined?JSON.stringify(body):undefined})
+        .then(function(r){ if(!r.ok) return r.text().then(function(t){ try{var d=JSON.parse(t);throw new Error(d.error||'HTTP '+r.status);}catch(e){throw e;} }); return r.json(); });
+    }
+
+    // 等待模块加载
+    function patch(){
+      if(!window.Auth||!window.Bmob||!window.Store){ setTimeout(patch,50); return; }
+      console.log(TAG,'模块就绪，覆盖云端登录...');
+
+      // 保存原始 enterApp
+      var _enter=Auth.enterApp?Auth.enterApp.bind(Auth):null;
+      var _show=Auth.showAuthPage?Auth.showAuthPage.bind(Auth):null;
+      var _ensure=Auth._ensurePet?Auth._ensurePet.bind(Auth):function(){};
+
+      // ★ 覆盖 init()：只走云端
+      var _origInit=Auth.init?Auth.init.bind(Auth):function(){};
+      Auth.init=function(){
+        this.bindEvents();
+        Bmob.init(window.APP_CONFIG&&window.APP_CONFIG.bmob);
+        // 有云端session → 直接进
+        if(Bmob.isLoggedIn()){
+          var u=Bmob.username; Store.setCurrentUser(u); this.cloudOk=true;
+          if(_enter) _enter(u); else { document.getElementById('auth-page').classList.remove('active'); document.getElementById('app-page').classList.add('active'); }
+          console.log(TAG,'✅ 有云端session，直接进入:',u);
+          return;
+        }
+        // 没有session → 停在登录页
+        var cached=Store.getCurrentUser();
+        if(_show) _show(); else { document.getElementById('auth-page').classList.add('active'); document.getElementById('app-page').classList.remove('active'); }
+        if(cached) document.getElementById('login-username').value=cached;
+        // 切到登录tab
+        document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+        document.querySelectorAll('.form-panel').forEach(function(p){p.classList.remove('active');});
+        var lt=document.querySelector('.tab-btn[data-tab="login"]');
+        var lp=document.getElementById('login-form');
+        if(lt)lt.classList.add('active');
+        if(lp)lp.classList.add('active');
+        console.log(TAG,'→ 停在登录页(云端优先)');
+      };
+
+      // ★ 覆盖 handleLogin()：只走云端（和 cloud-test.html 一样的逻辑）
+      Auth.handleLogin=function(){
+        var username=document.getElementById('login-username').value.trim();
+        var password=document.getElementById('login-password').value;
+        var errorEl=document.getElementById('login-error');
+        if(!username||!password){ errorEl.textContent='请输入账号和密码'; return; }
+
+        var cloudUser=localStorage.getItem('cloud_user_'+username)||username;
+
+        // Step 1: 云端登录
+        req('POST','/login',{username:cloudUser,password:password},false)
+          .then(function(d){
+            console.log(TAG,'✅ 云端登录成功:',cloudUser);
+            Bmob.sessionToken=d.sessionToken; Bmob.userObjectId=d.objectId; Bmob.username=username;
+            localStorage.setItem('bmob_session',JSON.stringify({sessionToken:d.sessionToken,objectId:d.objectId,username:username}));
+            if(cloudUser!==username) localStorage.setItem('cloud_user_'+username,cloudUser);
+            Auth.cloudOk=true; errorEl.textContent='';
+            if(_enter) _enter(username); else { Store.setCurrentUser(username); document.getElementById('auth-page').classList.remove('active'); document.getElementById('app-page').classList.add('active'); app.updateHomeStats(); app.initAllModules(); }
+            if(window.Utils) Utils.toast('欢迎回来，'+username+'！云端同步已开启 ✅');
+            _ensure(username);
+          })
+          .catch(function(e){
+            console.warn(TAG,'云端登录失败:',e.message);
+            // Step 2: 用原用户名注册
+            if(/202|101|NotFound|incorrect|不正确/i.test(e.message)){
+              return req('POST','/users',{username:username,password:password},false)
+                .then(function(d){
+                  console.log(TAG,'✅ 注册成功:',username);
+                  Bmob.sessionToken=d.sessionToken; Bmob.userObjectId=d.objectId; Bmob.username=username;
+                  localStorage.setItem('bmob_session',JSON.stringify({sessionToken:d.sessionToken,objectId:d.objectId,username:username}));
+                  Auth.cloudOk=true; errorEl.textContent='';
+                  if(_enter) _enter(username); else { Store.setCurrentUser(username); document.getElementById('auth-page').classList.remove('active'); document.getElementById('app-page').classList.add('active'); app.updateHomeStats(); app.initAllModules(); }
+                  if(window.Utils) Utils.toast('欢迎，'+username+'！已开通云同步 ✅');
+                  _ensure(username);
+                })
+                .catch(function(regErr){
+                  console.warn(TAG,'注册失败:',regErr.message,'→ 尝试后缀账号');
+                  return fixAccount(username,password,errorEl,_enter,_ensure);
+                });
+            }
+            errorEl.textContent='云端登录失败：'+(e.message||'请检查网络');
+          });
+      };
+
+      // 后缀账号修复
+      function fixAccount(localName,password,errorEl,_enter,_ensure){
+        var suffixes=['_c','_cloud','_2'];
+        function tryNext(i){
+          if(i>=suffixes.length){ errorEl.textContent='云端不可用，请检查网络'; return Promise.reject(); }
+          var cn=localName+suffixes[i];
+          return req('POST','/login',{username:cn,password:password},false)
+            .then(function(d){
+              console.log(TAG,'✅ 后缀账号登录成功:',cn);
+              Bmob.sessionToken=d.sessionToken; Bmob.username=localName;
+              localStorage.setItem('bmob_session',JSON.stringify({sessionToken:d.sessionToken,objectId:d.objectId,username:localName}));
+              localStorage.setItem('cloud_user_'+localName,cn);
+              Auth.cloudOk=true; errorEl.textContent='';
+              if(_enter) _enter(localName); else { Store.setCurrentUser(localName); document.getElementById('auth-page').classList.remove('active'); document.getElementById('app-page').classList.add('active'); app.updateHomeStats(); app.initAllModules(); }
+              if(window.Utils) Utils.toast('欢迎，'+localName+'！云端同步已开启 ✅');
+              _ensure(localName);
+            })
+            .catch(function(){ return req('POST','/users',{username:cn,password:password},false).then(function(d){
+              console.log(TAG,'✅ 后缀账号注册成功:',cn);
+              Bmob.sessionToken=d.sessionToken; Bmob.username=localName;
+              localStorage.setItem('bmob_session',JSON.stringify({sessionToken:d.sessionToken,objectId:d.objectId,username:localName}));
+              localStorage.setItem('cloud_user_'+localName,cn);
+              Auth.cloudOk=true; errorEl.textContent='';
+              if(_enter) _enter(localName); else { Store.setCurrentUser(localName); document.getElementById('auth-page').classList.remove('active'); document.getElementById('app-page').classList.add('active'); app.updateHomeStats(); app.initAllModules(); }
+              if(window.Utils) Utils.toast('欢迎，'+localName+'！已开通云同步 ✅');
+              _ensure(localName);
+            }).catch(function(){ return tryNext(i+1); }); });
+        }
+        return tryNext(0);
+      }
+
+      // ★ 重新绑定表单提交事件
+      (function rebind(){
+        var f=document.getElementById('login-form');
+        if(!f){ setTimeout(rebind,50); return; }
+        var nf=f.cloneNode(true);
+        f.parentNode.replaceChild(nf,f);
+        nf.addEventListener('submit',function(e){
+          e.preventDefault();
+          console.log(TAG,'表单提交 → 内联 handleLogin');
+          Auth.handleLogin();
+        });
+        console.log(TAG,'✅ 内联补丁完成 (init + handleLogin + rebind)');
+      })();
+    };
+
+    if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',patch); }
+    else{ patch(); }
+  })();
+  </script>
 </body>
 </html>

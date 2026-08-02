@@ -32,7 +32,9 @@ const Pomodoro = {
   },
 
   loadSettings() {
-    const settings = Store.getSettings(Store.getCurrentUser());
+    const user = Store.getCurrentUser();
+    if (!user) return;
+    const settings = Store.getSettings(user) || {};
     if (settings.focusDuration) {
       document.getElementById('focus-duration').value = settings.focusDuration;
       this.total = settings.focusDuration * 60;

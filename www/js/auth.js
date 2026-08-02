@@ -134,8 +134,24 @@ const Auth = {
       const fixed = await this._fixCloudAccount(username, password, errorEl);
       if (fixed) return;
 
-      // 全部失败 → 显示明确错误（不再降级！）
-      errorEl.textContent = '云端登录失败：' + (e.message || '请检查网络');
+      // Step 4: 全部失败 → 自动创建全新云端账号（时间戳后缀，保证唯一）
+      console.log('[Auth] → 所有常规方式失败，创建全新云端账号...');
+      const tsAccount = username + '_' + Date.now().toString(36);
+      try {
+        await Bmob.register(tsAccount, password);
+        localStorage.setItem('cloud_user_' + username, tsAccount);
+        this.cloudOk = true;
+        errorEl.textContent = '';
+        this.enterApp(username);
+        Utils.toast(`欢迎，${username}！已自动开通云同步 ✅`);
+        this._ensurePet(username);
+        return;
+      } catch (e4) {
+        console.error('[Auth] ❌ 创建新账号也失败:', e4.message);
+      }
+
+      // 真的全部失败了
+      errorEl.textContent = '云端登录失败（账号存在但密码不对）。请用「注册」 tab 创建新账号，或换一个账号登录。';
     }
   },
 

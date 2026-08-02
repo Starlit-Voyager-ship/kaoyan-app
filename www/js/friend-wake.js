@@ -203,11 +203,69 @@ const FriendWake = {
   myCode: null,          // 我的绑定码
   pollTimer: null,
   lastWakeTs: 0,
+  lastSendTs: 0,
+  lastSendTo: '',
+  lastPollTs: 0,
+  lastPending: 0,
+  _guardStarted: false,
 
   init() {
     this.bindEvents();
     this.loadBinding();
     this.startPolling();
+  },
+
+  // 取 Bmob 凭证（原生守护服务轮询需要）
+  creds() {
+    if (typeof Bmob !== 'undefined' && Bmob.appId) {
+      return { appId: Bmob.appId, restKey: Bmob.restKey };
+    }
+    if (window.APP_CONFIG) return { appId: APP_CONFIG.appId, restKey: APP_CONFIG.restKey };
+    return { appId: '', restKey: '' };
+  },
+
+  // 启动原生前台守护：锁屏/后台也持续轮询云端（真正的后台收叫醒）
+  maybeStartGuard() {
+    if (!WakeNative.available()) return;
+    const me = this.user();
+    const ready = WakeStore.cloudReady();
+    // 未登录则停止守护
+    if (!me || !ready) {
+      if (this._guardStarted) {
+        try { Capacitor.Plugins.WakeAlarm.stopGuard(); } catch (e) {}
+        this._guardStarted = false;
+      }
+      return;
+    }
+    if (this._guardStarted) return;
+    const c = this.creds();
+    if (!c.appId) return;
+    try {
+      Capacitor.Plugins.WakeAlarm.startGuard({
+        appId: c.appId, restKey: c.restKey, username: me, lastTs: this.lastWakeTs
+      });
+      this._guardStarted = true;
+      console.log('[FriendWake] 原生守护已启动（后台收叫醒）');
+    } catch (e) { console.warn('[FriendWake] 启动守护失败', e); }
+  },
+
+  // 渲染诊断面板，方便一眼看清两边状态
+  renderDiag() {
+    const el = document.getElementById('wake-diag');
+    if (!el) return;
+    const me = this.user() || '未登录';
+    const peer = this.peerUser || '未绑定';
+    const guard = (WakeNative.available() && this._guardStarted) ? '🟢 运行中（后台也能收）' : (WakeNative.available() ? '⚪ 未启动' : '—（网页模式）');
+    const send = this.lastSendTs ? (new Date(this.lastSendTs).toLocaleTimeString() + ' → ' + this.lastSendTo) : '尚未发送';
+    const poll = this.lastPollTs ? (Math.round((Date.now() - this.lastPollTs) / 1000) + ' 秒前') : '—';
+    const pend = this.lastPending > 0 ? ('🔔 有 ' + this.lastPending + ' 条未读叫醒') : '无';
+    el.innerHTML =
+      '<div class="diag-row"><span>我的账号</span><b>' + me + '</b></div>' +
+      '<div class="diag-row"><span>绑定对象</span><b>' + peer + '</b></div>' +
+      '<div class="diag-row"><span>后台守护</span><b>' + guard + '</b></div>' +
+      '<div class="diag-row"><span>上次发送</span><b>' + send + '</b></div>' +
+      '<div class="diag-row"><span>上次轮询</span><b>' + poll + '</b></div>' +
+      '<div class="diag-row"><span>云端待接收</span><b>' + pend + '</b></div>';
   },
 
   user() { return Store.getCurrentUser(); },
@@ -234,6 +292,9 @@ const FriendWake = {
         ? '<span style="color:var(--success)">● 云端同步已开启</span>'
         : '<span style="color:var(--warning)">○ 本地模式</span>';
     }
+    // 原生平台：确保后台守护在跑（锁屏也能收叫醒）
+    this.maybeStartGuard();
+    this.renderDiag();
   },
 
   loadBinding() {
@@ -374,6 +435,8 @@ const FriendWake = {
     this.showControl(valid.fromUser);
     infoEl.innerHTML = '<span style="color:var(--success)">✅ 绑定成功！</span>';
     Utils.toast('✅ 绑定成功！');
+    this.maybeStartGuard();
+    this.renderDiag();
   },
 
   doUnbind() {
@@ -441,13 +504,16 @@ const FriendWake = {
   async poll() {
     const me = this.user();
     if (!me) return;
+    this.lastPollTs = Date.now();
     try {
       const msgs = await WakeStore.query('WakeMsg', { toUser: me });
       const fresh = (msgs || []).filter(m => m.ts && m.ts > this.lastWakeTs);
+      this.lastPending = fresh.length;
       if (fresh.length) {
         // 取最新一条触发
         fresh.sort((a, b) => b.ts - a.ts);
         this.lastWakeTs = fresh[0].ts;
+        this.lastPending = 0;
         WakeNative.trigger({ message: fresh[0].message || '该起床学习啦！' });
         Utils.toast('⏰ 收到好友叫醒！');
       }

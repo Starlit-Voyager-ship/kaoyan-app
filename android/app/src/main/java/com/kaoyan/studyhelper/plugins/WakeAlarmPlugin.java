@@ -51,4 +51,39 @@ public class WakeAlarmPlugin extends Plugin {
         ret.put("granted", granted);
         call.resolve(ret);
     }
+
+    /** 启动前台守护服务：锁屏/后台也持续轮询云端叫醒（真正的后台收叫醒） */
+    @PluginMethod
+    public void startGuard(PluginCall call) {
+        String appId = call.getString("appId", "");
+        String restKey = call.getString("restKey", "");
+        String username = call.getString("username", "");
+        long lastTs = call.getLong("lastTs", 0);
+        Intent intent = new Intent(getContext(), WakeGuardService.class);
+        intent.putExtra("appId", appId);
+        intent.putExtra("restKey", restKey);
+        intent.putExtra("username", username);
+        intent.putExtra("lastTs", lastTs);
+        try {
+            getContext().startForegroundService(intent);
+            JSObject ret = new JSObject();
+            ret.put("ok", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            JSObject ret = new JSObject();
+            ret.put("ok", false);
+            ret.put("error", e.getMessage());
+            call.resolve(ret);
+        }
+    }
+
+    /** 停止守护服务 */
+    @PluginMethod
+    public void stopGuard(PluginCall call) {
+        Intent intent = new Intent(getContext(), WakeGuardService.class);
+        getContext().stopService(intent);
+        JSObject ret = new JSObject();
+        ret.put("ok", true);
+        call.resolve(ret);
+    }
 }

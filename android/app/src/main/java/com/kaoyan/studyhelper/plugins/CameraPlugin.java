@@ -5,12 +5,11 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.JSObject;
-import com.getcapacitor.PermissionState;
-import com.getcapacitor.PermissionResultCallback;
 
 import android.Manifest;
 import android.app.Activity;
 import android.content.ContentResolver;
+import android.content.pm.PackageManager;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -18,6 +17,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
 import android.util.Base64;
+
+import androidx.core.content.ContextCompat;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -28,6 +29,9 @@ import java.io.InputStream;
  * 前端通过 Capacitor.Plugins.Camera.takePhoto() / pickFromGallery() 调用。
  * 返回压缩后的 base64（data:image/jpeg;base64,...），供视觉模型直接消费。
  * 与 WakeAlarm 插件一致：本地 Java 插件需在前端手动 Capacitor.registerPlugin('Camera') 桥接。
+ *
+ * 注意：Capacitor 6 已移除 PermissionResultCallback，权限请求改用 Android 原生
+ * requestPermissions + handleRequestPermissionsResult 回调。
  */
 @CapacitorPlugin(name = "Camera")
 public class CameraPlugin extends Plugin {
@@ -44,35 +48,24 @@ public class CameraPlugin extends Plugin {
 
     @PluginMethod
     public void takePhoto(PluginCall call) {
-        if (getPermissionState(Manifest.permission.CAMERA) != PermissionState.GRANTED) {
-            requestPermissionForResult(Manifest.permission.CAMERA, REQ_CAMERA_PERM,
-                new PermissionResultCallback() {
-                    @Override
-                    public void handlePermissionResult(int requestCode, String permission, PermissionState state) {
-                        if (state == PermissionState.GRANTED) launchCamera(call);
-                        else call.reject("相机权限被拒绝");
-                    }
-                });
-            return;
+        this.pendingCall = call;
+        String perm = Manifest.permission.CAMERA;
+        if (ContextCompat.checkSelfPermission(getContext(), perm) == PackageManager.PERMISSION_GRANTED) {
+            launchCamera();
+        } else {
+            getActivity().requestPermissions(new String[]{perm}, REQ_CAMERA_PERM);
         }
-        launchCamera(call);
     }
 
     @PluginMethod
     public void pickFromGallery(PluginCall call) {
+        this.pendingCall = call;
         String perm = galleryPermission();
-        if (getPermissionState(perm) != PermissionState.GRANTED) {
-            requestPermissionForResult(perm, REQ_GALLERY_PERM,
-                new PermissionResultCallback() {
-                    @Override
-                    public void handlePermissionResult(int requestCode, String permission, PermissionState state) {
-                        if (state == PermissionState.GRANTED) launchGallery(call);
-                        else call.reject("相册权限被拒绝");
-                    }
-                });
-            return;
+        if (ContextCompat.checkSelfPermission(getContext(), perm) == PackageManager.PERMISSION_GRANTED) {
+            launchGallery();
+        } else {
+            getActivity().requestPermissions(new String[]{perm}, REQ_GALLERY_PERM);
         }
-        launchGallery(call);
     }
 
     private String galleryPermission() {
@@ -81,8 +74,25 @@ public class CameraPlugin extends Plugin {
                 : Manifest.permission.READ_EXTERNAL_STORAGE;
     }
 
-    private void launchCamera(PluginCall call) {
-        this.pendingCall = call;
+    @Override
+    protected void handleRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.handleRequestPermissionsResult(requestCode, permissions, grantResults);
+        PluginCall call = pendingCall;
+        boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        if (requestCode == REQ_CAMERA_PERM) {
+            pendingCall = null;
+            if (call == null) return;
+            if (granted) launchCamera(); else call.reject("相机权限被拒绝");
+        } else if (requestCode == REQ_GALLERY_PERM) {
+            pendingCall = null;
+            if (call == null) return;
+            if (granted) launchGallery(); else call.reject("相册权限被拒绝");
+        }
+    }
+
+    private void launchCamera() {
+        PluginCall call = pendingCall;
+        if (call == null) return;
         try {
             cameraTempFile = new File(getContext().getCacheDir(),
                     "cap_camera_" + System.currentTimeMillis() + ".jpg");
@@ -98,8 +108,9 @@ public class CameraPlugin extends Plugin {
         }
     }
 
-    private void launchGallery(PluginCall call) {
-        this.pendingCall = call;
+    private void launchGallery() {
+        PluginCall call = pendingCall;
+        if (call == null) return;
         try {
             Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
             intent.setType("image/*");

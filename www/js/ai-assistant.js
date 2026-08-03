@@ -111,7 +111,8 @@ const AIAssistant = {
 
   async handleFile(file) {
     const base64 = await Utils.imgToBase64(file);
-    const compressed = await Utils.compressImg(base64, 1280, 0.85);
+    const quality = this._pendingPanel === 'upload' ? 0.92 : 0.85; // 上传归档用更高质量保 OCR 清晰
+    const compressed = await Utils.compressImg(base64, 1280, quality);
     this.setImage(this._pendingPanel || this.activeMode, compressed);
   },
 
@@ -430,8 +431,8 @@ const AIAssistant = {
   async callQwenVLClassify(settings, imageData) {
     const content = [
       { type: 'image_url', image_url: { url: imageData } },
-      { type: 'text', text: '请识别图片内容并以 JSON 返回（只返回 JSON，不要额外文字）：' +
-        `{"type":"math|english|other","topic":"若为数学题请填知识点(${this.topicListForVL()})","errorHint":"若可见明显错因请简述，否则为空字符串","text":"提取的题目或文章文字"}。` }
+      { type: 'text', text: '请仔细识别图片中的内容。先判断类型，再逐字提取原文，最后以 JSON 返回（只返回 JSON，不要任何额外文字或解释）：\n' +
+        `{"type":"math|english|other","topic":"若为数学题请填知识点(${this.topicListForVL()})","errorHint":"若图片中可见明显错误原因请简述，否则为空字符串","text":"逐字提取图片中的题目或文章原文，数学公式与符号保持原样，不要改写"}` }
     ];
     const raw = await this.requestQwen(settings, content, '千问VL识别');
     return this.parseJSON(raw);

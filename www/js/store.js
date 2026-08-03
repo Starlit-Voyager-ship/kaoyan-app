@@ -129,11 +129,16 @@ const Store = {
     if (Bmob.isLoggedIn() && Bmob.username === username) {
       try {
         const items = await Bmob.getAppData(storeName);
-        // 同步到本地缓存
-        for (const it of items) {
+        // 合并：云端有 + 本地独有（防止云端拒存大对象导致本地数据被覆盖丢失）
+        const cloudIds = new Set(items.map(i => i.id));
+        const localItems = await this._getUserDataFromCache(storeName, username);
+        const localOnly = localItems.filter(i => i && i.id && !cloudIds.has(i.id));
+        const merged = items.concat(localOnly);
+        // 同步合并结果到本地缓存
+        for (const it of merged) {
           await this._cachePut(`${username}::${storeName}::${it.id}`, it);
         }
-        return items;
+        return merged;
       } catch (e) {
         console.warn('[Store] 云端读取失败，回落本地缓存', e.message);
       }

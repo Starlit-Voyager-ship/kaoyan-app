@@ -114,7 +114,7 @@ const Auth = {
       errorEl.textContent = '';
       this.enterApp(username);
       Utils.toast(`欢迎回来，${username}！云端同步已开启`);
-      this._ensurePet(username);
+
       return;
     } catch (e) {
       console.warn('[Auth] ❌ Step1 云端登录失败:', e.message, '| status:', e.status, '| name:', e.name);
@@ -175,7 +175,7 @@ const Auth = {
         errorEl.textContent = '';
         this.enterApp(localName);
         Utils.toast(`欢迎，${localName}！云端同步已开启`);
-        this._ensurePet(localName);
+
         return true;
       } catch (_) {
         try {
@@ -222,7 +222,6 @@ const Auth = {
       errorEl.textContent = '';
       this.enterApp(username);
       Utils.toast(`注册成功！欢迎 ${username}（云同步已开启）`);
-      this._ensurePet(username);
     } catch (e) {
       console.warn('[Auth] 云端注册失败:', e.message);
       if (/already|exist|taken/i.test(e.message)) {
@@ -230,28 +229,6 @@ const Auth = {
       } else {
         errorEl.textContent = '注册失败：' + (e.message || '网络错误');
       }
-    }
-  },
-
-  async _ensurePet(username) {
-    const pet = await Store.getPetData(username);
-    if (!pet) {
-      await Store.savePetData({
-        id: `pet_${username}`,
-        username,
-        claimed: false,
-        name: '',
-        level: 1,
-        exp: 0,
-        coins: 0,
-        mood: 80,
-        hunger: 80,
-        thirst: 80,
-        petType: 'ameath',
-        inventory: { food: 0, water: 0, treat: 0 },
-        totalCoinsEarned: 0,
-        createdAt: new Date().toISOString()
-      });
     }
   },
 

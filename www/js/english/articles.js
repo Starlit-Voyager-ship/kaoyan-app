@@ -186,8 +186,6 @@ const Articles = {
     Utils.toast('文章已保存');
     this.renderList();
 
-    // 加金币：每篇文章+10金币
-    await Store.addCoins(user, 10);
     app.updateHomeStats();
   },
 

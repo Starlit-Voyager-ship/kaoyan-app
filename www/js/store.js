@@ -254,26 +254,9 @@ const Store = {
     const questions = await this.getUserData('math_questions', username);
     return questions.filter(q => q.createdAt && q.createdAt.startsWith(today)).length;
   },
-  async getCoins(username) {
-    const pet = await this.getPetData(username);
-    return pet?.coins || 0;
-  },
-  async addCoins(username, amount) {
-    const pet = await this.getPetData(username);
-    if (pet) {
-      pet.coins = (pet.coins || 0) + amount;
-      await this.put('pet_data', pet);
-      return pet.coins;
-    }
-    return 0;
-  },
-
-  // ---- 宠物数据 ----
-  async getPetData(username) {
-    const data = await this.getUserData('pet_data', username);
-    return data.find(p => p.username === username) || null;
-  },
-  async savePetData(petData) {
-    return this.put('pet_data', petData);
+  async getTodayChatCount(username) {
+    const today = Utils.today();
+    const chats = await this.getUserData('ai_chats', username);
+    return chats.filter(c => c.timestamp && c.timestamp.startsWith(today)).length;
   }
 };

@@ -222,7 +222,6 @@ const AIAssistant = {
           aiResponse: solution,
           createdAt: new Date().toISOString()
         });
-        await Store.addCoins(user, 5);
 
         // 记录薄弱点
         const today = new Date().toISOString().slice(0, 10);
@@ -777,8 +776,6 @@ const AIAssistant = {
       aiResponse: aiResponse.substring(0, 1000),
       createdAt: new Date().toISOString()
     });
-
-    await Store.addCoins(username, 5);
 
     // 写入薄弱点（按日期+知识点记录）
     const today = new Date().toISOString().slice(0, 10);

@@ -187,12 +187,13 @@ const app = {
     const todayMin = await Store.getTodayFocusMinutes(user);
     const todayWords = await Store.getTodayWordCount(user);
     const todayMath = await Store.getTodayMathCount(user);
-    const coins = await Store.getCoins(user);
+    const todayChats = await Store.getTodayChatCount(user);
 
     document.getElementById('home-focus-today').textContent = todayMin + 'min';
     document.getElementById('home-words-today').textContent = todayWords;
     document.getElementById('home-math-today').textContent = todayMath;
-    document.getElementById('home-coins').textContent = coins;
+    const chatsEl = document.getElementById('home-chats-today');
+    if (chatsEl) chatsEl.textContent = todayChats;
 
     // 继续学习引导卡：今日专注进度（目标可调，默认 120 分钟）
     const goalMin = parseInt(localStorage.getItem('focus_goal_min') || '120', 10) || 120;
@@ -263,7 +264,7 @@ const app = {
     const tables = [
       'pomodoro_records', 'ai_chats', 'vocab_words', 'articles',
       'sentences', 'essays', 'math_questions', 'math_weak_points',
-      'pet_data', 'friend_bindings', 'reports'
+      'friend_bindings', 'reports'
     ];
 
     for (const table of tables) {
@@ -303,7 +304,7 @@ const app = {
       const tables = [
         'pomodoro_records', 'ai_chats', 'vocab_words', 'articles',
         'sentences', 'essays', 'math_questions', 'math_weak_points',
-        'pet_data', 'friend_bindings', 'reports'
+        'friend_bindings', 'reports'
       ];
       for (const table of tables) {
         const items = await Store.getUserData(table, user);

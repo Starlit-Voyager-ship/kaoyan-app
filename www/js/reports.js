@@ -1,96 +1,190 @@
 /* ========================================
    学习数据报表模块（日报/周报）
+   支持按日期查询日报、按周查询周报
+   生成后自动缓存，进入页面自动加载最新
    ======================================== */
 
 const Reports = {
+  currentWeekOffset: 0, // 0=本周, -1=上周, 1=下周...
+
   init() {
     this.bindEvents();
+    // 初始化日期选择器为今天
+    const dateInput = document.getElementById('daily-date-input');
+    if (dateInput) dateInput.value = Utils.today();
+    // 初始化周显示
+    this.updateWeekLabel();
+    // 自动加载当前面板的缓存报告
+    this.loadCachedDaily();
   },
 
   bindEvents() {
+    // Tab 切换
     document.querySelectorAll('.report-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         document.querySelectorAll('.report-tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.report-panel').forEach(p => p.classList.remove('active'));
         tab.classList.add('active');
         document.getElementById('report-' + tab.dataset.report).classList.add('active');
+        // 切换面板时加载对应缓存
+        if (tab.dataset.report === 'daily') this.loadCachedDaily();
+        else this.loadCachedWeekly();
       });
     });
 
-    document.getElementById('generate-daily').addEventListener('click', () => this.generateDaily());
-    document.getElementById('generate-weekly').addEventListener('click', () => this.generateWeekly());
+    // 日报：日期切换时加载缓存
+    document.getElementById('daily-date-input')?.addEventListener('change', () => this.loadCachedDaily());
+
+    // 生成按钮
+    document.getElementById('generate-daily')?.addEventListener('click', () => this.generateDaily());
+    document.getElementById('generate-weekly')?.addEventListener('click', () => this.generateWeekly());
+
+    // 周导航
+    document.getElementById('week-prev')?.addEventListener('click', () => {
+      this.currentWeekOffset--;
+      this.updateWeekLabel();
+      this.loadCachedWeekly();
+    });
+    document.getElementById('week-next')?.addEventListener('click', () => {
+      this.currentWeekOffset++;
+      this.updateWeekLabel();
+      this.loadCachedWeekly();
+    });
+  },
+
+  // ---- 周计算辅助 ----
+  getWeekRange(offset = 0) {
+    const now = new Date();
+    // 调整到目标周的周一
+    const day = now.getDay() || 7;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - day + 1 + offset * 7);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return {
+      start: monday.toISOString().slice(0, 10),
+      end: sunday.toISOString().slice(0, 10)
+    };
+  },
+
+  updateWeekLabel() {
+    const w = this.getWeekRange(this.currentWeekOffset);
+    const el = document.getElementById('week-label');
+    if (!el) return;
+    if (this.currentWeekOffset === 0) el.textContent = '本周';
+    else if (this.currentWeekOffset === -1) el.textContent = '上周';
+    else el.textContent = `${w.start} ~ ${w.end}`;
+  },
+
+  // ---- 缓存读写 ----
+  async getCachedReport(type, key) {
+    const user = Store.getCurrentUser();
+    const all = await Store.getUserData('reports', user);
+    return all.find(r => r.type === type && r.dateKey === key) || null;
+  },
+
+  // ---- 日报 ----
+
+  async loadCachedDaily() {
+    const dateInput = document.getElementById('daily-date-input');
+    const date = dateInput?.value || Utils.today();
+    const cached = await this.getCachedReport('daily', date);
+    if (cached) {
+      this.renderDailyReport(cached.data, date);
+    } else {
+      document.getElementById('daily-report-content').innerHTML =
+        '<p class="empty-hint" style="padding:40px 0;text-align:center;color:var(--text-light)">该日暂无报表，点击"生成"按钮创建</p>';
+    }
   },
 
   async generateDaily() {
     const user = Store.getCurrentUser();
-    const today = Utils.today();
+    const dateInput = document.getElementById('daily-date-input');
+    const targetDate = dateInput?.value || Utils.today();
 
-    // 收集今日数据
+    // 收集目标日期数据
     const focusRecords = await Store.getUserData('pomodoro_records', user);
-    const todayFocus = focusRecords.filter(r => r.date === today && r.completed);
+    const todayFocus = focusRecords.filter(r => r.date === targetDate && r.completed);
     const totalMinutes = todayFocus.reduce((s, r) => s + (r.duration || 0), 0);
     const sessions = todayFocus.length;
 
     const words = await Store.getUserData('vocab_words', user);
-    const todayWords = words.filter(w => w.firstLearned === today).length;
-    const wrongWords = words.filter(w => w.isWrong && w.lastReview === today).length;
+    const todayWords = words.filter(w => w.firstLearned === targetDate && !w.isWrong).length;
+    const wrongWords = words.filter(w => w.isWrong && w.lastReview === targetDate).length;
 
     const questions = await Store.getUserData('math_questions', user);
-    const todayMath = questions.filter(q => q.createdAt && q.createdAt.startsWith(today)).length;
+    const todayMath = questions.filter(q => q.createdAt && q.createdAt.startsWith(targetDate)).length;
 
     const chats = await Store.getUserData('ai_chats', user);
-    const todayChats = chats.filter(c => c.timestamp && c.timestamp.startsWith(today)).length;
+    const todayChats = chats.filter(c => c.timestamp && c.timestamp.startsWith(targetDate)).length;
 
-    const petData = await Store.getPetData(user);
-    const coinsToday = petData?.totalCoinsEarned || 0;
+    const reportData = { totalMinutes, sessions, todayWords, wrongWords, todayMath, todayChats };
 
-    // 生成报告HTML
-    const reportEl = document.getElementById('daily-report-content');
-    reportEl.innerHTML = `
-      <h4><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg> ${today} 学习日报</h4>
-      <div class="report-stat-row"><span class="label">专注时长</span><span class="value">${totalMinutes} 分钟 (${sessions}个番茄)</span></div>
-      <div class="report-stat-row"><span class="label">新背单词</span><span class="value">${todayWords} 个</span></div>
-      <div class="report-stat-row"><span class="label">错词复习</span><span class="value">${wrongWords} 个</span></div>
-      <div class="report-stat-row"><span class="label">数学录题</span><span class="value">${todayMath} 道</span></div>
-      <div class="report-stat-row"><span class="label">AI咨询次数</span><span class="value">${todayChats} 次</span></div>
-      <div class="report-stat-row"><span class="label">累计金币</span><span class="value"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="5"/><path d="M12 9.5v5M10 11h2.6a1.3 1.3 0 0 1 0 2.6H10"/></svg> ${petData?.coins || 0}</span></div>
-      <h4><svg class="ico" viewBox="0 0 24 24"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.8 10.7c.5.4.8 1 .8 1.6V17h6v-1.7c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z"/></svg> AI学习建议</h4>
-      <p style="color:var(--text-secondary);font-size:0.92rem;line-height:1.8">
-        ${this.generateSuggestion({ totalMinutes, sessions, todayWords, wrongWords, todayMath, todayChats })}
-      </p>
-    `;
+    // 渲染
+    this.renderDailyReport(reportData, targetDate);
 
-    // 缓存报告
+    // 缓存（覆盖式：同日期只保留最新一份）
     await Store.put('reports', {
-      id: `daily_${user}_${today}`,
+      id: `daily_${user}_${targetDate}`,
       username: user,
       type: 'daily',
-      date: today,
-      data: { totalMinutes, sessions, todayWords, wrongWords, todayMath, todayChats },
+      dateKey: targetDate,
+      data: reportData,
       generatedAt: new Date().toISOString()
     });
 
-    Utils.toast('日报已生成！');
+    Utils.toast(`${targetDate} 日报已生成！`);
+  },
+
+  renderDailyReport(data, dateStr) {
+    const displayDate = Utils.formatDate(dateStr) || dateStr;
+    const reportEl = document.getElementById('daily-report-content');
+    reportEl.innerHTML = `
+      <h4><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg> ${dateStr === Utils.today() ? '今日' : displayDate} 学习日报</h4>
+      <div class="report-stat-row"><span class="label">专注时长</span><span class="value">${data.totalMinutes} 分钟 (${data.sessions}个番茄)</span></div>
+      <div class="report-stat-row"><span class="label">新背单词</span><span class="value">${data.todayWords} 个</span></div>
+      <div class="report-stat-row"><span class="label">错词复习</span><span class="value">${data.wrongWords} 个</span></div>
+      <div class="report-stat-row"><span class="label">数学录题</span><span class="value">${data.todayMath} 道</span></div>
+      <div class="report-stat-row"><span class="label">AI咨询次数</span><span class="value">${data.todayChats} 次</span></div>
+      <h4><svg class="ico" viewBox="0 0 24 24"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.8 10.7c.5.4.8 1 .8 1.6V17h6v-1.7c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z"/></svg> AI学习建议</h4>
+      <p style="color:var(--text-secondary);font-size:0.92rem;line-height:1.8">
+        ${this.generateSuggestion(data)}
+      </p>
+    `;
+  },
+
+  // ---- 周报 ----
+
+  async loadCachedWeekly() {
+    const w = this.getWeekRange(this.currentWeekOffset);
+    const key = w.start; // 用周一起始作为 key
+    const cached = await this.getCachedReport('weekly', key);
+    if (cached) {
+      this.renderWeeklyReport(cached.data, cached.weekStart, cached.weekEnd);
+    } else {
+      document.getElementById('weekly-report-content').innerHTML =
+        '<p class="empty-hint" style="padding:40px 0;text-align:center;color:var(--text-light)">该周暂无报表，点击"生成"按钮创建</p>';
+    }
   },
 
   async generateWeekly() {
     const user = Store.getCurrentUser();
-    const week = Utils.thisWeek();
+    const week = this.getWeekRange(this.currentWeekOffset);
 
-    // 收集本周数据
+    // 收集目标周数据
     const focusRecords = await Store.getUserData('pomodoro_records', user);
     const weekFocus = focusRecords.filter(r => r.date >= week.start && r.date <= week.end && r.completed);
     const totalMinutes = weekFocus.reduce((s, r) => s + (r.duration || 0), 0);
     const sessions = weekFocus.length;
 
     const words = await Store.getUserData('vocab_words', user);
-    const weekNewWords = words.filter(w => w.firstLearned >= week.start && w.firstLearned <= week.end).length;
+    const weekNewWords = words.filter(w => w.firstLearned >= week.start && w.firstLearned <= week.end && !w.isWrong).length;
 
     const questions = await Store.getUserData('math_questions', user);
-    const weekMath = questions.filter(q => q.createdAt >= week.start && q.createdAt <= week.end).length;
+    const weekMath = questions.filter(q => q.createdAt && q.createdAt >= week.start && q.createdAt <= week.end).length;
 
     const chats = await Store.getUserData('ai_chats', user);
-    const weekChats = chats.filter(c => c.timestamp >= week.start && c.timestamp <= week.end).length;
+    const weekChats = chats.filter(c => c.timestamp && c.timestamp >= week.start && c.timestamp <= week.end).length;
 
     // 每日分布
     const dailyDist = [];
@@ -102,19 +196,42 @@ const Reports = {
 
     const avgDaily = Math.round(totalMinutes / 7);
 
+    const reportData = { totalMinutes, sessions, weekNewWords, weekMath, weekChats, dailyDist, avgDaily };
+
+    // 渲染
+    this.renderWeeklyReport(reportData, week.start, week.end);
+
+    // 缓存
+    await Store.put('reports', {
+      id: `weekly_${user}_${week.start}`,
+      username: user,
+      type: 'weekly',
+      dateKey: week.start,
+      weekStart: week.start,
+      weekEnd: week.end,
+      data: reportData,
+      generatedAt: new Date().toISOString()
+    });
+
+    Utils.toast(`${week.start} ~ ${week.end} 周报已生成！`);
+  },
+
+  renderWeeklyReport(data, weekStart, weekEnd) {
     const reportEl = document.getElementById('weekly-report-content');
+    const maxMin = Math.max(...data.dailyDist.map(x => x.minutes), 1);
+
     reportEl.innerHTML = `
-      <h4><svg class="ico" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M7 15l3.5-4 3 3L20 7"/></svg> ${week.start} ~ ${week.end} 周度学习报告</h4>
-      <div class="report-stat-row"><span class="label">总专注时长</span><span class="value">${totalMinutes} 分钟 (${sessions}个番茄)</span></div>
-      <div class="report-stat-row"><span class="label">日均专注</span><span class="value">${avgDaily} 分钟/天</span></div>
-      <div class="report-stat-row"><span class="label">新学单词</span><span class="value">${weekNewWords} 个</span></div>
-      <div class="report-stat-row"><span class="label">数学题目</span><span class="value">${weekMath} 道</span></div>
-      <div class="report-stat-row"><span class="label">AI咨询</span><span class="value">${weekChats} 次</span></div>
+      <h4><svg class="ico" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M7 15l3.5-4 3 3L20 7"/></svg> ${weekStart} ~ ${weekEnd} 周度学习报告</h4>
+      <div class="report-stat-row"><span class="label">总专注时长</span><span class="value">${data.totalMinutes} 分钟 (${data.sessions}个番茄)</span></div>
+      <div class="report-stat-row"><span class="label">日均专注</span><span class="value">${data.avgDaily} 分钟/天</span></div>
+      <div class="report-stat-row"><span class="label">新学单词</span><span class="value">${data.weekNewWords} 个</span></div>
+      <div class="report-stat-row"><span class="label">数学题目</span><span class="value">${data.weekMath} 道</span></div>
+      <div class="report-stat-row"><span class="label">AI咨询</span><span class="value">${data.weekChats} 次</span></div>
 
       <h4><svg class="ico" viewBox="0 0 24 24"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-11"/></svg> 每日专注时长分布</h4>
       <div style="display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:12px;padding:8px;background:var(--border-light);border-radius:8px;">
-        ${dailyDist.map(d => {
-          const h = Math.max(4, (d.minutes / Math.max(...dailyDist.map(x => x.minutes), 1)) * 100);
+        ${data.dailyDist.map(d => {
+          const h = Math.max(4, (d.minutes / maxMin) * 100);
           return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
             <span style="font-size:0.7rem;color:var(--text-secondary)">${d.minutes}m</span>
             <div style="width:100%;min-height:${h}%;background:var(--primary);border-radius:3px;min-height:4px"></div>
@@ -125,22 +242,12 @@ const Reports = {
 
       <h4><svg class="ico" viewBox="0 0 24 24"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.8 10.7c.5.4.8 1 .8 1.6V17h6v-1.7c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z"/></svg> 周度总结与建议</h4>
       <p style="color:var(--text-secondary);font-size:0.92rem;line-height:1.8;margin-top:8px">
-        ${this.generateWeeklySuggestion({ totalMinutes, avgDaily, sessions, weekNewWords, weekMath, weekChats })}
+        ${this.generateWeeklySuggestion(data)}
       </p>
     `;
-
-    await Store.put('reports', {
-      id: `weekly_${user}_${week.start}`,
-      username: user,
-      type: 'weekly',
-      weekStart: week.start,
-      weekEnd: week.end,
-      data: { totalMinutes, sessions, weekNewWords, weekMath, weekChats },
-      generatedAt: new Date().toISOString()
-    });
-
-    Utils.toast('周报已生成！');
   },
+
+  // ---- 建议 ----
 
   generateSuggestion(data) {
     const suggestions = [];
@@ -165,7 +272,6 @@ const Reports = {
     if (data.weekNewWords < 30) suggestions.push('单词积累速度较慢，建议每天固定时间背词。');
     if (data.weekMath < 3) suggestions.push('数学题目练习量不够，建议增加做题和错题整理。');
 
-    const dayNames = ['周一','周二','周三','周四','周五','周六','周日'];
     suggestions.push('坚持就是胜利，每周的积累都会在考场上体现出来！');
 
     return suggestions.join('<br><br>');

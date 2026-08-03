@@ -1292,6 +1292,51 @@
 .report-stat-row .label { color: var(--text-secondary); }
 .report-stat-row .value { font-weight: 600; }
 
+/* 报表工具栏（日期/周选择 + 生成按钮） */
+.report-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.report-date-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.report-date-picker label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.report-date-picker input[type="date"] {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.92rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.report-date-picker input[type="date"]:focus {
+  border-color: var(--primary);
+}
+.report-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.report-week-nav span {
+  font-size: 0.95rem;
+  font-weight: 600;
+  min-width: 80px;
+  text-align: center;
+}
+
 /* --- 好友叫醒 --- */
 .wake-container { max-width: 450px; margin: 0 auto; }
 .wake-net-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; font-size: 0.9rem; }

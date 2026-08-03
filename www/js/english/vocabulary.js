@@ -492,10 +492,6 @@ const Vocabulary = {
     w.ebbinghausStage = 0; // 重置复习阶段
     Store.put('vocab_words', w).catch(() => {});
 
-    // 加金币：每个新单词+2金币
-    const user = Store.getCurrentUser();
-    Store.addCoins(user, 2);
-
     this.updateStudyStats();
     this.showCurrentWord();
     this._saveProgress();

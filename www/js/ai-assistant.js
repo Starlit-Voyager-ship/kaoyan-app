@@ -241,6 +241,20 @@ const AIAssistant = {
           createdAt: new Date().toISOString()
         });
         await Store.addCoins(user, 5);
+
+        // 记录薄弱点
+        const today = new Date().toISOString().slice(0, 10);
+        try {
+          await Store.put('math_weak_points', {
+            id: Utils.uid(),
+            username: user,
+            topic,
+            questionId: Utils.uid(),
+            count: 1,
+            date: today,
+            lastReview: new Date().toISOString()
+          });
+        } catch (e) { console.warn('[薄弱点] 上传归档记录失败:', e.message); }
         const resultBody = `知识点：${topic}\n错因：${errorReason || '（未填写）'}\n\n识别文字：\n${ocrText}` +
           (solution ? `\n\nAI解析：\n${solution}` : '\n\n（解析生成失败，题目已保存，可在题库详情中重新获取）');
         this.showUploadResult('已归档到【数学题库】' + (solution ? '（含AI解析）' : ''), resultBody);
@@ -349,6 +363,13 @@ const AIAssistant = {
       await Store.put('ai_chats', aiMsg);
       this.hideTyping();
       this.renderMessages();
+
+      // 数学内容自动归档 + 记录薄弱点
+      if (this.containsMathContent(text || '') || img) {
+        try { await this.autoSaveMathQuestion(user, userMsg, response); } catch (e) {
+          console.warn('[薄弱点] 自动保存失败（不影响对话）:', e.message);
+        }
+      }
     } catch (err) {
       this.hideTyping();
       this.showError(err.message);
@@ -670,6 +691,53 @@ const AIAssistant = {
   hideTyping() {
     const el = document.getElementById('typing-msg');
     if (el) el.remove();
+  },
+
+  /* ---------- 数学内容检测 ---------- */
+  containsMathContent(text) {
+    const mathKeywords = ['矩阵', '行列式', '向量', '方程组', '特征值', '二次型', '积分', '导数', '极限', '微分',
+      'matrix', 'determinant', 'vector', 'eigenvalue', 'derivative', 'integral', '题目', '求解', '证明'];
+    return mathKeywords.some(kw => text.includes(kw));
+  },
+
+  /* ---------- 自动保存数学题 + 记录薄弱点 ---------- */
+  async autoSaveMathQuestion(username, userMsg, aiResponse) {
+    // 自动识别知识点（从 MATH_TOPICS 或回退到固定列表）
+    let topics = [];
+    if (typeof MATH_TOPICS !== 'undefined') {
+      topics = MATH_TOPICS.flatMap(g => g.subs);
+    }
+    if (topics.length === 0) {
+      topics = ['行列式', '矩阵', '向量', '线性方程组', '特征值与特征向量', '二次型'];
+    }
+    const fullText = (userMsg.content + ' ' + aiResponse);
+    const detectedTopic = topics.find(t => fullText.includes(t)) || '未分类';
+
+    // 存入题库
+    await Store.put('math_questions', {
+      id: Utils.uid(),
+      username,
+      source: userMsg.image ? 'AI识图' : 'AI咨询',
+      topic: detectedTopic,
+      ocrText: userMsg.content.substring(0, 500),
+      imageData: userMsg.image || null,
+      aiResponse: aiResponse.substring(0, 1000),
+      createdAt: new Date().toISOString()
+    });
+
+    await Store.addCoins(username, 5);
+
+    // 写入薄弱点（按日期+知识点记录）
+    const today = new Date().toISOString().slice(0, 10);
+    await Store.put('math_weak_points', {
+      id: Utils.uid(),
+      username,
+      topic: detectedTopic,
+      questionId: userMsg.id,
+      count: 1,
+      date: today,
+      lastReview: new Date().toISOString()
+    });
   },
 
   showError(msg) {

@@ -38,26 +38,68 @@ function onRequest(request, response, modules) {
   });
   forwardHeaders['Content-Type'] = 'application/json';
 
-  var oRequest = modules.oRequest;
-  oRequest({
-    url: target,
-    method: 'POST',
-    headers: forwardHeaders,
-    body: JSON.stringify(payload)
-  }, function (err, res, resBody) {
-    if (err) {
+  // 诊断指标：若转发失败，返回可用能力，便于定位环境
+  var envInfo = {
+    modulesKeys: modules ? Object.keys(modules) : 'modules-is-undefined',
+    hasGlobalFetch: (typeof fetch === 'function'),
+    nodeVersion: (typeof process !== 'undefined' && process.version) ? process.version : 'n/a'
+  };
+  var jsonBody = (typeof payload === 'string') ? payload : JSON.stringify(payload);
+
+  // 方式 1：Bmob 旧版 oRequest 模块（若存在且为函数）
+  if (modules && typeof modules.oRequest === 'function') {
+    modules.oRequest({
+      url: target,
+      method: 'POST',
+      headers: forwardHeaders,
+      body: jsonBody
+    }, function (err, res, resBody) {
+      if (err) {
+        response.success({
+          status: 502,
+          body: JSON.stringify({ error: 'aiProxy upstream error: ' + String(err) }),
+          contentType: 'application/json'
+        });
+        return;
+      }
       response.success({
-        status: 502,
-        body: JSON.stringify({ error: 'aiProxy upstream error: ' + String(err) }),
-        contentType: 'application/json'
+        status: res.statusCode,
+        body: resBody != null ? resBody : '',
+        contentType: (res.headers && res.headers['content-type']) || 'application/json'
       });
-      return;
-    }
-    // 即便上游返回非 2xx，也原样透传状态码与响应体，让前端按真实错误提示
-    response.success({
-      status: res.statusCode,
-      body: resBody != null ? resBody : '',
-      contentType: (res.headers && res.headers['content-type']) || 'application/json'
     });
+    return;
+  }
+
+  // 方式 2：回退到 Node 原生 fetch（Node 18+ 云函数环境通常有）
+  if (typeof fetch === 'function') {
+    fetch(target, { method: 'POST', headers: forwardHeaders, body: jsonBody })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          return { status: r.status, text: t, ct: r.headers.get('content-type') };
+        });
+      })
+      .then(function (o) {
+        response.success({
+          status: o.status,
+          body: o.text || '',
+          contentType: o.ct || 'application/json'
+        });
+      })
+      .catch(function (e) {
+        response.success({
+          status: 502,
+          body: JSON.stringify({ error: 'aiProxy upstream error: ' + String(e), _env: envInfo }),
+          contentType: 'application/json'
+        });
+      });
+    return;
+  }
+
+  // 两种都不可用：返回诊断信息，便于在 Bmob 后台排查环境
+  response.success({
+    status: 500,
+    body: JSON.stringify({ error: 'no available http client in cloud function', _env: envInfo }),
+    contentType: 'application/json'
   });
 }

@@ -77,7 +77,7 @@ const Sentences = {
       </div>
       <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer">
         <input type="checkbox" id="use-ai-analyze" checked>
-        <span>使用AI智能解析（需配置DeepSeek Key）</span>
+        <span>使用AI智能解析（需配置千问 Key）</span>
       </label>
     `, `<button class="btn-primary" id="save-sentence-btn">保存</button>
        <button class="btn-outline" onclick="Utils.hideModal()">取消</button>`);
@@ -104,7 +104,7 @@ const Sentences = {
 
     if (useAI) {
       const settings = Store.getSettings(user) || {};
-      if (settings.deepseekKey) {
+      if (settings.qwenKey) {
         try {
           sentence.analysis = await this.analyzeWithAI(settings, text);
           Utils.toast('AI解析完成！');
@@ -121,35 +121,20 @@ const Sentences = {
   },
 
   async analyzeWithAI(settings, text) {
-    const res = await fetch(`${settings.deepseekBase || 'https://api.deepseek.com'}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.deepseekKey}`
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [{
-          role: 'system',
-          content: `你是考研英语长难句解析专家。对以下句子进行分层解析，用中文回答。格式要求：
+    const messages = [{
+      role: 'system',
+      content: `你是考研英语长难句解析专家。对以下句子进行分层解析，用中文回答。格式要求：
 1. 句法结构：说明句子类型（简单句/并列复合句/主从复合句等）
 2. 成分拆解：逐层拆解主语、谓语、宾语、定语、状语、补语等，标注清楚修饰关系
 3. 重难点：指出语法难点、特殊结构、易错点
 4. 参考译文：准确流畅的中文译文
 
 请严格按以上四个部分回答，每个部分用换行分隔。`
-        }, {
-          role: 'user',
-          content: `请解析以下长难句：\n${text}`
-        }],
-        max_tokens: 2000,
-        temperature: 0.3
-      })
-    });
-
-    if (!res.ok) throw new Error('API调用失败');
-    const data = await res.json();
-    const responseText = data.choices[0].message.content;
+    }, {
+      role: 'user',
+      content: `请解析以下长难句：\n${text}`
+    }];
+    const responseText = await AIAssistant.callQwenChat(settings, messages, '千问长难句解析');
 
     // 解析返回的结构化文本
     const parts = responseText.split(/\n(?=[\d\u4e00-\u9fa5])/);

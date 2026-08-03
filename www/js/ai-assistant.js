@@ -1,7 +1,7 @@
 /* ========================================
    AI助理模块（双链路：上传归档 + 智能解答）
    - 上传归档：拍照/相册 → 千问VL 识别分类 → 数学题入题库 / 英语文章入文章库（不调 deepseek）
-   - 智能解答：拍照/相册或打字 → 千问VL 识图 → DeepSeek 解答
+   - 智能解答：拍照/相册或打字 → 千问VL 识图 → 千问文本解答（qwen-max）
    - 模型 Key 由用户在设置中自行填写
    ======================================== */
 
@@ -152,9 +152,8 @@ const AIAssistant = {
   checkConfig() {
     const user = Store.getCurrentUser();
     const settings = Store.getSettings(user) || {};
-    const hasDS = settings.deepseekKey && settings.deepseekKey.length > 10;
     const hasQW = settings.qwenKey && settings.qwenKey.length > 10;
-    this.hasConfigured = hasDS || hasQW;
+    this.hasConfigured = hasQW;
     const banner = document.getElementById('ai-config-banner');
     if (banner) banner.classList.toggle('hidden', this.hasConfigured);
   },
@@ -231,7 +230,7 @@ const AIAssistant = {
   },
 
   /* ============================================================
-     链路二：智能解答（千问VL 识图 → DeepSeek 解答）
+     链路二：智能解答（千问VL 识图 → 千问文本解答）
      ============================================================ */
   async sendAnswer() {
     const input = document.getElementById('chat-input');
@@ -241,8 +240,7 @@ const AIAssistant = {
 
     const user = Store.getCurrentUser();
     const settings = Store.getSettings(user) || {};
-    if (!settings.deepseekKey) { Utils.toast('请先配置 DeepSeek Key'); return; }
-    if (img && !settings.qwenKey) { Utils.toast('发送图片需配置「千问VL(DashScope)」Key（与 DeepSeek Key 分开，在设置页填写）'); return; }
+    if (!settings.qwenKey) { Utils.toast('请先配置千问 Key（在设置页填写）'); return; }
 
     const userMsg = {
       id: Utils.uid(),
@@ -263,7 +261,7 @@ const AIAssistant = {
     try {
       let visionText = '';
       if (img) visionText = await this.callQwenVLOcr(settings, img);
-      const response = await this.callDeepSeek(settings, userMsg, visionText);
+      const response = await this.callQwenText(settings, userMsg, visionText);
       const aiMsg = {
         id: Utils.uid(),
         role: 'ai',
@@ -280,27 +278,18 @@ const AIAssistant = {
     }
   },
 
-  async callDeepSeek(settings, userMsg, visionText) {
-    const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }];
-    const recent = this.messages.slice(-20);
-    recent.forEach(m => {
-      let c = m.content;
-      if (m.role === 'user' && m.image && m === userMsg && visionText) {
-        c = '[图片识别内容]\n' + visionText + '\n\n' + (c === '[图片]' ? '' : c);
-      }
-      if (c) messages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: c });
-    });
-
-    const url = `${settings.deepseekBase || 'https://api.deepseek.com'}/chat/completions`;
+  /* ---------- 通用千问文本对话：走 proxyFetch，浏览器端经 Bmob 代理（国内可达），App 内直连 ---------- */
+  async callQwenChat(settings, messages, taskName) {
+    const url = `${settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`;
     try {
       const res = await this.proxyFetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.deepseekKey}`
+          'Authorization': `Bearer ${settings.qwenKey}`
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: 'qwen-max',
           messages,
           max_tokens: 2000,
           temperature: 0.7
@@ -316,20 +305,33 @@ const AIAssistant = {
         } catch (_) {}
         const code = res.status;
         let hint = detail;
-        if (code === 401) hint = 'DeepSeek Key 无效或已过期';
+        if (code === 401) hint = '千问 Key 无效或已过期，请检查设置';
         else if (code === 429) hint = '请求太频繁，请稍后再试';
-        else if (code >= 500) hint = 'DeepSeek 服务暂时异常，请稍后再试';
+        else if (code >= 500) hint = '千问服务暂时异常，请稍后再试';
         else if (!hint) hint = `请求失败 (HTTP ${code})`;
-        throw new Error(`DeepSeek：${hint}`);
+        throw new Error(`${taskName}：${hint}`);
       }
       const data = await res.json();
       return data.choices[0].message.content;
     } catch (err) {
       if (err.name === 'TypeError' || /fetch|network|failed|abort/i.test(err.message)) {
-        throw new Error('DeepSeek：网络请求失败。浏览器预览可能受 CORS 限制，请在 App 内测试；若已在 App 内，请检查网络连接。');
+        throw new Error(`${taskName}：网络请求失败。浏览器预览可能受 CORS 限制，请在 App 内测试；若已在 App 内，请检查网络连接。`);
       }
       throw err;
     }
+  },
+
+  async callQwenText(settings, userMsg, visionText) {
+    const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }];
+    const recent = this.messages.slice(-20);
+    recent.forEach(m => {
+      let c = m.content;
+      if (m.role === 'user' && m.image && m === userMsg && visionText) {
+        c = '[图片识别内容]\n' + visionText + '\n\n' + (c === '[图片]' ? '' : c);
+      }
+      if (c) messages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: c });
+    });
+    return await this.callQwenChat(settings, messages, '千问解答');
   },
 
   /* ---------- 跨平台 API 请求：App 直连，浏览器走本地代理 ---------- */

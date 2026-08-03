@@ -131,6 +131,7 @@ body {
   max-width: var(--max-content);
   margin: 0 auto;
   width: 100%;
+  min-height: calc(100vh - var(--header-height) - var(--tabbar-height));
 }
 .content-section.active { display: block; }
 

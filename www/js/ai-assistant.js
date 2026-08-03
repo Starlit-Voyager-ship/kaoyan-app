@@ -339,19 +339,36 @@ const AIAssistant = {
 
   async proxyFetch(url, options) {
     if (this.isNativePlatform()) return fetch(url, options);
-    // 浏览器端：通过可配置的 AI 代理转发，绕开 CORS
-    // 代理地址见 www/js/config.js（本地 '/api/proxy'，公网为 Cloudflare Worker 绝对地址）
-    const proxyUrl = (window.APP_CONFIG && window.APP_CONFIG.proxyUrl) || '/api/proxy';
+    // 浏览器端：通过 AI 代理转发，绕开 CORS
+    // 代理模式见 www/js/config.js：
+    //   'bmob'      → 走 Bmob 云函数 aiProxy（国内可达，复用现有 Bmob 鉴权与跨域，推荐）
+    //   'cloudflare'→ 走 Cloudflare Worker（需 proxyUrl 填绝对地址；workers.dev 国内直连不稳）
+    const mode = (window.APP_CONFIG && window.APP_CONFIG.proxyMode) || 'bmob';
     let bodyObj;
     if (typeof options.body === 'string') {
       try { bodyObj = JSON.parse(options.body); } catch (_) { bodyObj = {}; }
     } else {
       bodyObj = options.body || {};
     }
-    return fetch(proxyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, headers: options.headers, body: bodyObj })
+
+    if (mode === 'cloudflare') {
+      const proxyUrl = (window.APP_CONFIG && window.APP_CONFIG.proxyUrl) || '/api/proxy';
+      return fetch(proxyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, headers: options.headers, body: bodyObj })
+      });
+    }
+
+    // 默认：Bmob 云函数 aiProxy（国内可达，复用 Bmob.request 的鉴权与跨域）
+    if (typeof Bmob === 'undefined' || !Bmob.hasCredentials()) {
+      throw new Error('未配置 Bmob 凭证，AI 代理不可用（请在设置中确认已登录 / 已配置 Bmob）');
+    }
+    const data = await Bmob.request('POST', '/functions/aiProxy', { url, headers: options.headers, body: bodyObj }, false);
+    const r = (data && data.result) || {};
+    return new Response(r.body != null ? r.body : '', {
+      status: r.status || 502,
+      headers: { 'Content-Type': r.contentType || 'application/json' }
     });
   },
 

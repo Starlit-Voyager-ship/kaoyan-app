@@ -76,6 +76,7 @@ const AIAssistant = {
     document.getElementById('upload-modal-mask').addEventListener('click', (e) => {
       if (e.target.id === 'upload-modal-mask') this.closeUploadModal();
     });
+    document.getElementById('upload-add-more').addEventListener('click', () => this.addMoreImages());
   },
 
   /* 快捷上传：选图后弹出归档弹窗填写来源/知识点 */
@@ -122,6 +123,12 @@ const AIAssistant = {
     if (kind === 'camera') input.setAttribute('capture', 'environment');
     else input.removeAttribute('capture');
     input.click();
+  },
+
+  /* 弹窗内继续追加图片（支持一次多选） */
+  addMoreImages() {
+    this._pendingPanel = 'upload';
+    this.capture('upload', 'gallery');
   },
 
   async handleFile(file) {
@@ -287,6 +294,8 @@ const AIAssistant = {
     this._uploadState = 'done';
     const goBtn = document.getElementById('upload-modal-go');
     if (goBtn) { goBtn.textContent = '完成'; goBtn.disabled = false; }
+    const addBtn = document.getElementById('upload-add-more');
+    if (addBtn) addBtn.style.display = 'none';
   },
 
   /* ---------- 上传归档弹窗 ---------- */
@@ -302,6 +311,8 @@ const AIAssistant = {
       const r = document.getElementById('upload-result'); if (r) r.innerHTML = '';
       const goBtn = document.getElementById('upload-modal-go');
       if (goBtn) { goBtn.textContent = '识别并归档'; goBtn.disabled = false; }
+      const addBtn = document.getElementById('upload-add-more');
+      if (addBtn) addBtn.style.display = '';
     }
     this.refreshUploadPreview();
   },
@@ -318,11 +329,24 @@ const AIAssistant = {
     const box = document.getElementById('upload-modal-preview');
     if (!box) return;
     box.innerHTML = '';
-    (this.uploadImages || []).forEach(src => {
+    (this.uploadImages || []).forEach((src, idx) => {
+      const item = document.createElement('div');
+      item.className = 'upload-prev-item';
       const img = document.createElement('img');
       img.src = src;
       img.className = 'upload-prev-img';
-      box.appendChild(img);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'upload-prev-del';
+      del.textContent = '×';
+      del.title = '移除这张';
+      del.addEventListener('click', () => {
+        this.uploadImages.splice(idx, 1);
+        this.refreshUploadPreview();
+      });
+      item.appendChild(img);
+      item.appendChild(del);
+      box.appendChild(item);
     });
   },
 

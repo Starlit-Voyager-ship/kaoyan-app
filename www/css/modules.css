@@ -1556,6 +1556,52 @@
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
 }
+.upload-prev-item {
+  position: relative;
+  display: inline-block;
+}
+.upload-prev-del {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.upload-prev-del:hover { background: rgba(220,53,69,0.92); }
+.upload-add-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 9px 14px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  width: 100%;
+  justify-content: center;
+}
+.upload-add-more:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.upload-add-more .ico {
+  width: 16px; height: 16px;
+  stroke: currentColor;
+}
 
 .upload-modal-fields {
   display: flex;

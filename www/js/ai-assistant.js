@@ -207,11 +207,12 @@ const AIAssistant = {
           (solution ? `\n\nAI解析：\n${solution}` : '\n\n（解析生成失败，题目已保存，可在题库详情中重新获取）');
         this.showUploadResult('已归档到【数学题库】' + (solution ? '（含AI解析）' : ''), resultBody);
       } else if (v.type === 'english') {
-        const title = 'AI上传文章 ' + new Date().toLocaleDateString();
+        const title = source ? source : ('AI上传文章 ' + new Date().toLocaleDateString());
         await Store.put('articles', {
           id: Utils.uid(),
           username: user,
           title,
+          source: source || '',
           content: v.text || '',
           imageData: this.uploadImage,
           createdAt: new Date().toISOString()

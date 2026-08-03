@@ -188,6 +188,7 @@ const AIAssistant = {
             solution = await this.callQwenSolve(settings, ocrText);
           } catch (solveErr) {
             console.warn('[上传归档] 解析生成失败，仅保存题目：', solveErr.message);
+            Utils.toast('解析生成失败（' + solveErr.message + '），题目已保存');
           }
         }
         await Store.put('math_questions', {

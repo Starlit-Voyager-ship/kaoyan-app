@@ -5,16 +5,18 @@
  * 作用：浏览器端无法直接请求 DeepSeek / 千问（CORS），由本云函数代为转发。
  * 安全：仅做转发，不存储任何 API Key（Key 由前端在请求头里带来）。
  *
- * 环境说明（实测）：
- *   - modules.oHttp 即 request 库，正确签名为 oHttp(url, options, callback)（options 为对象）
- *   - 注意：必须走主入口 oHttp，用 .post() 便捷方法会被 governor 网关拦截
- *   - response 为 Node HTTP 风格，用 writeHead + end 返回
+ * 环境说明（实测 + 官方文档）：
+ *   - modules.oHttp 为 request 库封装；官方用法：
+ *       GET  → http(url, callback)
+ *       POST → http.post({ url, headers, body }, callback)   ← url 必须放进 options 对象
+ *   - response 可用 writeHead + end 返回（Bmob 会把合法 JSON 解析为 result 对象）
  *   - Node 16，无全局 fetch / 无 oRequest
  *
  * 前端调用：POST https://api.bmobcloud.com/1/functions/aiProxy
  *   请求头：X-Bmob-Application-Id / X-Bmob-REST-API-Key（Bmob.request 自动带）
  *   请求体：{ "url": "https://api.deepseek.com/chat/completions", "headers": {...}, "body": {...} }
- *   返回：   { "status": 200, "body": "<上游响应文本>", "contentType": "application/json" }
+ *   返回（Bmob 包成 { result: ... }）：
+ *     { "status": 200, "body": "<上游响应文本>", "contentType": "application/json" }
  *
  * 注意：Bmob 云函数有执行时长上限，超长/流式响应可能超时；非流式短问答一般没问题。
  */
@@ -25,7 +27,7 @@ function onRequest(request, response, modules) {
   var headers = body.headers || {};
   var payload = body.body || {};
 
-  // 返回助手：Node HTTP 风格 response（writeHead + end）
+  // 返回助手：Node HTTP 风格 response（writeHead + end），Bmob 会把合法 JSON 解析为 result
   function finish(statusCode, bodyStr, contentType) {
     response.writeHead(statusCode, { 'Content-Type': contentType || 'application/json' });
     response.end(bodyStr);
@@ -47,19 +49,26 @@ function onRequest(request, response, modules) {
 
   var jsonBody = (typeof payload === 'string') ? payload : JSON.stringify(payload);
 
-  // Bmob oHttp 签名：(url, options, callback)   options 为对象（request 库风格）
-  // 注意：用主入口 oHttp 而非 .post() 便捷方法，否则会被 governor 网关拦截
-  modules.oHttp(target, {
+  // 官方 oHttp POST 用法：oHttp.post(options, callback)，options 必须含 url 字段
+  modules.oHttp.post({
+    url: target,
     method: 'POST',
     headers: forwardHeaders,
     body: jsonBody
-  }, function (err, res, resBody) {
-    if (err) {
-      finish(502, JSON.stringify({ error: 'aiProxy upstream error: ' + String(err) }), 'application/json');
+  }, function (error, res, resBody) {
+    if (error) {
+      var msg = (error && error.message) ? error.message : String(error);
+      finish(502, JSON.stringify({ error: 'aiProxy upstream error: ' + msg }), 'application/json');
       return;
     }
-    var statusCode = (res && (res.statusCode || res.status)) ? (res.statusCode || res.status) : 502;
+    // res.statusCode：上游 HTTP 状态码；resBody：上游响应体字符串
+    var statusCode = (res && res.statusCode) || 502;
     var ct = (res && res.headers && res.headers['content-type']) || 'application/json';
-    finish(statusCode, resBody != null ? resBody : '', ct);
+    // 按前端约定返回 { status, body, contentType }
+    finish(200, JSON.stringify({
+      status: statusCode,
+      body: resBody != null ? resBody : '',
+      contentType: ct
+    }), 'application/json');
   });
 }

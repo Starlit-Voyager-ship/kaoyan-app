@@ -40,20 +40,14 @@ const AIAssistant = {
   },
 
   bindEvents() {
-    // 顶部上传抽屉切换
-    document.getElementById('ai-upload-toggle').addEventListener('click', () => this.toggleUploadDrawer());
-
-    // 上传面板
-    document.getElementById('upload-camera-btn').addEventListener('click', () => this.capture('upload', 'camera'));
-    document.getElementById('upload-gallery-btn').addEventListener('click', () => this.capture('upload', 'gallery'));
-    document.getElementById('upload-clear-btn').addEventListener('click', () => this.clearUpload());
-    document.getElementById('upload-go-btn').addEventListener('click', () => this.doUpload());
-
-    // 对话面板
+    // 对话面板：拍照/相册（AI 解答）
     document.getElementById('answer-camera-btn').addEventListener('click', () => this.capture('answer', 'camera'));
     document.getElementById('answer-gallery-btn').addEventListener('click', () => this.capture('answer', 'gallery'));
     document.getElementById('answer-clear-img').addEventListener('click', () => this.clearAnswerImage());
-    document.getElementById('answer-voice-btn').addEventListener('click', () => Utils.toast('语音输入暂不支持'));
+
+    // 上传归档按钮（原语音位置）
+    document.getElementById('answer-upload-btn').addEventListener('click', () => this.quickUpload());
+
     document.getElementById('chat-more-btn').addEventListener('click', () => Utils.toast('更多功能开发中'));
     document.getElementById('chat-send').addEventListener('click', () => this.sendAnswer());
     document.getElementById('chat-input').addEventListener('keydown', (e) => {
@@ -65,24 +59,27 @@ const AIAssistant = {
       if (e.target.files[0]) this.handleFile(e.target.files[0]);
       e.target.value = '';
     });
-    // Web 回退：上传面板专用多选文件输入
+    // Web 回退：上传归档文件输入
     document.getElementById('upload-file-input').addEventListener('change', (e) => {
       const files = Array.from(e.target.files || []);
-      files.forEach(f => this.handleFile(f));
+      if (files.length) {
+        Promise.all(files.map(f => this.handleFile(f))).then(() => this.doUpload());
+      }
       e.target.value = '';
     });
   },
 
-  toggleUploadDrawer() {
-    const drawer = document.getElementById('ai-upload-drawer');
-    const isHidden = drawer.style.display === 'none';
-    drawer.style.display = isHidden ? 'block' : 'none';
-  },
-
-  switchMode(mode) {
-    this.activeMode = mode;
-    const drawer = document.getElementById('ai-upload-drawer');
-    if (drawer) drawer.style.display = mode === 'upload' ? 'block' : 'none';
+  /* 快捷上传：选图后自动归档 */
+  async quickUpload() {
+    this.uploadImages = [];
+    this._pendingPanel = 'upload';
+    await this.capture('upload', 'gallery');
+    if (this.uploadImages && this.uploadImages.length) {
+      this.doUpload();
+    } else {
+      // Web 回退：触发隐藏的 file input
+      document.getElementById('upload-file-input').click();
+    }
   },
 
   /* ---------- 取图（原生相机/相册 或 Web 回退） ---------- */
@@ -130,10 +127,6 @@ const AIAssistant = {
     if (panel === 'upload') {
       this.uploadImages = this.uploadImages || [];
       this.uploadImages.push(dataUrl);
-      document.getElementById('upload-empty').style.display = 'none';
-      document.getElementById('upload-clear-btn').style.display = 'inline-flex';
-      document.getElementById('upload-go-btn').disabled = false;
-      this.renderUploadThumbs();
     } else {
       this.pendingImage = dataUrl;
       document.getElementById('answer-clear-img').style.display = 'inline-flex';
@@ -143,32 +136,8 @@ const AIAssistant = {
     }
   },
 
-  renderUploadThumbs() {
-    const box = document.getElementById('upload-thumbs');
-    if (!box) return;
-    box.innerHTML = '';
-    (this.uploadImages || []).forEach((src, idx) => {
-      const t = document.createElement('div');
-      t.className = 'thumb';
-      t.innerHTML = `<img src="${src}"><button type="button" class="thumb-del" title="移除">×</button>`;
-      t.querySelector('.thumb-del').addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.uploadImages.splice(idx, 1);
-        if (!this.uploadImages.length) this.clearUpload();
-        else this.renderUploadThumbs();
-      });
-      box.appendChild(t);
-    });
-  },
-
   clearUpload() {
     this.uploadImages = [];
-    const box = document.getElementById('upload-thumbs');
-    if (box) box.innerHTML = '';
-    document.getElementById('upload-empty').style.display = 'block';
-    document.getElementById('upload-clear-btn').style.display = 'none';
-    document.getElementById('upload-go-btn').disabled = true;
-    document.getElementById('upload-result').innerHTML = '';
   },
 
   clearAnswerImage() {
@@ -196,9 +165,12 @@ const AIAssistant = {
     const settings = Store.getSettings(Store.getCurrentUser()) || {};
     if (!settings.qwenKey) { Utils.toast('上传归档需先配置千问VL Key'); return; }
 
-    const source = document.getElementById('upload-source').value;
-    const topicInput = document.getElementById('upload-topic').value;
-    const errorInput = document.getElementById('upload-error').value.trim();
+    const sourceEl = document.getElementById('upload-source');
+    const source = sourceEl ? sourceEl.value : '';
+    const topicEl = document.getElementById('upload-topic');
+    const topicInput = topicEl ? topicEl.value : '';
+    const errorEl = document.getElementById('upload-error');
+    const errorInput = errorEl ? errorEl.value.trim() : '';
 
     this.showUploadLoading(true);
     try {
@@ -297,18 +269,11 @@ const AIAssistant = {
   },
 
   showUploadLoading(on) {
-    const btn = document.getElementById('upload-go-btn');
-    btn.disabled = on;
-    btn.textContent = on ? '识别中…' : '识别并归档';
+    Utils.toast(on ? '正在识别归档…' : '');
   },
 
   showUploadResult(title, body) {
-    const el = document.getElementById('upload-result');
-    el.innerHTML = `<div class="result-card">
-      <div class="result-title">${title}</div>
-      <div class="result-body">${this.formatContent(body)}</div>
-    </div>`;
-    this.renderMath(el.querySelector('.result-body'));
+    Utils.toast(title + (body ? '：' + body.slice(0, 50) : ''));
   },
 
   /* ============================================================

@@ -1368,21 +1368,22 @@
   color: #fff;
   border-color: var(--primary);
 }
-/* 点词翻译：单词标红可点（对标参考实现） */
+/* 点词翻译：单词默认保持原色，仅暗示可点击；查过的词标红 */
 .tword {
   cursor: pointer;
+  border-bottom: 1px dotted transparent;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tword:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-bottom-color: var(--text-light, #999);
+}
+/* 已查询过的词：标红 + 虚线下划线 */
+.tword-done {
+  cursor: default;
   color: var(--danger, #e5484d);
   border-bottom: 1px dotted var(--danger, #e5484d);
   font-weight: 500;
-  transition: background 0.15s;
-}
-.tword:hover {
-  background: rgba(229, 72, 77, 0.12);
-}
-.tword-done {
-  color: inherit;
-  border-bottom: none;
-  font-weight: inherit;
 }
 .word-anno {
   color: var(--text-light);

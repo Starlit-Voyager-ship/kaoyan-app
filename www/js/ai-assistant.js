@@ -368,6 +368,8 @@ const AIAssistant = {
     }
     const data = await Bmob.request('POST', '/functions/aiProxy', { url, headers: options.headers, body: bodyObj }, false);
     const r = (data && data.result) || {};
+    console.log('[AI代理调试] aiProxy 原始返回:', JSON.stringify(data));
+    console.log('[AI代理调试] 解析后 status:', r.status, 'body前100字:', String(r.body || '').slice(0, 100));
     return new Response(r.body != null ? r.body : '', {
       status: r.status || 502,
       headers: { 'Content-Type': r.contentType || 'application/json' }

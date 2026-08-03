@@ -6,7 +6,8 @@
  * 安全：仅做转发，不存储任何 API Key（Key 由前端在请求头里带来）。
  *
  * 环境说明（实测）：
- *   - modules.oHttp 即 request 库（有 .post/.get），用 oHttp.post(url, opts, cb) 转发
+ *   - modules.oHttp 即 request 库，正确签名为 oHttp(url, options, callback)（options 为对象）
+ *   - 注意：必须走主入口 oHttp，用 .post() 便捷方法会被 governor 网关拦截
  *   - response 为 Node HTTP 风格，用 writeHead + end 返回
  *   - Node 16，无全局 fetch / 无 oRequest
  *
@@ -46,8 +47,13 @@ function onRequest(request, response, modules) {
 
   var jsonBody = (typeof payload === 'string') ? payload : JSON.stringify(payload);
 
-  // Bmob oHttp 规范位置参数签名：(url, method, headers, body, callback)
-  modules.oHttp(target, 'POST', forwardHeaders, jsonBody, function (err, res, resBody) {
+  // Bmob oHttp 签名：(url, options, callback)   options 为对象（request 库风格）
+  // 注意：用主入口 oHttp 而非 .post() 便捷方法，否则会被 governor 网关拦截
+  modules.oHttp(target, {
+    method: 'POST',
+    headers: forwardHeaders,
+    body: jsonBody
+  }, function (err, res, resBody) {
     if (err) {
       finish(502, JSON.stringify({ error: 'aiProxy upstream error: ' + String(err) }), 'application/json');
       return;

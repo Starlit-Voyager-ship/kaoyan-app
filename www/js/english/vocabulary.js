@@ -17,6 +17,8 @@ const Vocabulary = {
   sessionSeconds: 0,
   sessionTimer: null,
   currentSource: 'all',
+  ANSWER_DELAY: 1100,   // 点认识/不认识后先显示释义、再翻页的停顿(ms)
+  _advancing: false,    // 答案处理中锁，防连点
 
   // 测试 session
   testQuestions: [],
@@ -262,6 +264,18 @@ const Vocabulary = {
   },
 
   async markTooEasy() {
+    if (this._advancing || !this.queue || this.queue.length === 0) return;
+    this._advancing = true;
+    this._setActionButtons(true);
+    this.showMeaning(); // 先给出意思
+    setTimeout(() => {
+      this._advancing = false;
+      this._setActionButtons(false);
+      this._doMarkTooEasy();
+    }, this.ANSWER_DELAY);
+  },
+
+  _doMarkTooEasy() {
     if (!this.queue || this.queue.length === 0) return;
     const item = this.queue.shift();
     const w = item.rec;
@@ -270,11 +284,18 @@ const Vocabulary = {
     w.lastReview = Utils.today();
     if (!w.firstLearned) w.firstLearned = Utils.today();
     w.ebbinghausStage = this.EBBINGHAUS.length - 1; // 不再安排复习
-    await Store.put('vocab_words', w);
+    Store.put('vocab_words', w).catch(() => {});
     if (item.isNew) this.newDone++;
     else this.reviewDone++;
     this.updateStudyStats();
     this.showCurrentWord();
+  },
+
+  _setActionButtons(disabled) {
+    ['word-know', 'word-forget', 'word-too-easy'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = disabled;
+    });
   },
 
   showCurrentWord() {
@@ -317,29 +338,53 @@ const Vocabulary = {
     if (hintEl) hintEl.style.display = 'none';
   },
 
-  // 点击「我认识」：failCount 为 0 才算真正掌握(不再回插)；
+  // 点击「我认识」：先给意思，停顿后再翻页；failCount 为 0 才算真正掌握(不再回插)；
   // 失败过则认识一次抵消一次，回插队尾直到 failCount 归零才毕业
   async markKnown() {
+    if (this._advancing || !this.queue || this.queue.length === 0) return;
+    this._advancing = true;
+    this._setActionButtons(true);
+    this.showMeaning(); // 先给出意思
+    setTimeout(() => {
+      this._advancing = false;
+      this._setActionButtons(false);
+      this._doMarkKnown();
+    }, this.ANSWER_DELAY);
+  },
+
+  _doMarkKnown() {
     if (!this.queue || this.queue.length === 0) return;
     const item = this.queue.shift();
     const w = item.rec;
     this.studiedCount++;
 
     if (item.failCount === 0) {
-      await this._recordKnown(w, item.isNew, false);
+      this._recordKnown(w, item.isNew, false);
       if (item.isNew) this.newDone++;
       else this.reviewDone++;
     } else {
       item.failCount--;
       this.queue.push(item); // 回插队尾：后续还会出现
-      await this._recordKnown(w, item.isNew, true);
+      this._recordKnown(w, item.isNew, true);
     }
     this.updateStudyStats();
     this.showCurrentWord();
   },
 
-  // 点击「不认识」：failCount+1，回插队尾(后续还会出现)；出现次数随失败次数增多
+  // 点击「不认识」：先给意思，停顿后再翻页；failCount+1，回插队尾(后续还会出现)
   async markUnknown() {
+    if (this._advancing || !this.queue || this.queue.length === 0) return;
+    this._advancing = true;
+    this._setActionButtons(true);
+    this.showMeaning(); // 先给出意思
+    setTimeout(() => {
+      this._advancing = false;
+      this._setActionButtons(false);
+      this._doMarkUnknown();
+    }, this.ANSWER_DELAY);
+  },
+
+  _doMarkUnknown() {
     if (!this.queue || this.queue.length === 0) return;
     const item = this.queue.shift();
     const w = item.rec;
@@ -353,11 +398,11 @@ const Vocabulary = {
     w.lastReview = Utils.today();
     if (!w.firstLearned) w.firstLearned = Utils.today();
     w.ebbinghausStage = 0; // 重置复习阶段
-    await Store.put('vocab_words', w);
+    Store.put('vocab_words', w).catch(() => {});
 
     // 加金币：每个新单词+2金币
     const user = Store.getCurrentUser();
-    await Store.addCoins(user, 2);
+    Store.addCoins(user, 2);
 
     this.updateStudyStats();
     this.showCurrentWord();
@@ -371,7 +416,7 @@ const Vocabulary = {
     if (!isNew && !partial) {
       w.ebbinghausStage = Math.min((w.ebbinghausStage || 0) + 1, this.EBBINGHAUS.length - 1);
     }
-    await Store.put('vocab_words', w);
+    Store.put('vocab_words', w).catch(() => {});
   },
 
   finishSession() {

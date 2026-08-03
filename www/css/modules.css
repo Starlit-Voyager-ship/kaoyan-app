@@ -810,6 +810,12 @@
   transition: transform var(--transition-fast), opacity var(--transition-fast);
 }
 .study-btn:active { transform: scale(0.98); }
+.study-btn:disabled,
+.word-too-easy:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 .study-btn-forget {
   background: var(--c-coral-soft);
   color: #c45a3d;

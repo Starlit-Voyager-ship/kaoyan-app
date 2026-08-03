@@ -356,13 +356,12 @@
 /* AI 页面外层 section 精确适配视口，杜绝页面级滚动条 */
 #page-ai-assistant.content-section {
   padding: 0;
-  min-height: 0;
   max-width: none;
   height: calc(100vh - var(--header-height) - var(--tabbar-height));
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  margin-top: 0; /* 抵消 main 的 margin-top，避免多出 header-height 的留白 */
+  margin-top: 0; /* 抵消 main 的 margin-top */
 }
 .ai-topbar {
   display: flex;

@@ -14,9 +14,6 @@ const app = {
     // 初始化认证系统
     Auth.init();
 
-    // 初始化桌宠系统
-    DesktopPet.init();
-
     // 绑定全局导航
     this.bindGlobalEvents();
 
@@ -32,6 +29,11 @@ const app = {
     document.getElementById('sidebar-close').addEventListener('click', () => this.closeSidebar());
     document.getElementById('overlay').addEventListener('click', () => this.closeSidebar());
 
+    // 底部 Tab 主导航
+    document.querySelectorAll('.tab-item').forEach(t => {
+      t.addEventListener('click', () => this.navigate(t.dataset.tab, { fromTab: true }));
+    });
+
     // 导航项点击
     document.querySelectorAll('.nav-item[data-page]').forEach(item => {
       item.addEventListener('click', () => {
@@ -44,20 +46,9 @@ const app = {
       });
     });
 
-    // 桌宠开关
-    document.getElementById('pet-toggle').addEventListener('click', () => {
-      DesktopPet.toggle();
-    });
-
-    // 用户菜单
-    document.getElementById('user-menu-btn').addEventListener('click', () => {
-      this.toggleSidebar();
-    });
-
-    // 设置页面导航
-    document.getElementById('settings-btn').addEventListener('click', () => {
-      this.navigate('settings');
-      this.closeSidebar();
+    // 「我的」页内功能行导航（设置等子页，设置走 page-settings）
+    document.querySelectorAll('.mine-row[data-page]').forEach(row => {
+      row.addEventListener('click', () => this.navigate(row.dataset.page));
     });
 
     // API Key保存
@@ -68,14 +59,6 @@ const app = {
 
     // 数据清除
     document.getElementById('clear-data').addEventListener('click', () => this.clearDataConfirm());
-
-    // 宠物名称设置
-    document.getElementById('setting-pet-name').addEventListener('change', (e) => {
-      if (PetCore.data && PetCore.data.claimed) {
-        PetCore.data.name = e.target.value.trim() || PetCore.data.name;
-        PetCore.save(); PetCore.render();
-      }
-    });
   },
 
   toggleSidebar() {
@@ -88,10 +71,18 @@ const app = {
     document.getElementById('overlay').classList.remove('show');
   },
 
-  navigate(page) {
-    // 更新导航高亮
+  navigate(page, opts) {
+    opts = opts || {};
+    const fromTab = !!opts.fromTab;
+
+    // 底部 Tab 高亮（仅来自 Tab 点击时切换）
+    document.querySelectorAll('.tab-item').forEach(t => {
+      t.classList.toggle('active', fromTab && t.dataset.tab === page);
+    });
+
+    // 抽屉项高亮（来自 Tab 时清空；来自抽屉/子页时按 data-page 匹配）
     document.querySelectorAll('.nav-item[data-page]').forEach(item => {
-      item.classList.toggle('active', item.dataset.page === page);
+      item.classList.toggle('active', !fromTab && item.dataset.page === page);
     });
 
     // 切换内容区域
@@ -115,7 +106,7 @@ const app = {
       'math-bank': '数学题库',
       'math-weak': '薄弱错题',
       reports: '学习报表',
-      pet: '我的宠物',
+      mine: '我的',
       'friend-wake': '好友叫醒',
       settings: '设置'
     };
@@ -131,6 +122,9 @@ const app = {
     switch (page) {
       case 'home':
         this.updateHomeStats();
+        break;
+      case 'mine':
+        this.renderMine();
         break;
       case 'vocab':
         Vocabulary.startLearning();
@@ -151,9 +145,6 @@ const app = {
         break;
       case 'math-weak':
         WeakPoints.render();
-        break;
-      case 'pet':
-        PetCore.render();
         break;
       case 'ai-assistant':
         AIAssistant.checkConfig();
@@ -184,17 +175,7 @@ const app = {
     MathBank.init();
     WeakPoints.init();
     Reports.init();
-    PetCore.init();
     FriendWake.init();
-    DesktopPet.init();
-
-    // 如果已领取宠物且开启了桌宠，显示桌宠
-    if (PetCore.data?.claimed) {
-      const settings = Store.getSettings(Store.getCurrentUser()) || {};
-      if (settings.desktopPet !== false) {
-        setTimeout(() => DesktopPet.show(), 500);
-      }
-    }
 
     this.updateHomeStats();
   },
@@ -213,8 +194,24 @@ const app = {
     document.getElementById('home-math-today').textContent = todayMath;
     document.getElementById('home-coins').textContent = coins;
 
-    // 更新宠物预览
-    if (PetCore.data) PetCore.render();
+    // 继续学习引导卡：今日专注进度（目标 120 分钟）
+    const goalMin = 120;
+    const pct = Math.min(Math.round((todayMin / goalMin) * 100), 100);
+    const progEl = document.getElementById('home-focus-progress');
+    if (progEl) progEl.style.width = pct + '%';
+    const metaEl = document.getElementById('home-focus-meta');
+    if (metaEl) metaEl.textContent = todayMin + ' / ' + goalMin + ' min';
+    const cmpEl = document.getElementById('home-focus-compare');
+    if (cmpEl) cmpEl.textContent = todayMin > 0 ? ('已专注 ' + todayMin + ' 分钟，继续加油') : '开启今天的专注吧';
+  },
+
+  async renderMine() {
+    const user = Store.getCurrentUser();
+    if (!user) return;
+    const nameEl = document.getElementById('mine-username');
+    if (nameEl) nameEl.textContent = user;
+    const avatarEl = document.getElementById('mine-avatar');
+    if (avatarEl) avatarEl.textContent = (user || '?').charAt(0).toUpperCase();
   },
 
   async saveApiSettings() {
@@ -225,16 +222,11 @@ const app = {
     settings.deepseekBase = document.getElementById('setting-deepseek-base').value.trim() || 'https://api.deepseek.com';
     settings.qwenKey = document.getElementById('setting-qwen-key').value.trim();
     settings.qwenBase = document.getElementById('setting-qwen-base').value.trim() || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-    settings.desktopPet = document.getElementById('setting-desktop-pet').checked;
-
-    if (document.getElementById('setting-pet-name').value.trim()) {
-      settings.petName = document.getElementById('setting-pet-name').value.trim();
-    }
 
     Store.saveSettings(user, settings);
 
     const msgEl = document.getElementById('api-save-msg');
-    msgEl.textContent = '✅ API配置已保存';
+    msgEl.textContent = 'API配置已保存';
     msgEl.className = 'success-msg';
 
     AIAssistant.checkConfig();
@@ -251,8 +243,6 @@ const app = {
     document.getElementById('setting-deepseek-base').value = settings.deepseekBase || 'https://api.deepseek.com';
     document.getElementById('setting-qwen-key').value = settings.qwenKey || '';
     document.getElementById('setting-qwen-base').value = settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-    document.getElementById('setting-desktop-pet').checked = settings.desktopPet !== false;
-    document.getElementById('setting-pet-name').value = settings.petName || (PetCore.data?.name || '');
   },
 
   async exportData() {
@@ -280,7 +270,7 @@ const app = {
   },
 
   clearDataConfirm() {
-    Utils.showModal('⚠️ 危险操作', `
+    Utils.showModal('危险操作', `
       <p style="color:var(--danger);font-weight:600">此操作将清除你的所有学习数据，包括：</p>
       <ul style="margin:12px 0 12px 20px;color:var(--text-secondary)">
         <li>所有专注记录</li>
@@ -288,7 +278,7 @@ const app = {
         <li>单词学习进度</li>
         <li>文章/长难句/作文</li>
         <li>数学题库和错题</li>
-        <li>宠物数据和金币</li>
+        <li>奖励金币数据</li>
         <li>好友绑定关系</li>
       </ul>
       <p style="color:var(--danger)">此操作不可撤销！</p>

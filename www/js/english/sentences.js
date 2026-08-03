@@ -55,10 +55,10 @@ const Sentences = {
     const analysis = document.getElementById('sentence-analysis');
     if (sentence.analysis) {
       analysis.innerHTML = `
-        <div class="analysis-part"><h5>📌 句法结构</h5><p>${sentence.analysis.structure || '分析中...'}</p></div>
-        <div class="analysis-part"><h5>🔍 成分拆解</h5><p>${sentence.analysis.components || ''}</p></div>
-        <div class="analysis-part"><h5>⚠️ 重难点</h5><p>${sentence.analysis.difficulty || ''}</p></div>
-        <div class="analysis-part"><h5>📝 参考译文</h5><p>${sentence.analysis.translation || ''}</p></div>
+        <div class="analysis-part"><h5><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M9 4v16M5 9h14"/></svg> 句法结构</h5><p>${sentence.analysis.structure || '分析中...'}</p></div>
+        <div class="analysis-part"><h5><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg> 成分拆解</h5><p>${sentence.analysis.components || ''}</p></div>
+        <div class="analysis-part"><h5><svg class="ico" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg> 重难点</h5><p>${sentence.analysis.difficulty || ''}</p></div>
+        <div class="analysis-part"><h5><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h6M8 17h4"/></svg> 参考译文</h5><p>${sentence.analysis.translation || ''}</p></div>
       `;
     } else {
       analysis.innerHTML = '<p style="color:var(--text-light)">暂无详细解析，可尝试重新通过AI解析</p>';

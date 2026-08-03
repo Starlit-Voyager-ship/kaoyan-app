@@ -56,7 +56,7 @@ const Auth = {
       this.handleRegister();
     });
 
-    document.getElementById('logout-btn').addEventListener('click', () => {
+    document.getElementById('mine-logout-btn').addEventListener('click', () => {
       Utils.showModal('确认退出', '确定要退出登录吗？', `
         <button class="btn-danger" id="confirm-logout">退出</button>
         <button class="btn-outline" onclick="Utils.hideModal()">取消</button>
@@ -78,6 +78,8 @@ const Auth = {
     document.getElementById('auth-page').classList.remove('active');
     document.getElementById('app-page').classList.add('active');
     document.getElementById('sidebar-username').textContent = username;
+    const av = document.getElementById('sidebar-avatar');
+    if (av) av.textContent = (username || '?').charAt(0).toUpperCase();
     app.updateHomeStats();
     app.initAllModules();
     // 登录成功后立即刷新云端状态栏
@@ -111,7 +113,7 @@ const Auth = {
       if (cloudUser !== username) localStorage.setItem('cloud_user_' + username, cloudUser);
       errorEl.textContent = '';
       this.enterApp(username);
-      Utils.toast(`欢迎回来，${username}！云端同步已开启 ✅`);
+      Utils.toast(`欢迎回来，${username}！云端同步已开启`);
       this._ensurePet(username);
       return;
     } catch (e) {
@@ -126,7 +128,7 @@ const Auth = {
           this.cloudOk = true;
           errorEl.textContent = '';
           this.enterApp(username);
-          Utils.toast(`欢迎，${username}！已开通云同步 ✅`);
+          Utils.toast(`欢迎，${username}！已开通云同步`);
           this._ensurePet(username);
           return;
         } catch (regErr) {
@@ -147,7 +149,7 @@ const Auth = {
         this.cloudOk = true;
         errorEl.textContent = '';
         this.enterApp(username);
-        Utils.toast(`欢迎，${username}！已自动开通云同步 ✅`);
+        Utils.toast(`欢迎，${username}！已自动开通云同步`);
         this._ensurePet(username);
         return;
       } catch (e4) {
@@ -172,7 +174,7 @@ const Auth = {
         this.cloudOk = true;
         errorEl.textContent = '';
         this.enterApp(localName);
-        Utils.toast(`欢迎，${localName}！云端同步已开启 ✅`);
+        Utils.toast(`欢迎，${localName}！云端同步已开启`);
         this._ensurePet(localName);
         return true;
       } catch (_) {
@@ -183,7 +185,7 @@ const Auth = {
           this.cloudOk = true;
           errorEl.textContent = '';
           this.enterApp(localName);
-          Utils.toast(`欢迎，${localName}！已开通云同步 ✅`);
+          Utils.toast(`欢迎，${localName}！已开通云同步`);
           this._ensurePet(localName);
           return true;
         } catch (_) {
@@ -256,7 +258,6 @@ const Auth = {
   handleLogout() {
     Bmob.logout();
     Store.logout();
-    DesktopPet.hide();
     document.getElementById('app-page').classList.remove('active');
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('overlay').classList.remove('show');

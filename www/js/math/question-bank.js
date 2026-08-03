@@ -2,10 +2,57 @@
    数学题库模块
    ======================================== */
 
+const MATH_TOPICS = [
+  {
+    category: '高等数学',
+    subs: [
+      '函数、极限、连续',
+      '一元函数微分学',
+      '一元函数积分学',
+      '多元函数微分学',
+      '二重积分',
+      '常微分方程'
+    ]
+  },
+  {
+    category: '线性代数',
+    subs: [
+      '行列式',
+      '矩阵',
+      '向量',
+      '线性方程组',
+      '特征值与特征向量',
+      '二次型'
+    ]
+  }
+];
+
 const MathBank = {
   init() {
+    this.renderTopicOptions();
     this.bindEvents();
     this.renderList();
+  },
+
+  renderTopicOptions() {
+    const build = (id) => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      sel.innerHTML = '<option value="">全部知识点</option>';
+      MATH_TOPICS.forEach(group => {
+        const og = document.createElement('optgroup');
+        og.label = group.category;
+        group.subs.forEach(sub => {
+          const opt = document.createElement('option');
+          opt.value = sub;
+          opt.textContent = sub;
+          og.appendChild(opt);
+        });
+        sel.appendChild(og);
+      });
+    };
+    build('math-topic-filter');
+    build('upload-topic');
   },
 
   bindEvents() {
@@ -46,7 +93,7 @@ const MathBank = {
       item.className = 'question-item';
       item.innerHTML = `
         <div class="q-info">
-          <div class="q-topic">${q.topic} ${q.imageData ? '📷' : ''}</div>
+          <div class="q-topic">${q.topic} ${q.imageData ? '<svg class="ico" viewBox="0 0 24 24" style="width:15px;height:15px;vertical-align:-2px"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M8 6V4h8v2"/></svg>' : ''}</div>
           <div class="q-meta">${q.source} · ${q.createdAt ? new Date(q.createdAt).toLocaleDateString() : ''}</div>
         </div>
         <div class="q-tags">

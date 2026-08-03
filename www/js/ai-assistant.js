@@ -19,12 +19,12 @@ const AI_SYSTEM_PROMPT = `你是一个专业的考研学习AI助理。用户正�
 - 使用中文回答`;
 
 const AIAssistant = {
-  activeMode: 'upload',     // 'upload' | 'answer'
+  activeMode: 'answer',     // 默认进入对话模式
   pendingImage: null,       // 解答面板待发送图片
   uploadImage: null,        // 上传面板图片
   messages: [],
   hasConfigured: false,
-  _pendingPanel: 'upload',
+  _pendingPanel: 'answer',
 
   init() {
     if (typeof Capacitor !== 'undefined' && Capacitor.registerPlugin) {
@@ -40,10 +40,8 @@ const AIAssistant = {
   },
 
   bindEvents() {
-    // Tab 切换
-    document.querySelectorAll('.ai-tab').forEach(btn => {
-      btn.addEventListener('click', () => this.switchMode(btn.dataset.mode));
-    });
+    // 顶部上传抽屉切换
+    document.getElementById('ai-upload-toggle').addEventListener('click', () => this.toggleUploadDrawer());
 
     // 上传面板
     document.getElementById('upload-camera-btn').addEventListener('click', () => this.capture('upload', 'camera'));
@@ -51,13 +49,24 @@ const AIAssistant = {
     document.getElementById('upload-clear-btn').addEventListener('click', () => this.clearUpload());
     document.getElementById('upload-go-btn').addEventListener('click', () => this.doUpload());
 
-    // 解答面板
+    // 对话面板
     document.getElementById('answer-camera-btn').addEventListener('click', () => this.capture('answer', 'camera'));
     document.getElementById('answer-gallery-btn').addEventListener('click', () => this.capture('answer', 'gallery'));
     document.getElementById('answer-clear-img').addEventListener('click', () => this.clearAnswerImage());
+    document.getElementById('answer-voice-btn').addEventListener('click', () => Utils.toast('语音输入暂不支持'));
+    document.getElementById('chat-more-btn').addEventListener('click', () => Utils.toast('更多功能开发中'));
     document.getElementById('chat-send').addEventListener('click', () => this.sendAnswer());
     document.getElementById('chat-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.sendAnswer(); }
+    });
+
+    // 快捷 chips
+    document.querySelectorAll('.ai-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const input = document.getElementById('chat-input');
+        input.value = chip.dataset.prompt;
+        input.focus();
+      });
     });
 
     // Web 回退：共享文件输入（无原生相机时）
@@ -67,11 +76,16 @@ const AIAssistant = {
     });
   },
 
+  toggleUploadDrawer() {
+    const drawer = document.getElementById('ai-upload-drawer');
+    const isHidden = drawer.style.display === 'none';
+    drawer.style.display = isHidden ? 'block' : 'none';
+  },
+
   switchMode(mode) {
     this.activeMode = mode;
-    document.querySelectorAll('.ai-tab').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-    document.getElementById('ai-upload-panel').style.display = mode === 'upload' ? 'block' : 'none';
-    document.getElementById('ai-answer-panel').style.display = mode === 'answer' ? 'block' : 'none';
+    const drawer = document.getElementById('ai-upload-drawer');
+    if (drawer) drawer.style.display = mode === 'upload' ? 'block' : 'none';
   },
 
   /* ---------- 取图（原生相机/相册 或 Web 回退） ---------- */
@@ -177,7 +191,7 @@ const AIAssistant = {
           createdAt: new Date().toISOString()
         });
         await Store.addCoins(user, 5);
-        this.showUploadResult('✅ 已归档到【数学题库】',
+        this.showUploadResult('已归档到【数学题库】',
           `知识点：${topic}\n错因：${errorReason || '（未填写）'}\n\n识别文字：\n${v.text || ''}`);
       } else if (v.type === 'english') {
         const title = 'AI上传文章 ' + new Date().toLocaleDateString();
@@ -189,14 +203,14 @@ const AIAssistant = {
           imageData: this.uploadImage,
           createdAt: new Date().toISOString()
         });
-        this.showUploadResult('✅ 已归档到【英语文章】',
+        this.showUploadResult('已归档到【英语文章】',
           `标题：${title}\n\n英文全文：\n${v.text || ''}`);
       } else {
         this.showUploadResult('ℹ️ 未识别为数学题或英语文章',
           `识别内容：\n${v.text || ''}\n\n如需解答，请切换到「智能解答」Tab。`);
       }
     } catch (e) {
-      this.showUploadResult('❌ 识别失败', e.message);
+      this.showUploadResult('识别失败', e.message);
     } finally {
       this.showUploadLoading(false);
     }
@@ -277,43 +291,118 @@ const AIAssistant = {
       if (c) messages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: c });
     });
 
-    const res = await fetch(`${settings.deepseekBase || 'https://api.deepseek.com'}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.deepseekKey}`
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages,
-        max_tokens: 2000,
-        temperature: 0.7
-      })
-    });
+    const url = `${settings.deepseekBase || 'https://api.deepseek.com'}/chat/completions`;
+    try {
+      const res = await this.proxyFetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${settings.deepseekKey}`
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages,
+          max_tokens: 2000,
+          temperature: 0.7
+        })
+      });
 
-    if (!res.ok) throw new Error(`API错误 (${res.status})`);
-    const data = await res.json();
-    return data.choices[0].message.content;
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        let detail = '';
+        try {
+          const j = JSON.parse(txt);
+          detail = j.error?.message || j.message || '';
+        } catch (_) {}
+        const code = res.status;
+        let hint = detail;
+        if (code === 401) hint = 'DeepSeek Key 无效或已过期';
+        else if (code === 429) hint = '请求太频繁，请稍后再试';
+        else if (code >= 500) hint = 'DeepSeek 服务暂时异常，请稍后再试';
+        else if (!hint) hint = `请求失败 (HTTP ${code})`;
+        throw new Error(`DeepSeek：${hint}`);
+      }
+      const data = await res.json();
+      return data.choices[0].message.content;
+    } catch (err) {
+      if (err.name === 'TypeError' || /fetch|network|failed|abort/i.test(err.message)) {
+        throw new Error('DeepSeek：网络请求失败。浏览器预览可能受 CORS 限制，请在 App 内测试；若已在 App 内，请检查网络连接。');
+      }
+      throw err;
+    }
+  },
+
+  /* ---------- 跨平台 API 请求：App 直连，浏览器走本地代理 ---------- */
+  isNativePlatform() {
+    return typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform();
+  },
+
+  async proxyFetch(url, options) {
+    if (this.isNativePlatform()) return fetch(url, options);
+    // 浏览器端：通过可配置的 AI 代理转发，绕开 CORS
+    // 代理地址见 www/js/config.js（本地 '/api/proxy'，公网为 Cloudflare Worker 绝对地址）
+    const proxyUrl = (window.APP_CONFIG && window.APP_CONFIG.proxyUrl) || '/api/proxy';
+    let bodyObj;
+    if (typeof options.body === 'string') {
+      try { bodyObj = JSON.parse(options.body); } catch (_) { bodyObj = {}; }
+    } else {
+      bodyObj = options.body || {};
+    }
+    return fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, headers: options.headers, body: bodyObj })
+    });
   },
 
   /* ---------- 千问VL：分类（数学/英语/其他）+ 提取文字 ---------- */
+  topicListForVL() {
+    if (typeof MATH_TOPICS === 'undefined') return '行列式/矩阵/向量/线性方程组/特征值与特征向量/二次型/其他';
+    const all = MATH_TOPICS.flatMap(g => g.subs);
+    return all.join('/') + '/其他';
+  },
+
+  async requestQwen(settings, content, taskName) {
+    const url = `${settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`;
+    try {
+      const res = await this.proxyFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.qwenKey}` },
+        body: JSON.stringify({ model: 'qwen-vl-max', messages: [{ role: 'user', content }], max_tokens: 2000 })
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        let detail = '';
+        try {
+          const j = JSON.parse(txt);
+          detail = j.error?.message || j.message || '';
+        } catch (_) {}
+        const code = res.status;
+        let hint = detail;
+        if (code === 401) hint = 'Key 无效或已过期，请检查设置中的「千问VL Key」';
+        else if (code === 429) hint = '请求太频繁，请稍后再试';
+        else if (code >= 500) hint = '千问服务暂时异常，请稍后再试';
+        else if (!hint) hint = `请求失败 (HTTP ${code})`;
+        throw new Error(`${taskName}：${hint}`);
+      }
+      const data = await res.json();
+      return data.choices[0].message.content;
+    } catch (err) {
+      if (err.name === 'TypeError' || /fetch|network|failed|abort/i.test(err.message)) {
+        throw new Error(`${taskName}：网络请求失败。浏览器预览可能受 CORS 限制，请在 App 内测试；若已在 App 内，请检查网络连接。`);
+      }
+      throw err;
+    }
+  },
+
   async callQwenVLClassify(settings, imageData) {
     const content = [
       { type: 'image_url', image_url: { url: imageData } },
       { type: 'text', text: '请识别图片内容并以 JSON 返回（只返回 JSON，不要额外文字）：' +
-        '{"type":"math|english|other","topic":"若为数学题请填知识点(行列式/矩阵/向量/线性方程组/特征值与特征向量/二次型/其他)","errorHint":"若可见明显错因请简述，否则为空字符串","text":"提取的题目或文章文字"}。' }
+        `{"type":"math|english|other","topic":"若为数学题请填知识点(${this.topicListForVL()})","errorHint":"若可见明显错因请简述，否则为空字符串","text":"提取的题目或文章文字"}。` }
     ];
-    const res = await fetch(`${settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.qwenKey}` },
-      body: JSON.stringify({ model: 'qwen-vl-max', messages: [{ role: 'user', content }], max_tokens: 2000 })
-    });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw new Error(`千问VL错误 (${res.status}): ${txt.slice(0, 200)}`);
-    }
-    const data = await res.json();
-    return this.parseJSON(data.choices[0].message.content);
+    const raw = await this.requestQwen(settings, content, '千问VL识别');
+    return this.parseJSON(raw);
   },
 
   /* ---------- 千问VL：仅识图提取文字（用于解答链路） ---------- */
@@ -322,17 +411,7 @@ const AIAssistant = {
       { type: 'image_url', image_url: { url: imageData } },
       { type: 'text', text: '请识别图片中的题目或内容，提取完整文字，不要解答。' }
     ];
-    const res = await fetch(`${settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.qwenKey}` },
-      body: JSON.stringify({ model: 'qwen-vl-max', messages: [{ role: 'user', content }], max_tokens: 2000 })
-    });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw new Error(`千问VL错误 (${res.status}): ${txt.slice(0, 200)}`);
-    }
-    const data = await res.json();
-    return data.choices[0].message.content;
+    return await this.requestQwen(settings, content, '千问VL识图');
   },
 
   parseJSON(raw) {
@@ -375,7 +454,6 @@ const AIAssistant = {
         <div class="msg-body">${this.formatContent(msg.content)}</div>
         <div class="msg-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>`;
       this.renderMath(bubble);
-      row.innerHTML = `<div class="msg-avatar">${msg.role === 'user' ? '👤' : '🤖'}</div>`;
       row.appendChild(bubble);
       container.appendChild(row);
     });
@@ -422,7 +500,6 @@ const AIAssistant = {
     row.className = 'msg-row ai';
     row.id = 'typing-msg';
     row.innerHTML = `
-      <div class="msg-avatar">🤖</div>
       <div class="msg-bubble">
         <div class="typing-indicator"><span></span><span></span><span></span></div>
       </div>`;
@@ -440,9 +517,8 @@ const AIAssistant = {
     const row = document.createElement('div');
     row.className = 'msg-row ai';
     row.innerHTML = `
-      <div class="msg-avatar">🤖</div>
       <div class="msg-bubble" style="color:#ef4444;">
-        ❌ ${msg}<br><small>请检查API Key配置是否正确</small>
+        ${msg}<br><small>请检查API Key配置是否正确</small>
       </div>`;
     container.appendChild(row);
     container.scrollTop = container.scrollHeight;

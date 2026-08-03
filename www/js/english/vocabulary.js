@@ -8,6 +8,8 @@ const Vocabulary = {
   showingMeaning: false,
   knownIndices: [],
   unknownIndices: [],
+  sessionSeconds: 0,
+  sessionTimer: null,
 
   // 考研核心词汇库（示例数据）
   defaultWords: [
@@ -66,24 +68,38 @@ const Vocabulary = {
 
   init() {
     this.bindEvents();
-    this.initDefaultWords();
+    this.initDefaultWords().then(() => this.renderVocabList('all'));
   },
 
   bindEvents() {
     // Tab切换
     document.querySelectorAll('.vocab-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.vocab-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.vocab-panel').forEach(p => p.classList.remove('active'));
-        tab.classList.add('active');
-        document.getElementById('vocab-' + tab.dataset.tab).classList.add('active');
-      });
+      tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
+    });
+
+    // 从词汇表进入背单词
+    document.getElementById('vocab-start-btn').addEventListener('click', () => {
+      this.switchTab('learn');
+      this.startLearning();
     });
 
     // 单词操作
     document.getElementById('word-know').addEventListener('click', () => this.markKnown());
     document.getElementById('word-forget').addEventListener('click', () => this.markUnknown());
-    document.getElementById('word-show').addEventListener('click', () => this.showMeaning());
+
+    // 点击卡片 / 发音 / 太简单
+    document.getElementById('word-study-card').addEventListener('click', (e) => {
+      if (e.target.closest('#word-speaker') || e.target.closest('#word-too-easy')) return;
+      this.showMeaning();
+    });
+    document.getElementById('word-speaker').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.speakCurrent();
+    });
+    document.getElementById('word-too-easy').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.markTooEasy();
+    });
 
     // 测试模式
     document.querySelectorAll('.test-mode-btn').forEach(btn => {
@@ -105,6 +121,11 @@ const Vocabulary = {
     // 搜索
     document.getElementById('vocab-search-input').addEventListener('input',
       Utils.debounce(() => this.renderVocabList('all'), 300));
+  },
+
+  switchTab(tabName) {
+    document.querySelectorAll('.vocab-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+    document.querySelectorAll('.vocab-panel').forEach(p => p.classList.toggle('active', p.id === 'vocab-' + tabName));
   },
 
   async initDefaultWords() {
@@ -141,6 +162,8 @@ const Vocabulary = {
     this.knownIndices = [];
     this.unknownIndices = [];
     this.showingMeaning = false;
+    this.sessionSeconds = 0;
+    this.startSessionTimer();
 
     if (this.sessionWords.length === 0) {
       document.getElementById('current-word').textContent = '没有待学习的单词';
@@ -148,6 +171,57 @@ const Vocabulary = {
     }
 
     this.showCurrentWord();
+    this.updateStudyStats();
+  },
+
+  startSessionTimer() {
+    if (this.sessionTimer) clearInterval(this.sessionTimer);
+    this.sessionTimer = setInterval(() => {
+      this.sessionSeconds++;
+      const el = document.getElementById('study-time');
+      if (el) el.textContent = Math.floor(this.sessionSeconds / 60) + 'min';
+    }, 60000);
+  },
+
+  stopSessionTimer() {
+    if (this.sessionTimer) {
+      clearInterval(this.sessionTimer);
+      this.sessionTimer = null;
+    }
+  },
+
+  async updateStudyStats() {
+    const user = Store.getCurrentUser();
+    const allWords = await Store.getUserData('vocab_words', user);
+    const today = Utils.today();
+    const reviewedToday = allWords.filter(w => w.lastReview === today).length;
+    const newToday = allWords.filter(w => w.firstLearned === today).length;
+    const reviewEl = document.getElementById('study-review-count');
+    const newEl = document.getElementById('study-new-count');
+    if (reviewEl) reviewEl.textContent = `${reviewedToday}/150`;
+    if (newEl) newEl.textContent = `${newToday}/50`;
+  },
+
+  speakCurrent() {
+    if (this.currentIndex >= this.sessionWords.length) return;
+    const w = this.sessionWords[this.currentIndex];
+    if ('speechSynthesis' in window && w && w.word) {
+      const u = new SpeechSynthesisUtterance(w.word);
+      u.lang = 'en-US';
+      window.speechSynthesis.speak(u);
+    }
+  },
+
+  async markTooEasy() {
+    if (this.currentIndex >= this.sessionWords.length) return;
+    const w = this.sessionWords[this.currentIndex];
+    w.mastery = 100;
+    w.lastReview = Utils.today();
+    if (!w.firstLearned) w.firstLearned = Utils.today();
+    await Store.put('vocab_words', w);
+    this.currentIndex++;
+    this.showCurrentWord();
+    this.updateStudyStats();
   },
 
   showCurrentWord() {
@@ -159,9 +233,17 @@ const Vocabulary = {
     document.getElementById('current-word').textContent = w.word;
     document.getElementById('word-phonetic').textContent = w.phonetic;
     document.getElementById('word-meaning').textContent = w.meaning;
-    document.getElementById('word-example').textContent = `"${w.example}"`;
+    document.getElementById('word-example').textContent = w.example ? `"${w.example}"` : '';
     document.getElementById('word-meaning').style.display = 'none';
     document.getElementById('word-example').style.display = 'none';
+
+    const tagEl = document.getElementById('word-study-tag');
+    const hintEl = document.getElementById('word-study-hint');
+    if (tagEl) {
+      if (w.mastery && w.mastery > 0) tagEl.textContent = '复习单词';
+      else tagEl.textContent = '新词';
+    }
+    if (hintEl) hintEl.style.display = 'block';
     this.showingMeaning = false;
 
     // 进度
@@ -173,19 +255,24 @@ const Vocabulary = {
   },
 
   showMeaning() {
+    if (this.showingMeaning || this.currentIndex >= this.sessionWords.length) return;
     this.showingMeaning = true;
     document.getElementById('word-meaning').style.display = 'block';
     document.getElementById('word-example').style.display = 'block';
+    const hintEl = document.getElementById('word-study-hint');
+    if (hintEl) hintEl.style.display = 'none';
   },
 
   async markKnown() {
     if (this.currentIndex >= this.sessionWords.length) return;
     const w = this.sessionWords[this.currentIndex];
     w.mastery = Math.min(100, (w.mastery || 0) + 15);
+    w.lastReview = Utils.today();
     if (!w.firstLearned) w.firstLearned = Utils.today();
     await Store.put('vocab_words', w);
     this.knownIndices.push(this.currentIndex);
     this.currentIndex++;
+    this.updateStudyStats();
     this.showCurrentWord();
   },
 
@@ -205,17 +292,21 @@ const Vocabulary = {
     const user = Store.getCurrentUser();
     await Store.addCoins(user, 2);
 
+    this.updateStudyStats();
     this.showCurrentWord();
   },
 
   finishSession() {
+    this.stopSessionTimer();
     const total = this.sessionWords.length;
     const known = this.knownIndices.length;
     const unknown = this.unknownIndices.length;
-    document.getElementById('current-word').textContent = `本轮完成！✅认识${known} ❌不认识${unknown}`;
+    document.getElementById('current-word').textContent = `本轮完成！认识 ${known} 个 · 不认识 ${unknown} 个`;
     document.getElementById('word-phonetic').textContent = '';
     document.getElementById('word-meaning').style.display = 'none';
     document.getElementById('word-example').style.display = 'none';
+    const tagEl = document.getElementById('word-study-tag');
+    if (tagEl) tagEl.textContent = '完成';
 
     app.updateHomeStats();
     Utils.toast(`本次学习完成！认识${known}个，需复习${unknown}个`);

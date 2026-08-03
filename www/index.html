@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#6366f1">
+  <meta name="theme-color" content="#5A8F9E">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -32,15 +32,15 @@
       document.write(
         '<!DOCTYPE html><html><head><meta charset="utf-8"><title>请用 localhost 打开</title></head><body>' +
         '<div style="max-width:560px;margin:80px auto;padding:0 24px;font-family:system-ui,sans-serif;line-height:1.8;color:#333">' +
-        '<h1 style="color:#dc2626;font-size:1.6rem">⚠️ 请勿双击打开</h1>' +
+        '<h1 style="color:#dc2626;font-size:1.6rem">请勿双击打开</h1>' +
         '<p style="font-size:1.05rem">你正在用 <code style="background:#fee;color:#c00;padding:2px 6px;border-radius:4px">file://</code> 直接打开本应用。</p>' +
         '<p style="color:#c00;font-weight:600">此模式下浏览器会<strong>拦截所有云端请求</strong>，好友叫醒、邀请码等联网功能全部不可用。</p>' +
         '<div style="background:#eef2ff;padding:18px 20px;border-radius:10px;border-left:4px solid #4f46e5;margin:16px 0">' +
-        '<p style="margin:0 0 10px;font-weight:600">✅ 正确打开方式：</p>' +
+        '<p style="margin:0 0 10px;font-weight:600">正确打开方式：</p>' +
         '<p style="margin:0;font-size:1.15rem">在浏览器<strong>地址栏</strong>输入下面地址后回车：</p>' +
         '<p style="margin:10px 0 0;text-align:center"><a href="http://localhost:8765" style="font-size:1.4rem;color:#4f46e5;text-decoration:none;background:#fff;padding:12px 28px;border:2px solid #4f46e5;border-radius:8px;display:inline-block;font-weight:bold">http://localhost:8765</a></p>' +
         '</div>' +
-        '<p style="color:#6b7280;font-size:0.9rem">💡 提示：把这个地址加入书签，以后点书签就能正确打开。</p>' +
+        '<p style="color:#6b7280;font-size:0.9rem">提示：把这个地址加入书签，以后点书签就能正确打开。</p>' +
         '</div></body></html>'
       );
       document.close();
@@ -49,7 +49,6 @@
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/modules.css">
-  <link rel="stylesheet" href="css/pet.css">
   <!-- KaTeX：渲染 DeepSeek 返回的 LaTeX 数学公式 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
@@ -58,7 +57,7 @@
   <div id="auth-page" class="page active">
     <div class="auth-container">
       <div class="auth-logo">
-        <div class="logo-icon">📚</div>
+        <div class="logo-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M12 6.2C10.3 5.2 7.8 5 5 5.4V18c2.8-.4 5.3-.2 7 .8 1.7-1 4.2-1.2 7-.8V5.4c-2.8-.4-5.3-.2-7 .8z"/><path d="M12 6.2V19"/></svg></div>
         <h1>考研学习助手</h1>
         <p class="auth-subtitle">专注 · 高效 · 智能陪伴</p>
       </div>
@@ -96,7 +95,7 @@
           </div>
           <button type="submit" class="btn-primary btn-block">注 册</button>
           <p id="reg-error" class="error-msg"></p>
-          <p class="reg-hint">⚠️ 仅限5人以内注册使用</p>
+          <p class="reg-hint"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>仅限5人以内注册使用</p>
         </form>
       </div>
     </div>
@@ -107,45 +106,37 @@
     <!-- 顶部导航 -->
     <header id="app-header">
       <div class="header-left">
-        <button id="menu-toggle" class="icon-btn">☰</button>
-        <h2 id="page-title">首页</h2>
+        <button id="menu-toggle" class="icon-btn" aria-label="菜单">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+        </button>
+        <h2 id="page-title">首页概览</h2>
       </div>
       <div class="header-right">
-        <button id="pet-toggle" class="icon-btn" title="桌宠">🐾</button>
-        <button id="user-menu-btn" class="icon-btn" title="个人中心">👤</button>
       </div>
     </header>
 
-    <!-- 侧边导航 -->
+    <!-- 侧边导航（仅收纳低频专项，高频功能在底部 Tab） -->
     <nav id="sidebar">
       <div class="sidebar-header">
-        <div class="user-avatar" id="sidebar-avatar">👤</div>
+        <div class="user-avatar" id="sidebar-avatar"></div>
         <span id="sidebar-username">用户</span>
-        <button id="sidebar-close" class="icon-btn-small">✕</button>
+        <button id="sidebar-close" class="icon-btn-small" aria-label="关闭">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg>
+        </button>
       </div>
       <ul class="nav-list">
-        <li class="nav-item active" data-page="home"><span class="nav-icon">🏠</span><span>首页概览</span></li>
-        <li class="nav-item" data-page="pomodoro"><span class="nav-icon">🍅</span><span>专注计时</span></li>
-        <li class="nav-item" data-page="ai-assistant"><span class="nav-icon">🤖</span><span>AI助理</span></li>
-        <li class="nav-item nav-group-title">英语专项</li>
-        <li class="nav-item indent" data-page="vocab"><span class="nav-icon">📖</span><span>单词背诵</span></li>
-        <li class="nav-item indent" data-page="articles"><span class="nav-icon">📰</span><span>文章阅读</span></li>
-        <li class="nav-item indent" data-page="sentences"><span class="nav-icon">✍️</span><span>长难句解析</span></li>
-        <li class="nav-item indent" data-page="essay"><span class="nav-icon">📝</span><span>作文模板</span></li>
-        <li class="nav-item nav-group-title">数学专项</li>
-        <li class="nav-item indent" data-page="math-bank"><span class="nav-icon">📐</span><span>题库</span></li>
-        <li class="nav-item indent" data-page="math-weak"><span class="nav-icon">❌</span><span>薄弱错题</span></li>
-        <li class="nav-item" data-page="reports"><span class="nav-icon">📊</span><span>学习报表</span></li>
-        <li class="nav-item" data-page="pet"><span class="nav-icon">🐱</span><span>我的宠物</span></li>
-        <li class="nav-item" data-page="friend-wake"><span class="nav-icon">⏰</span><span>好友叫醒</span></li>
-        <li class="nav-item nav-group-title">预留模块</li>
-        <li class="nav-item disabled indent" data-page="politics"><span class="nav-icon">🏛️</span><span>政治模块</span><span class="coming-soon">即将上线</span></li>
-        <li class="nav-item disabled indent" data-page="major"><span class="nav-icon">📕</span><span>专业课模块</span><span class="coming-soon">即将上线</span></li>
+        <li class="nav-group-title">英语专项</li>
+        <li class="nav-item indent" data-page="vocab"><span class="nav-icon"><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2.5"/><path d="M8 9.5h8M8 13h8M8 16.5h5"/></svg></span><span>单词背诵</span></li>
+        <li class="nav-item indent" data-page="articles"><span class="nav-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M13.5 3.5V8H18"/><path d="M9.5 12h6M9.5 15.5h6"/></svg></span><span>文章阅读</span></li>
+        <li class="nav-item indent" data-page="sentences"><span class="nav-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M9 6 4.5 12 9 18"/><path d="M15 6l4.5 6L15 18"/></svg></span><span>长难句解析</span></li>
+        <li class="nav-item indent" data-page="essay"><span class="nav-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 20l4.5-1.2 9.8-9.8a1.6 1.6 0 0 0 0-2.3l-1.8-1.8a1.6 1.6 0 0 0-2.3 0L4.8 14.7z"/><path d="M13.5 6.5l3 3"/></svg></span><span>作文模板</span></li>
+        <li class="nav-group-title">数学专项</li>
+        <li class="nav-item indent" data-page="math-bank"><span class="nav-icon"><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.8"/></svg></span><span>题库</span></li>
+        <li class="nav-item indent" data-page="math-weak"><span class="nav-icon"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg></span><span>薄弱错题</span></li>
+        <li class="nav-group-title">拓展功能</li>
+        <li class="nav-item indent" data-page="friend-wake"><span class="nav-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M18 8.5a6 6 0 1 0-12 0c0 6.5-2.5 8.5-2.5 8.5h17S20.5 15 18 8.5z"/><path d="M13.5 21a2 2 0 0 1-3 0"/></svg></span><span>好友叫醒</span></li>
       </ul>
-      <div class="sidebar-footer">
-        <button id="settings-btn" class="nav-item"><span class="nav-icon">⚙️</span><span>设置</span></button>
-        <button id="logout-btn" class="nav-item text-danger"><span class="nav-icon">🚪</span><span>退出登录</span></button>
-      </div>
+      <div class="sidebar-footer-version">v2026-08-03b</div>
     </nav>
 
     <!-- 遮罩 -->
@@ -155,97 +146,196 @@
     <main id="app-content">
       <!-- 首页概览 -->
       <section id="page-home" class="content-section active">
-        <div class="home-stats">
-          <div class="stat-card" onclick="app.navigate('pomodoro')">
-            <div class="stat-icon">🍅</div>
-            <div class="stat-value" id="home-focus-today">0min</div>
-            <div class="stat-label">今日专注</div>
+        <!-- Hero：今日专注（重心卡） -->
+        <div class="home-hero" onclick="app.navigate('pomodoro', {fromTab:true})">
+          <div class="hero-label">
+            <svg class="ico" viewBox="0 0 24 24" style="width:20px;height:20px"><circle cx="12" cy="13" r="8"/><path d="M12 13V9"/><path d="M9 2.5h6"/><path d="M18.5 6 20 4.5"/></svg>
+            今日专注
           </div>
-          <div class="stat-card" onclick="app.navigate('vocab')">
-            <div class="stat-icon">📖</div>
-            <div class="stat-value" id="home-words-today">0</div>
-            <div class="stat-label">今日背词</div>
+          <div class="hero-value" id="home-focus-today">0min</div>
+          <div class="hero-compare" id="home-focus-compare">开启今天的专注吧</div>
+        </div>
+
+        <!-- 次级统计：3 等分卡 -->
+        <div class="home-stat-row">
+          <div class="home-stat" onclick="app.navigate('vocab')">
+            <svg class="ico" viewBox="0 0 24 24" style="width:20px;height:20px"><rect x="4" y="5" width="16" height="14" rx="2.5"/><path d="M8 9.5h8M8 13h8M8 16.5h5"/></svg>
+            <div class="home-stat-value" id="home-words-today">0</div>
+            <div class="home-stat-label">今日背词</div>
           </div>
-          <div class="stat-card" onclick="app.navigate('math-bank')">
-            <div class="stat-icon">📐</div>
-            <div class="stat-value" id="home-math-today">0</div>
-            <div class="stat-label">今日录题</div>
+          <div class="home-stat" onclick="app.navigate('math-bank')">
+            <svg class="ico" viewBox="0 0 24 24" style="width:20px;height:20px"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8 7.5h8"/><path d="M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01"/></svg>
+            <div class="home-stat-value" id="home-math-today">0</div>
+            <div class="home-stat-label">今日录题</div>
           </div>
-          <div class="stat-card" onclick="app.navigate('pet')">
-            <div class="stat-icon">🪙</div>
-            <div class="stat-value" id="home-coins">0</div>
-            <div class="stat-label">累计金币</div>
+          <div class="home-stat">
+            <svg class="ico" viewBox="0 0 24 24" style="width:20px;height:20px"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="5"/><path d="M12 9.5v5M10 11h2.6a1.3 1.3 0 0 1 0 2.6H10"/></svg>
+            <div class="home-stat-value" id="home-coins">0</div>
+            <div class="home-stat-label">金币</div>
           </div>
         </div>
-        <div class="home-pet-preview" id="home-pet-preview">
-          <h3>🐾 我的宠物</h3>
-          <div class="pet-mini" id="home-pet-mini"></div>
-          <p id="home-pet-name">点击领取你的专属宠物</p>
-        </div>
-        <div class="home-quick-actions">
-          <h3>快捷入口</h3>
-          <div class="quick-grid">
-            <button class="quick-btn" onclick="app.navigate('ai-assistant')">
-              <span>🤖</span><span>AI问答</span>
-            </button>
-            <button class="quick-btn" onclick="app.navigate('pomodoro')">
-              <span>🍅</span><span>开始专注</span>
-            </button>
-            <button class="quick-btn" onclick="app.navigate('vocab')">
-              <span>📖</span><span>背单词</span>
-            </button>
-            <button class="quick-btn" onclick="app.navigate('reports')">
-              <span>📊</span><span>学习报表</span>
-            </button>
+
+        <!-- 继续学习引导卡 -->
+        <h3 class="home-section-title">继续学习</h3>
+        <div class="home-continue" onclick="app.navigate('pomodoro', {fromTab:true})">
+          <div class="home-continue-icon">
+            <svg class="ico" viewBox="0 0 24 24" style="width:24px;height:24px"><circle cx="12" cy="13" r="8"/><path d="M12 13V9"/><path d="M9 2.5h6"/><path d="M18.5 6 20 4.5"/></svg>
           </div>
+          <div class="home-continue-body">
+            <div class="home-continue-title">今日专注目标 · 120 分钟</div>
+            <div class="home-progress-track"><div class="home-progress-fill" id="home-focus-progress" style="width:0%"></div></div>
+            <div class="home-continue-meta" id="home-focus-meta">0 / 120 min</div>
+          </div>
+          <div class="home-continue-action">
+            继续
+            <svg class="ico" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+        </div>
+
+        <!-- 快捷入口 -->
+        <h3 class="home-section-title">快捷入口</h3>
+        <div class="home-quick">
+          <button class="home-quick-item" onclick="app.navigate('pomodoro', {fromTab:true})">
+            <svg class="ico" viewBox="0 0 24 24" style="width:24px;height:24px"><circle cx="12" cy="13" r="8"/><path d="M12 13V9"/><path d="M9 2.5h6"/><path d="M18.5 6 20 4.5"/></svg>
+            <span>专注</span>
+          </button>
+          <button class="home-quick-item" onclick="app.navigate('vocab')">
+            <svg class="ico" viewBox="0 0 24 24" style="width:24px;height:24px"><rect x="4" y="5" width="16" height="14" rx="2.5"/><path d="M8 9.5h8M8 13h8M8 16.5h5"/></svg>
+            <span>背词</span>
+          </button>
+          <button class="home-quick-item" onclick="app.navigate('ai-assistant', {fromTab:true})">
+            <svg class="ico" viewBox="0 0 24 24" style="width:24px;height:24px"><path d="M12 3.5c.35 3 1.65 4.3 4.7 4.65-3.05.35-4.35 1.65-4.7 4.65-.35-3-1.65-4.3-4.7-4.65 3.05-.35 4.35-1.65 4.7-4.65z"/><path d="M18.5 14.2c.18 1.3.82 1.9 2.1 2.1-1.28.2-1.92.8-2.1 2.1-.18-1.3-.82-1.9-2.1-2.1 1.28-.2 1.92-.8 2.1-2.1z"/></svg>
+            <span>AI问答</span>
+          </button>
+          <button class="home-quick-item" onclick="app.navigate('reports', {fromTab:true})">
+            <svg class="ico" viewBox="0 0 24 24" style="width:24px;height:24px"><path d="M4 20V11"/><path d="M10 20V4.5"/><path d="M16 20V13"/><path d="M3 20.5h18"/></svg>
+            <span>报表</span>
+          </button>
+          <button class="home-quick-item" onclick="app.navigate('mine', {fromTab:true})">
+            <svg class="ico" viewBox="0 0 24 24" style="width:24px;height:24px"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c.6-3.4 3.8-5.5 7.5-5.5s6.9 2.1 7.5 5.5"/></svg>
+            <span>我的</span>
+          </button>
         </div>
       </section>
 
       <!-- 专注计时页面 -->
       <section id="page-pomodoro" class="content-section">
         <div class="pomodoro-container">
-          <div class="timer-display">
-            <div class="timer-circle" id="timer-circle">
-              <svg viewBox="0 0 200 200">
-                <circle cx="100" cy="100" r="90" class="timer-bg"/>
-                <circle cx="100" cy="100" r="90" class="timer-progress" id="timer-progress"/>
-              </svg>
-              <div class="timer-text">
-                <span id="timer-time">25:00</span>
-                <span id="timer-status">准备开始</span>
+          <div class="pomo-tabs">
+            <button class="pomo-tab active" data-pomo-tab="todo">待办</button>
+            <button class="pomo-tab" data-pomo-tab="stats">统计</button>
+          </div>
+
+          <!-- 待办列表 -->
+          <div id="pomo-todo-panel" class="pomo-panel active">
+            <div class="pomo-header">
+              <h3>待办</h3>
+              <button class="btn-sm btn-primary" id="pomo-add-todo">+ 添加</button>
+            </div>
+            <div class="pomo-todo-list" id="pomo-todo-list"></div>
+            <div class="pomo-todo-empty" id="pomo-todo-empty" style="display:none">
+              <p>暂无待办，点击右上角添加</p>
+            </div>
+          </div>
+
+          <!-- 计时中（正向计时） -->
+          <div id="pomo-timer-panel" class="pomo-panel">
+            <button class="pomo-back" id="pomo-timer-back">
+              <svg class="ico" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M15 18l-6-6 6-6"/></svg>
+              返回
+            </button>
+            <div class="pomo-timer-body">
+              <div class="pomo-task-label">正在专注</div>
+              <div class="pomo-task-name" id="pomo-task-name">--</div>
+              <div class="pomo-timer-display" id="pomo-timer-display">00:00:00</div>
+              <div class="pomo-timer-controls">
+                <button id="pomo-timer-toggle" class="btn-primary btn-lg">开始</button>
+                <button id="pomo-timer-stop" class="btn-danger btn-lg">结束</button>
               </div>
             </div>
           </div>
-          <div class="timer-controls">
-            <button id="timer-start" class="btn-primary btn-lg">开始专注</button>
-            <button id="timer-pause" class="btn-secondary btn-lg" style="display:none">暂停</button>
-            <button id="timer-reset" class="btn-outline btn-lg">重置</button>
-          </div>
-          <div class="timer-settings">
-            <div class="setting-row">
-              <label>专注时长（分钟）</label>
-              <input type="number" id="focus-duration" value="25" min="1" max="120" class="setting-input">
+
+          <!-- 统计 -->
+          <div id="pomo-stats-panel" class="pomo-panel">
+            <div class="pomo-stats-card">
+              <div class="pomo-stats-header">
+                <span class="pomo-stats-title">累计专注</span>
+              </div>
+              <div class="pomo-stats-grid three">
+                <div class="pomo-stat-item">
+                  <span class="pomo-stat-num" id="total-sessions">0</span>
+                  <span class="pomo-stat-unit">次数</span>
+                </div>
+                <div class="pomo-stat-item">
+                  <span class="pomo-stat-num"><span id="total-hours">0</span><small>小时</small><span id="total-minutes-rem">0</span><small>分钟</small></span>
+                </div>
+                <div class="pomo-stat-item">
+                  <span class="pomo-stat-num" id="avg-daily">0</span>
+                  <span class="pomo-stat-unit">日均时长</span>
+                </div>
+              </div>
             </div>
-            <div class="setting-row">
-              <label>休息时长（分钟）</label>
-              <input type="number" id="break-duration" value="5" min="1" max="30" class="setting-input">
+
+            <div class="pomo-stats-card">
+              <div class="pomo-stats-header">
+                <span class="pomo-stats-title">当日专注</span>
+                <span class="pomo-stats-date" id="stats-today-date">--</span>
+              </div>
+              <div class="pomo-stats-grid two">
+                <div class="pomo-stat-item">
+                  <span class="pomo-stat-num" id="today-sessions">0</span>
+                  <span class="pomo-stat-unit">次数</span>
+                </div>
+                <div class="pomo-stat-item">
+                  <span class="pomo-stat-num" id="today-total-minutes">0</span>
+                  <span class="pomo-stat-unit">分钟</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pomo-stats-card">
+              <div class="pomo-stats-header">
+                <span class="pomo-stats-title">专注时长分布</span>
+                <span class="pomo-stats-date" id="stats-dist-date">--</span>
+              </div>
+              <div class="pomo-stats-tabs">
+                <button class="pomo-stats-tab active" data-range="day">日</button>
+                <button class="pomo-stats-tab" data-range="week">周</button>
+                <button class="pomo-stats-tab" data-range="month">月</button>
+              </div>
+              <div class="pomo-chart-area" id="pomo-focus-chart">
+                <p class="pomo-chart-empty">暂无专注数据，点击待办上的开始按钮来专注计时吧</p>
+              </div>
+            </div>
+
+            <div class="pomo-stats-card">
+              <div class="pomo-stats-header">
+                <span class="pomo-stats-title">本月专注时段分布</span>
+              </div>
+              <div class="pomo-chart-area" id="pomo-hour-chart">
+                <p class="pomo-chart-empty">暂无时段数据</p>
+              </div>
+            </div>
+
+            <div class="pomo-stats-card">
+              <div class="pomo-stats-header">
+                <span class="pomo-stats-title">历史专注统计</span>
+                <span class="pomo-stats-date" id="stats-history-month">--</span>
+              </div>
+              <div class="pomo-history-list" id="pomo-history-list"></div>
             </div>
           </div>
-          <div class="timer-stats">
-            <h3>📈 今日统计</h3>
-            <div class="stats-row">
-              <div class="stat-item">
-                <span class="stat-num" id="today-sessions">0</span>
-                <span>完成番茄数</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-num" id="today-total-minutes">0</span>
-                <span>累计分钟</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-num" id="total-all-minutes">0</span>
-                <span>总专注时长</span>
-              </div>
+        </div>
+
+        <!-- 添加待办弹窗 -->
+        <div class="modal" id="pomo-todo-modal" style="display:none">
+          <div class="modal-overlay" id="pomo-todo-overlay"></div>
+          <div class="modal-content">
+            <h3>添加待办</h3>
+            <input type="text" id="pomo-todo-name" placeholder="例如：背单词、数学真题...">
+            <div class="modal-actions">
+              <button class="btn-outline" id="pomo-todo-cancel">取消</button>
+              <button class="btn-primary" id="pomo-todo-save">保存</button>
             </div>
           </div>
         </div>
@@ -254,29 +344,38 @@
       <!-- AI助理页面 -->
       <section id="page-ai-assistant" class="content-section">
         <div class="ai-container">
+          <!-- 顶部栏 -->
+          <div class="ai-topbar">
+            <button class="ai-menu-btn" id="ai-menu-btn" title="菜单">
+              <svg class="ico" viewBox="0 0 24 24" style="width:22px;height:22px"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+            </button>
+            <div class="ai-topbar-title">
+              <span>AI 学习助理</span>
+              <small>AI 生成可能有误，注意核实</small>
+            </div>
+            <button class="ai-topbar-action" id="ai-upload-toggle" title="上传归档">
+              <svg class="ico" viewBox="0 0 24 24" style="width:22px;height:22px"><path d="M12 4v10"/><path d="M8 8l4-4 4 4"/><path d="M5 18h14"/></svg>
+            </button>
+          </div>
+
           <div class="ai-config-banner" id="ai-config-banner">
-            <p>⚠️ 请先在设置中配置 API Key（上传归档需千问VL，智能解答需 DeepSeek）</p>
+            <p><svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>请先在设置中配置 API Key（上传归档需千问VL，解答需 DeepSeek）</p>
             <button class="btn-sm" onclick="app.navigate('settings')">去配置</button>
           </div>
 
-          <div class="ai-tabs">
-            <button class="ai-tab active" data-mode="upload">📥 上传归档</button>
-            <button class="ai-tab" data-mode="answer">💬 智能解答</button>
-          </div>
-
-          <!-- 上传归档面板 -->
-          <div class="ai-panel" id="ai-upload-panel">
+          <!-- 上传归档抽屉 -->
+          <div class="ai-upload-drawer" id="ai-upload-drawer" style="display:none">
             <div class="upload-drop" id="upload-preview">
               <div class="upload-empty" id="upload-empty">
-                <div class="welcome-icon">📷</div>
-                <p>拍照或选择题目 / 文章图片</p>
+                <div class="welcome-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M3 8.5A2 2 0 0 1 5 6.5h2l1.2-1.8a1 1 0 0 1 .8-.4h3a1 1 0 0 1 .8.4L14.5 6.5h4A2 2 0 0 1 20.5 8.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="11.5" cy="13" r="3.2"/></svg></div>
+                <p>拍照或选择题目 / 文章图片，自动归档到题库/文章库</p>
               </div>
               <img id="upload-img" class="upload-img" style="display:none">
             </div>
             <div class="upload-tools">
-              <button class="tool-btn" id="upload-camera-btn">📷 拍照</button>
-              <button class="tool-btn" id="upload-gallery-btn">🖼️ 相册</button>
-              <button class="tool-btn" id="upload-clear-btn" style="display:none">✕ 清除</button>
+              <button class="tool-btn" id="upload-camera-btn"><svg class="ico" viewBox="0 0 24 24"><path d="M3 8.5A2 2 0 0 1 5 6.5h2l1.2-1.8a1 1 0 0 1 .8-.4h3a1 1 0 0 1 .8.4L14.5 6.5h4A2 2 0 0 1 20.5 8.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="11.5" cy="13" r="3.2"/></svg>拍照</button>
+              <button class="tool-btn" id="upload-gallery-btn"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M5 18l4.5-5 3.5 4 3-3.5L20 18"/></svg>相册</button>
+              <button class="tool-btn" id="upload-clear-btn" style="display:none"><svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg> 清除</button>
             </div>
             <div class="upload-meta">
               <label>题目来源
@@ -288,17 +387,11 @@
                   <option value="其他">其他</option>
                 </select>
               </label>
-              <label>知识点（可留空，由视觉模型分析）
-                <select id="upload-topic">
-                  <option value="">（自动识别）</option>
-                  <option value="行列式">行列式</option>
-                  <option value="矩阵">矩阵</option>
-                  <option value="向量">向量</option>
-                  <option value="线性方程组">线性方程组</option>
-                  <option value="特征值与特征向量">特征值与特征向量</option>
-                  <option value="二次型">二次型</option>
-                  <option value="其他">其他</option>
-                </select>
+              <label>知识点（自动识别）
+              <select id="upload-topic">
+                <option value="">（自动识别）</option>
+              </select>
+              <small class="topic-hint">可手动选择左侧知识点，留空则由 AI 识别</small>
               </label>
               <label>错因（可选）
                 <input type="text" id="upload-error" placeholder="例如：行列式展开符号搞错">
@@ -308,31 +401,51 @@
             <div class="upload-result" id="upload-result"></div>
           </div>
 
-          <!-- 智能解答面板 -->
-          <div class="ai-panel" id="ai-answer-panel" style="display:none">
-            <div class="chat-area" id="chat-area">
-              <div class="chat-welcome" id="chat-welcome">
-                <div class="welcome-icon">🤖</div>
-                <h3>AI 学习助理</h3>
-                <p>上传题目图片或直接提问，我来帮你解答</p>
-                <div class="welcome-tips">
-                  <span>📷 支持数学/英语/政治题目截图识别</span>
-                  <span>💬 支持文字提问各学科问题</span>
-                </div>
-              </div>
-              <div class="chat-messages" id="chat-messages"></div>
-            </div>
-            <div class="chat-input-area">
-              <div class="chat-tools">
-                <button id="answer-camera-btn" class="tool-btn" title="拍照">📷</button>
-                <button id="answer-gallery-btn" class="tool-btn" title="相册">🖼️</button>
-                <button id="answer-clear-img" class="tool-btn" style="display:none" title="清除图片">✕</button>
-              </div>
-              <div class="chat-input-row">
-                <textarea id="chat-input" placeholder="输入问题或上传图片..." rows="1"></textarea>
-                <button id="chat-send" class="btn-primary">发送</button>
+          <!-- 聊天区域 -->
+          <div class="chat-area" id="chat-area">
+            <div class="chat-welcome" id="chat-welcome">
+              <div class="welcome-icon"><svg class="ico" viewBox="0 0 24 24" style="width:56px;height:56px"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4"/><circle cx="12" cy="3" r="1.2"/><circle cx="9" cy="13" r="1.3"/><circle cx="15" cy="13" r="1.3"/><path d="M9.5 16.5h5"/></svg></div>
+              <h3>AI 学习助理</h3>
+              <p>拍照发题或直接提问，我来帮你解答</p>
+              <div class="welcome-tips">
+                <span>支持数学/英语/政治题目截图</span>
+                <span>支持文字提问各学科问题</span>
               </div>
             </div>
+            <div class="chat-messages" id="chat-messages"></div>
+          </div>
+
+          <!-- 快捷操作 chips -->
+          <div class="ai-quick-chips" id="ai-quick-chips">
+            <button class="ai-chip" data-prompt="快速帮我总结这道题的解题思路">快速</button>
+            <button class="ai-chip" data-prompt="请帮我写一段考研英语二作文模板">AI创作</button>
+            <button class="ai-chip" data-prompt="帮我整理考研英语作文常用句型">帮我写作</button>
+            <button class="ai-chip" data-prompt="请帮我制定今天的学习计划">学习计划</button>
+          </div>
+
+          <!-- 底部输入栏（豆包式） -->
+          <div class="chat-input-area doubao-style">
+            <button class="chat-tool-btn" id="answer-camera-btn" title="拍照">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M3 8.5A2 2 0 0 1 5 6.5h2l1.2-1.8a1 1 0 0 1 .8-.4h3a1 1 0 0 1 .8.4L14.5 6.5h4A2 2 0 0 1 20.5 8.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="11.5" cy="13" r="3.2"/></svg>
+            </button>
+            <button class="chat-tool-btn" id="answer-gallery-btn" title="相册">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M5 18l4.5-5 3.5 4 3-3.5L20 18"/></svg>
+            </button>
+            <button class="chat-tool-btn" id="answer-clear-img" style="display:none" title="清除图片">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg>
+            </button>
+            <div class="chat-input-wrap">
+              <textarea id="chat-input" placeholder="发消息问 AI..." rows="1"></textarea>
+              <button id="chat-send" class="chat-send-btn" title="发送">
+                <svg class="ico" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+              </button>
+            </div>
+            <button class="chat-tool-btn" id="answer-voice-btn" title="语音">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4"/><path d="M8 23h8"/></svg>
+            </button>
+            <button class="chat-tool-btn" id="chat-more-btn" title="更多">
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/></svg>
+            </button>
           </div>
 
           <!-- Web 回退共用文件输入（无原生相机时） -->
@@ -344,29 +457,71 @@
       <section id="page-vocab" class="content-section">
         <div class="vocab-container">
           <div class="vocab-tabs">
-            <button class="vocab-tab active" data-tab="learn">背单词</button>
+            <button class="vocab-tab active" data-tab="all">词汇表</button>
+            <button class="vocab-tab" data-tab="learn">背单词</button>
             <button class="vocab-tab" data-tab="test">单词测试</button>
-            <button class="vocab-tab" data-tab="all">词汇表</button>
             <button class="vocab-tab" data-tab="wrong">错词本</button>
           </div>
-          <!-- 背单词面板 -->
-          <div id="vocab-learn" class="vocab-panel active">
-            <div class="word-card" id="word-card">
-              <div class="word-main" id="current-word">点击开始背单词</div>
-              <div class="word-phonetic" id="word-phonetic"></div>
-              <div class="word-meaning" id="word-meaning" style="display:none"></div>
-              <div class="word-example" id="word-example" style="display:none"></div>
+
+          <!-- 词汇表面板（默认首页） -->
+          <div id="vocab-all" class="vocab-panel active">
+            <div class="vocab-search">
+              <input type="text" id="vocab-search-input" placeholder="搜索单词..." class="search-input">
             </div>
-            <div class="word-actions">
-              <button id="word-forget" class="btn-danger btn-lg">不认识 (←)</button>
-              <button id="word-show" class="btn-secondary btn-lg">查看释义</button>
-              <button id="word-know" class="btn-success btn-lg">认识 (→)</button>
+            <div class="vocab-filter">
+              <button class="filter-btn active" data-filter="all">全部</button>
+              <button class="filter-btn" data-filter="today">今日新词</button>
+            </div>
+            <div class="vocab-list" id="vocab-list"></div>
+            <button class="btn-primary btn-block vocab-start-btn" id="vocab-start-btn">开始背单词</button>
+          </div>
+
+          <!-- 背单词面板（扇贝式） -->
+          <div id="vocab-learn" class="vocab-panel">
+            <div class="study-stats">
+              <div class="study-stat">
+                <span class="study-stat-label">今日复习</span>
+                <span class="study-stat-num" id="study-review-count">0/150</span>
+              </div>
+              <div class="study-stat">
+                <span class="study-stat-label">今日新词</span>
+                <span class="study-stat-num" id="study-new-count">0/50</span>
+              </div>
+              <div class="study-stat">
+                <span class="study-stat-label">学习时间</span>
+                <span class="study-stat-num" id="study-time">0min</span>
+              </div>
+            </div>
+
+            <div class="word-study-card" id="word-study-card">
+              <div class="word-study-tag" id="word-study-tag">准备开始</div>
+              <div class="word-study-word" id="current-word">点击开始背单词</div>
+              <div class="word-study-phonetic-row">
+                <span id="word-phonetic"></span>
+                <button class="word-speaker" id="word-speaker" title="发音">
+                  <svg class="ico" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                </button>
+              </div>
+              <div class="word-study-hint" id="word-study-hint">尝试回想释义<br>点击空白处查看提示</div>
+              <div class="word-study-meaning" id="word-meaning" style="display:none"></div>
+              <div class="word-study-example" id="word-example" style="display:none"></div>
+            </div>
+
+            <button class="word-too-easy" id="word-too-easy">
+              <svg class="ico" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              标记为太简单
+            </button>
+
+            <div class="word-study-actions">
+              <button id="word-forget" class="study-btn study-btn-forget">不认识</button>
+              <button id="word-know" class="study-btn study-btn-know">我认识</button>
             </div>
             <div class="word-progress">
               <span id="word-progress-text">0 / 0</span>
               <div class="progress-bar"><div class="progress-fill" id="word-progress-fill" style="width:0%"></div></div>
             </div>
           </div>
+
           <!-- 测试面板 -->
           <div id="vocab-test" class="vocab-panel">
             <div class="test-mode-select">
@@ -377,17 +532,7 @@
               <p class="test-placeholder">选择测试模式后开始</p>
             </div>
           </div>
-          <!-- 词汇表面板 -->
-          <div id="vocab-all" class="vocab-panel">
-            <div class="vocab-search">
-              <input type="text" id="vocab-search-input" placeholder="搜索单词..." class="search-input">
-            </div>
-            <div class="vocab-filter">
-              <button class="filter-btn active" data-filter="all">全部</button>
-              <button class="filter-btn" data-filter="today">今日新词</button>
-            </div>
-            <div class="vocab-list" id="vocab-list"></div>
-          </div>
+
           <!-- 错词本面板 -->
           <div id="vocab-wrong" class="vocab-panel">
             <div class="wrong-list" id="wrong-word-list">
@@ -401,14 +546,14 @@
       <section id="page-articles" class="content-section">
         <div class="articles-container">
           <div class="articles-empty" id="articles-empty">
-            <div class="empty-icon">📰</div>
+            <div class="empty-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M13.5 3.5V8H18"/><path d="M9.5 12h6M9.5 15.5h6"/></svg></div>
             <h3>暂无文章</h3>
             <p>通过AI助理上传英语文章，或手动添加</p>
             <button class="btn-primary" id="add-article-btn">+ 添加文章</button>
           </div>
           <div class="article-list" id="article-list" style="display:none"></div>
           <div class="article-reader" id="article-reader" style="display:none">
-            <button class="back-btn" id="article-back">← 返回列表</button>
+            <button class="back-btn" id="article-back">返回列表</button>
             <h2 id="reader-title"></h2>
             <div class="reader-toolbar">
               <button id="reader-translate-all" class="btn-sm btn-secondary">全文翻译</button>
@@ -423,14 +568,14 @@
       <section id="page-sentences" class="content-section">
         <div class="sentences-container">
           <div class="sentences-empty" id="sentences-empty">
-            <div class="empty-icon">✍️</div>
+            <div class="empty-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M9 6 4.5 12 9 18"/><path d="M15 6l4.5 6L15 18"/></svg></div>
             <h3>暂无长难句</h3>
             <p>通过AI助理上传长难句图片，或在文章中选取句子</p>
             <button class="btn-primary" id="add-sentence-btn">+ 添加句子</button>
           </div>
           <div class="sentence-list" id="sentence-list" style="display:none"></div>
           <div class="sentence-detail" id="sentence-detail" style="display:none">
-            <button class="back-btn" id="sentence-back">← 返回</button>
+            <button class="back-btn" id="sentence-back">返回</button>
             <div class="sentence-original" id="sentence-original"></div>
             <div class="sentence-analysis" id="sentence-analysis"></div>
           </div>
@@ -448,7 +593,7 @@
             <div class="empty-hint">暂无内容，点击上方按钮添加</div>
           </div>
           <div class="essay-editor" id="essay-editor" style="display:none">
-            <button class="back-btn" id="essay-back">← 返回</button>
+            <button class="back-btn" id="essay-back">返回</button>
             <div class="input-group">
               <label>标题</label>
               <input type="text" id="essay-title-input" placeholder="如：小作文图表模板">
@@ -489,12 +634,6 @@
               </select>
               <select id="math-topic-filter" class="filter-select">
                 <option value="">全部知识点</option>
-                <option value="行列式">行列式</option>
-                <option value="矩阵">矩阵</option>
-                <option value="向量">向量</option>
-                <option value="线性方程组">线性方程组</option>
-                <option value="特征值">特征值与特征向量</option>
-                <option value="二次型">二次型</option>
               </select>
             </div>
           </div>
@@ -502,7 +641,7 @@
             <div class="empty-hint">暂无题目，可通过AI助理上传图片录入</div>
           </div>
           <div class="question-detail" id="question-detail" style="display:none">
-            <button class="back-btn" id="question-back">← 返回</button>
+            <button class="back-btn" id="question-back">返回</button>
             <div class="detail-images" id="detail-images"></div>
             <div class="detail-info">
               <p><strong>来源：</strong><span id="detail-source"></span></p>
@@ -518,7 +657,7 @@
       <!-- 薄弱错题页面 -->
       <section id="page-math-weak" class="content-section">
         <div class="weak-container">
-          <h3>❌ 薄弱错题汇总</h3>
+          <h3><svg class="ico" viewBox="0 0 24 24" style="width:18px;height:18px"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg>薄弱错题汇总</h3>
           <p class="weak-desc">自动汇总你在AI助理中咨询过的所有数学题目及对应知识点</p>
           <div class="weak-stats" id="weak-stats"></div>
           <div class="weak-list" id="weak-list">
@@ -536,101 +675,15 @@
           </div>
           <div id="report-daily" class="report-panel active">
             <div class="report-generate">
-              <button class="btn-primary btn-lg" id="generate-daily">📊 生成今日日报</button>
+              <button class="btn-primary btn-lg" id="generate-daily"><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.8"/></svg>生成今日日报</button>
             </div>
             <div class="report-content" id="daily-report-content"></div>
           </div>
           <div id="report-weekly" class="report-panel">
             <div class="report-generate">
-              <button class="btn-primary btn-lg" id="generate-weekly">📈 生成本周周报</button>
+              <button class="btn-primary btn-lg" id="generate-weekly"><svg class="ico" viewBox="0 0 24 24"><path d="M4 20V11"/><path d="M10 20V4.5"/><path d="M16 20V13"/><path d="M3 20.5h18"/></svg>生成本周周报</button>
             </div>
             <div class="report-content" id="weekly-report-content"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 宠物页面 -->
-      <section id="page-pet" class="content-section">
-        <div class="pet-container">
-          <div class="pet-display">
-            <div class="pet-avatar-large" id="pet-avatar-large"></div>
-            <div class="pet-info">
-              <h3 id="pet-name-display">未领取</h3>
-              <div class="pet-level">Lv.<span id="pet-level">1</span></div>
-              <div class="pet-exp-bar">
-                <div class="exp-fill" id="pet-exp-fill" style="width:0%"></div>
-              </div>
-            </div>
-          </div>
-          <div class="pet-status-grid">
-            <div class="status-item">
-              <span class="status-icon">😊</span>
-              <span class="status-label">心情</span>
-              <div class="status-bar"><div class="status-fill mood" id="pet-mood-bar" style="width:80%"></div></div>
-            </div>
-            <div class="status-item">
-              <span class="status-icon">🍖</span>
-              <span class="status-label">饱食度</span>
-              <div class="status-bar"><div class="status-fill hunger" id="pet-hunger-bar" style="width:80%"></div></div>
-            </div>
-            <div class="status-item">
-              <span class="status-icon">💧</span>
-              <span class="status-label">口渴度</span>
-              <div class="status-bar"><div class="status-fill thirst" id="pet-thirst-bar" style="width:80%"></div></div>
-            </div>
-          </div>
-          <div class="pet-coins-display">
-            <span class="coins-icon">🪙</span>
-            <span id="pet-coins-count">0</span>
-            <span class="coins-label">金币</span>
-          </div>
-          <div class="pet-shop">
-            <h4>🛒 宠物商店</h4>
-            <div class="shop-items">
-              <div class="shop-item" data-item="food">
-                <span class="item-icon">🍖</span>
-                <span class="item-name">宠物食物</span>
-                <span class="item-price">🪙 10</span>
-                <button class="buy-btn" data-item="food" data-price="10">购买</button>
-              </div>
-              <div class="shop-item" data-item="water">
-                <span class="item-icon">🥤</span>
-                <span class="item-name">饮用水</span>
-                <span class="item-price">🪙 5</span>
-                <button class="buy-btn" data-item="water" data-price="5">购买</button>
-              </div>
-              <div class="shop-item" data-item="treat">
-                <span class="item-icon">🍰</span>
-                <span class="item-name">美味零食</span>
-                <span class="item-price">🪙 25</span>
-                <button class="buy-btn" data-item="treat" data-price="25">购买</button>
-              </div>
-            </div>
-          </div>
-          <div class="pet-actions">
-            <button id="claim-pet-btn" class="btn-primary btn-lg">🎁 领取专属宠物</button>
-            <button id="feed-pet-btn" class="btn-secondary" style="display:none">🍖 喂食</button>
-            <button id="switch-pet-btn" class="btn-outline" style="display:none">🔄 切换宠物</button>
-          </div>
-          <div class="pet-select" id="pet-select" style="display:none">
-            <span class="pet-select-label">🎨 选择宠物形象：</span>
-            <button class="pet-choice" data-type="ameath">
-              <img src="assets/pet/ameath_idle1.gif" alt="爱弥丝">
-              <span>爱弥丝</span>
-            </button>
-            <button class="pet-choice" data-type="bear">
-              <img src="assets/pet/custom_pet.png" alt="小灰熊">
-              <span>小灰熊</span>
-            </button>
-          </div>
-          <div class="coin-rules">
-            <h4>💡 金币获取规则</h4>
-            <ul>
-              <li>每完成1分钟有效专注 → +1金币</li>
-              <li>每背诵1个新单词 → +2金币</li>
-              <li>每完成1篇文章阅读 → +10金币</li>
-              <li>每收录1道数学题目 → +5金币</li>
-            </ul>
           </div>
         </div>
       </section>
@@ -644,7 +697,7 @@
           </div>
           <div id="wake-diag" class="wake-diag"></div>
           <div class="wake-status" id="wake-status">
-            <h3>🔗 好友叫醒绑定</h3>
+            <h3 style="display:flex;align-items:center;gap:8px"><svg class="ico" viewBox="0 0 24 24" style="width:20px;height:20px"><path d="M18 8.5a6 6 0 1 0-12 0c0 6.5-2.5 8.5-2.5 8.5h17S20.5 15 18 8.5z"/><path d="M13.5 21a2 2 0 0 1-3 0"/></svg>好友叫醒绑定</h3>
             <p class="wake-desc">绑定后可远程叫醒对方；安装 APK 后由原生插件绕过免打扰强提醒</p>
             <div class="bind-area" id="bind-area">
               <div class="invite-code-area">
@@ -680,10 +733,50 @@
         </div>
       </section>
 
+      <!-- 我的（个人中心聚合页） -->
+      <section id="page-mine" class="content-section">
+        <div class="mine-container">
+          <div class="mine-profile">
+            <div class="user-avatar mine-avatar" id="mine-avatar"></div>
+            <div class="mine-profile-info">
+              <h3 id="mine-username">用户</h3>
+              <p class="mine-sub">考研学习助手 · 个人中心</p>
+            </div>
+          </div>
+
+          <div class="mine-list">
+            <button class="mine-row" data-page="settings">
+              <span class="mine-row-ico"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span>
+              <span>设置</span>
+              <span class="mine-row-arrow"><svg class="ico" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M9 6l6 6-6 6"/></svg></span>
+            </button>
+            <button class="mine-row text-danger" id="mine-logout-btn">
+              <span class="mine-row-ico"><svg class="ico" viewBox="0 0 24 24"><path d="M14.5 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h11"/></svg></span>
+              <span>退出登录</span>
+              <span class="mine-row-arrow"><svg class="ico" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M9 6l6 6-6 6"/></svg></span>
+            </button>
+          </div>
+
+          <div class="mine-more">
+            <h4 class="mine-more-title">更多模块（即将上线）</h4>
+            <button class="mine-row disabled" onclick="Utils.toast('该模块即将上线，敬请期待！')">
+              <span class="mine-row-ico"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg></span>
+              <span>政治模块</span>
+              <span class="coming-soon">即将上线</span>
+            </button>
+            <button class="mine-row disabled" onclick="Utils.toast('该模块即将上线，敬请期待！')">
+              <span class="mine-row-ico"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg></span>
+              <span>专业课模块</span>
+              <span class="coming-soon">即将上线</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
       <!-- 设置页面 -->
       <section id="page-settings" class="content-section">
         <div class="settings-container">
-          <h3>⚙️ 设置</h3>
+          <h3><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg> 设置</h3>
           <div class="settings-section">
             <h4>API Key 配置</h4>
             <div class="setting-row">
@@ -706,20 +799,6 @@
             <p id="api-save-msg" class="success-msg"></p>
           </div>
           <div class="settings-section">
-            <h4>宠物设置</h4>
-            <div class="setting-row">
-              <label>宠物名称</label>
-              <input type="text" id="setting-pet-name" placeholder="给宠物起个名字" class="setting-input">
-            </div>
-            <div class="setting-row">
-              <label>桌宠模式</label>
-              <label class="toggle-switch">
-                <input type="checkbox" id="setting-desktop-pet">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-          <div class="settings-section">
             <h4>数据管理</h4>
             <button id="export-data" class="btn-secondary">导出数据</button>
             <button id="clear-data" class="btn-danger">清除所有数据</button>
@@ -727,12 +806,32 @@
         </div>
       </section>
     </main>
-  </div>
 
-  <!-- 桌宠悬浮窗 -->
-  <div id="desktop-pet" class="desktop-pet" style="display:none">
-    <div id="dp-pet-body" class="dp-body"></div>
-    <div id="dp-bubble" class="dp-bubble" style="display:none"></div>
+    <!-- 底部 Tab 主导航 -->
+    <nav id="tabbar">
+      <button class="tab-item" data-tab="ai-assistant">
+        <svg class="tab-ico" viewBox="0 0 24 24"><path d="M12 3.5c.35 3 1.65 4.3 4.7 4.65-3.05.35-4.35 1.65-4.7 4.65-.35-3-1.65-4.3-4.7-4.65 3.05-.35 4.35-1.65 4.7-4.65z"/><path d="M18.5 14.2c.18 1.3.82 1.9 2.1 2.1-1.28.2-1.92.8-2.1 2.1-.18-1.3-.82-1.9-2.1-2.1 1.28-.2 1.92-.8 2.1-2.1z"/></svg>
+        <span class="tab-label">AI助理</span>
+      </button>
+      <button class="tab-item" data-tab="pomodoro">
+        <svg class="tab-ico" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 13V9"/><path d="M9 2.5h6"/><path d="M18.5 6 20 4.5"/></svg>
+        <span class="tab-label">专注计时</span>
+      </button>
+      <button class="tab-item active tab-center" data-tab="home">
+        <span class="tab-center-circle">
+          <svg class="tab-ico" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/><path d="M9.5 20v-5.5h5V20"/></svg>
+        </span>
+        <span class="tab-label">首页概览</span>
+      </button>
+      <button class="tab-item" data-tab="reports">
+        <svg class="tab-ico" viewBox="0 0 24 24"><path d="M4 20V11"/><path d="M10 20V4.5"/><path d="M16 20V13"/><path d="M3 20.5h18"/></svg>
+        <span class="tab-label">学习报表</span>
+      </button>
+      <button class="tab-item" data-tab="mine">
+        <svg class="tab-ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c.6-3.4 3.8-5.5 7.5-5.5s6.9 2.1 7.5 5.5"/></svg>
+        <span class="tab-label">我的</span>
+      </button>
+    </nav>
   </div>
 
   <!-- 全局弹窗 -->
@@ -740,7 +839,7 @@
     <div id="modal-box" class="modal-box">
       <div class="modal-header">
         <h3 id="modal-title">提示</h3>
-        <button id="modal-close" class="modal-close">✕</button>
+        <button id="modal-close" class="modal-close"><svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg></button>
       </div>
       <div class="modal-body" id="modal-body"></div>
       <div class="modal-footer" id="modal-footer"></div>
@@ -751,7 +850,7 @@
   <div id="toast" class="toast" style="display:none"></div>
 
   <!-- 版本标识（调试用：确认浏览器加载的是新版代码） -->
-  <div id="version-badge" style="position:fixed;top:0;left:50%;transform:translateX(-50%);background:#4f46e5;color:#fff;font-size:11px;padding:2px 12px;z-index:99999;border-radius:0 0 8px 8px;opacity:0.8;font-family:monospace">v2026-08-02x ✅</div>
+  <div id="version-badge" style="position:fixed;top:0;left:50%;transform:translateX(-50%);background:#5A8F9E;color:#fff;font-size:11px;padding:2px 12px;z-index:99999;border-radius:0 0 8px 8px;opacity:0.8;font-family:monospace">v2026-08-03b</div>
 
   <script src="js/utils.js?v=20260802x"></script>
   <script src="js/bmob.js?v=20260802x"></script>
@@ -761,6 +860,7 @@
   <!-- KaTeX：公式渲染 -->
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <script src="js/config.js?v=20260803a"></script>
   <script src="js/ai-assistant.js?v=20260802x"></script>
   <script src="js/english/vocabulary.js?v=20260802x"></script>
   <script src="js/english/articles.js?v=20260802x"></script>
@@ -769,9 +869,6 @@
   <script src="js/math/question-bank.js?v=20260802x"></script>
   <script src="js/math/weak-points.js?v=20260802x"></script>
   <script src="js/reports.js?v=20260802x"></script>
-  <script src="js/pet/pet-core.js?v=20260802x"></script>
-  <script src="js/pet/pet-render.js?v=20260802x"></script>
-  <script src="js/pet/pet-desktop.js?v=20260802x"></script>
   <script src="js/friend-wake.js?v=20260802x"></script>
   <script src="js/app.js?v=20260802x"></script>
   <script>

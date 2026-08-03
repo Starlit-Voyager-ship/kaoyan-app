@@ -47,14 +47,14 @@ const Reports = {
     // 生成报告HTML
     const reportEl = document.getElementById('daily-report-content');
     reportEl.innerHTML = `
-      <h4>📅 ${today} 学习日报</h4>
+      <h4><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg> ${today} 学习日报</h4>
       <div class="report-stat-row"><span class="label">专注时长</span><span class="value">${totalMinutes} 分钟 (${sessions}个番茄)</span></div>
       <div class="report-stat-row"><span class="label">新背单词</span><span class="value">${todayWords} 个</span></div>
       <div class="report-stat-row"><span class="label">错词复习</span><span class="value">${wrongWords} 个</span></div>
       <div class="report-stat-row"><span class="label">数学录题</span><span class="value">${todayMath} 道</span></div>
       <div class="report-stat-row"><span class="label">AI咨询次数</span><span class="value">${todayChats} 次</span></div>
-      <div class="report-stat-row"><span class="label">累计金币</span><span class="value">${petData?.coins || 0} 🪙</span></div>
-      <h4>💡 AI学习建议</h4>
+      <div class="report-stat-row"><span class="label">累计金币</span><span class="value"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="5"/><path d="M12 9.5v5M10 11h2.6a1.3 1.3 0 0 1 0 2.6H10"/></svg> ${petData?.coins || 0}</span></div>
+      <h4><svg class="ico" viewBox="0 0 24 24"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.8 10.7c.5.4.8 1 .8 1.6V17h6v-1.7c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z"/></svg> AI学习建议</h4>
       <p style="color:var(--text-secondary);font-size:0.92rem;line-height:1.8">
         ${this.generateSuggestion({ totalMinutes, sessions, todayWords, wrongWords, todayMath, todayChats })}
       </p>
@@ -104,26 +104,26 @@ const Reports = {
 
     const reportEl = document.getElementById('weekly-report-content');
     reportEl.innerHTML = `
-      <h4>📈 ${week.start} ~ ${week.end} 周度学习报告</h4>
+      <h4><svg class="ico" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M7 15l3.5-4 3 3L20 7"/></svg> ${week.start} ~ ${week.end} 周度学习报告</h4>
       <div class="report-stat-row"><span class="label">总专注时长</span><span class="value">${totalMinutes} 分钟 (${sessions}个番茄)</span></div>
       <div class="report-stat-row"><span class="label">日均专注</span><span class="value">${avgDaily} 分钟/天</span></div>
       <div class="report-stat-row"><span class="label">新学单词</span><span class="value">${weekNewWords} 个</span></div>
       <div class="report-stat-row"><span class="label">数学题目</span><span class="value">${weekMath} 道</span></div>
       <div class="report-stat-row"><span class="label">AI咨询</span><span class="value">${weekChats} 次</span></div>
 
-      <h4>📊 每日专注时长分布</h4>
+      <h4><svg class="ico" viewBox="0 0 24 24"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-11"/></svg> 每日专注时长分布</h4>
       <div style="display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:12px;padding:8px;background:var(--border-light);border-radius:8px;">
         ${dailyDist.map(d => {
           const h = Math.max(4, (d.minutes / Math.max(...dailyDist.map(x => x.minutes), 1)) * 100);
           return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
             <span style="font-size:0.7rem;color:var(--text-secondary)">${d.minutes}m</span>
-            <div style="width:100%;min-height:${h}%;background:linear-gradient(to top,var(--primary),var(--primary-light));border-radius:3px;min-height:4px"></div>
+            <div style="width:100%;min-height:${h}%;background:var(--primary);border-radius:3px;min-height:4px"></div>
             <span style="font-size:0.65rem;color:var(--text-light)">${d.date.slice(5)}</span>
           </div>`;
         }).join('')}
       </div>
 
-      <h4>💡 周度总结与建议</h4>
+      <h4><svg class="ico" viewBox="0 0 24 24"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.8 10.7c.5.4.8 1 .8 1.6V17h6v-1.7c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z"/></svg> 周度总结与建议</h4>
       <p style="color:var(--text-secondary);font-size:0.92rem;line-height:1.8;margin-top:8px">
         ${this.generateWeeklySuggestion({ totalMinutes, avgDaily, sessions, weekNewWords, weekMath, weekChats })}
       </p>
@@ -166,7 +166,7 @@ const Reports = {
     if (data.weekMath < 3) suggestions.push('数学题目练习量不够，建议增加做题和错题整理。');
 
     const dayNames = ['周一','周二','周三','周四','周五','周六','周日'];
-    suggestions.push('坚持就是胜利，每周的积累都会在考场上体现出来！💪');
+    suggestions.push('坚持就是胜利，每周的积累都会在考场上体现出来！');
 
     return suggestions.join('<br><br>');
   }

@@ -258,10 +258,10 @@ const FriendWake = {
     if (!el) return;
     const me = this.user() || '未登录';
     const peer = this.peerUser || '未绑定';
-    const guard = (WakeNative.available() && this._guardStarted) ? '🟢 运行中（后台也能收）' : (WakeNative.available() ? '⚪ 未启动' : '—（网页模式）');
-    const send = this.lastSendTs ? (new Date(this.lastSendTs).toLocaleTimeString() + ' → ' + this.lastSendTo) : '尚未发送';
+    const guard = (WakeNative.available() && this._guardStarted) ? '<span style="color:var(--success)">●</span> 运行中（后台也能收）' : (WakeNative.available() ? '<span style="color:var(--text-light)">●</span> 未启动' : '—（网页模式）');
+    const send = this.lastSendTs ? (new Date(this.lastSendTs).toLocaleTimeString() + ' 发给 ' + this.lastSendTo) : '尚未发送';
     const poll = this.lastPollTs ? (Math.round((Date.now() - this.lastPollTs) / 1000) + ' 秒前') : '—';
-    const pend = this.lastPending > 0 ? ('🔔 有 ' + this.lastPending + ' 条未读叫醒') : '无';
+    const pend = this.lastPending > 0 ? ('有 ' + this.lastPending + ' 条未读叫醒') : '无';
     el.innerHTML =
       '<div class="diag-row"><span>我的账号</span><b>' + me + '</b></div>' +
       '<div class="diag-row"><span>绑定对象</span><b>' + peer + '</b></div>' +
@@ -281,7 +281,7 @@ const FriendWake = {
     if (ready) {
       el.innerHTML = '<span style="color:var(--success)">● 云端同步已开启</span>';
     } else {
-      el.innerHTML = '<span style="color:var(--danger)">⚠ 未连接云端（请重新登录）</span>' +
+      el.innerHTML = '<span style="color:var(--danger)">未连接云端（请重新登录）</span>' +
         ' <button id="btn-relogin-wake" style="font-size:0.75rem;padding:2px 8px;margin-left:4px;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:4px;cursor:pointer;">退出重登</button>';
       setTimeout(() => {
         const btn = document.getElementById('btn-relogin-wake');
@@ -304,8 +304,8 @@ const FriendWake = {
     const nativeEl = document.getElementById('native-status');
     if (nativeEl) {
       nativeEl.innerHTML = WakeNative.available()
-        ? '<span style="color:var(--success)">✓ 原生强提醒可用（可绕过免打扰）</span>'
-        : '<span style="color:var(--warning)">⚠ 网页模式：叫醒会被免打扰拦截（装 APK 后可用原生）</span>';
+        ? '<span style="color:var(--success)">原生强提醒可用（可绕过免打扰）</span>'
+        : '<span style="color:var(--warning)">网页模式：叫醒会被免打扰拦截（装 APK 后可用原生）</span>';
     }
     // 原生平台：应用打开即申请通知权限（Android 13+ 会弹窗，用户允许即可正常弹出强提醒）
     if (WakeNative.available()) {
@@ -321,7 +321,7 @@ const FriendWake = {
             const tip = document.getElementById('dnd-tip');
             if (tip) {
               tip.style.display = 'block';
-              tip.innerHTML = '⚠ 未授权"绕过免打扰"：开启勿扰/静音时响铃可能不响。' +
+              tip.innerHTML = '未授权"绕过免打扰"：开启勿扰/静音时响铃可能不响。' +
                 '<button id="btn-dnd" style="margin-left:8px;font-size:0.75rem;padding:2px 8px;border:1px solid var(--primary);color:var(--primary);background:transparent;border-radius:4px;cursor:pointer;">去授权</button>';
               setTimeout(() => {
                 const b = document.getElementById('btn-dnd');
@@ -384,7 +384,7 @@ const FriendWake = {
 
   async doCreateCode() {
     const me = this.user();
-    if (!me) { Utils.toast('⚠️ 请先登录后再生成邀请码'); return; }
+    if (!me) { Utils.toast('请先登录后再生成邀请码'); return; }
     try {
       const code = Utils.inviteCode() || (Math.random().toString(36).slice(2, 8).toUpperCase());
       this.myCode = code;
@@ -395,14 +395,14 @@ const FriendWake = {
         type: 'invite', expireAt: Date.now() + 10 * 60 * 1000
       });
       document.getElementById('my-invite-code').textContent = code;
-      Utils.toast('✅ 邀请码已生成：' + code + '（10分钟内有效）');
+      Utils.toast('邀请码已生成：' + code + '（10分钟内有效）');
       this.saveBinding();
     } catch (e) {
       console.error('[FriendWake] 生成邀请码失败:', e);
       // 兜底：即使存储失败也显示一个码（纯展示用，对方绑定时查不到会提示无效）
       const fallback = 'LOCAL' + Math.random().toString(36).slice(2, 8).toUpperCase();
       document.getElementById('my-invite-code').textContent = fallback;
-      Utils.toast('⚠️ 本地存储异常，邀请码可能无法同步');
+      Utils.toast('本地存储异常，邀请码可能无法同步');
     }
   },
 
@@ -442,8 +442,8 @@ const FriendWake = {
     this.myCode = inputCode;
     this.saveBinding();
     this.showControl(valid.fromUser);
-    infoEl.innerHTML = '<span style="color:var(--success)">✅ 绑定成功！</span>';
-    Utils.toast('✅ 绑定成功！');
+    infoEl.innerHTML = '<span style="color:var(--success)">绑定成功！</span>';
+    Utils.toast('绑定成功！');
     this.maybeStartGuard();
     this.renderDiag();
   },
@@ -500,7 +500,7 @@ const FriendWake = {
     await WakeStore.save('WakeMsg', {
       fromUser: me, toUser: this.peerUser, message: '该起床学习啦！', ts: Date.now()
     });
-    Utils.toast('📢 叫醒已发送（对方约半分钟内收到）');
+    Utils.toast('叫醒已发送（对方约半分钟内收到）');
   },
 
   /* ---------- 轮询：检查是否有人叫醒我 ---------- */
@@ -546,11 +546,11 @@ const FriendWake = {
           fromUser: wakes[0].fromUser,   // 发送方
           toUser: me                      // 接收方自己
         });
-        Utils.toast('⏰ 收到好友叫醒！');
+        Utils.toast('收到好友叫醒！');
       }
       if (closed.length) {
         closed.sort((a, b) => b.ts - a.ts);
-        Utils.toast('🔕 ' + (closed[0].fromUser || '对方') + ' 已关闭闹钟');
+        Utils.toast((closed[0].fromUser || '对方') + ' 已关闭闹钟');
       }
       // 推进游标到最新消息（含 closed），避免重复提示
       const maxTs = fresh.reduce((mx, m) => Math.max(mx, m.ts), this.lastWakeTs);

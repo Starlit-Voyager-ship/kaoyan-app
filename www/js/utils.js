@@ -30,6 +30,14 @@ const Utils = {
     return `${m}:${s}`;
   },
 
+  // 格式化时长 HH:MM:SS
+  formatDuration(seconds) {
+    const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+    const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  },
+
   // 获取今天的日期字符串 YYYY-MM-DD
   today() {
     return new Date().toISOString().slice(0, 10);

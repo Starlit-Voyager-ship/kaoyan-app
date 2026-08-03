@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>考研学习助手 · 首页高保真原型</title>
+  <style>
+    /* ============================================================
+       考研学习助手 · 全局 UI Token（与 global-ui-spec.md 一致）
+       ============================================================ */
+    :root {
+      /* 主色 · 薰衣草（零渐变） */
+      --c-primary:        #6E5CA8;
+      --c-primary-strong: #5C4A96;
+      --c-primary-soft:   #ECE9F4;
+      --c-primary-tint:   #F7F5FB;
+
+      /* 功能色（低饱和） */
+      --c-success: #5E9B7E;
+      --c-danger:  #C25B6B;
+      --c-warning: #C99A4E;
+      --c-info:    #6E5CA8;
+
+      /* 浅色页面 */
+      --c-bg:      #F7F7FA;
+      --c-surface: #FFFFFF;
+      --c-text-1:  #2A2730;
+      --c-text-2:  #6E6A78;
+      --c-text-3:  #9B97A6;
+      --c-border:  #ECEAF1;
+
+      /* 深色抽屉 */
+      --drawer-bg:       #211E2B;
+      --drawer-active:   rgba(110,92,168,0.16);
+      --drawer-text-1:   #F5F3FA;
+      --drawer-text-2:   #B8B3C8;
+      --drawer-text-3:   #7A7490;
+      --drawer-divider:  #383444;
+
+      /* 圆角 */
+      --r-sm:  8px;
+      --r-md:  12px;
+      --r-lg:  16px;
+      --r-pill: 999px;
+
+      /* 阴影（极轻） */
+      --sh-card:       0 2px 8px rgba(42,39,48,0.05);
+      --sh-card-hover: 0 6px 18px rgba(42,39,48,0.08);
+      --sh-drawer:     4px 0 24px rgba(0,0,0,0.22);
+      --sh-fab:        0 6px 16px rgba(110,92,168,0.22);
+
+      /* 间距（4px 栅格） */
+      --s-1:  4px;
+      --s-2:  8px;
+      --s-3:  12px;
+      --s-4:  16px;
+      --s-5:  20px;
+      --s-6:  24px;
+      --s-8:  32px;
+
+      /* 字体 */
+      --t-display: 700 28px/1.2 -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --t-h1:      600 20px/1.35 -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --t-h2:      600 16px/1.4 -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --t-body:    400 14px/1.6 -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --t-caption: 400 12px/1.5 -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --t-label:   500 11px/1.4 -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+      /* 尺寸 */
+      --header-height: 56px;
+      --tabbar-height: 56px;
+      --drawer-width:  280px;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--c-bg);
+      color: var(--c-text-1);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 线性图标统一 */
+    .ico, .tab-ico {
+      width: 22px; height: 22px;
+      display: block; flex-shrink: 0;
+    }
+    svg.ico, svg.tab-ico {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .tab-ico { width: 24px; height: 24px; }
+    .ico-20 { width: 20px; height: 20px; }
+    .ico-24 { width: 24px; height: 24px; }
+    .ico-28 { width: 28px; height: 28px; }
+    .ico-32 { width: 32px; height: 32px; }
+
+    /* 手机外框（桌面预览用） */
+    .phone-frame {
+      max-width: 414px;
+      margin: 24px auto;
+      min-height: calc(100vh - 48px);
+      background: var(--c-bg);
+      border-radius: var(--r-lg);
+      box-shadow: var(--sh-card-hover);
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 状态栏占位 */
+    .status-bar { height: var(--s-6); flex-shrink: 0; }
+
+    /* 顶部栏 */
+    .topbar {
+      height: var(--header-height);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--s-4);
+      flex-shrink: 0;
+    }
+    .topbar-left {
+      display: flex; align-items: center; gap: var(--s-2);
+    }
+    .menu-btn {
+      width: 40px; height: 40px;
+      border-radius: var(--r-sm);
+      display: flex; align-items: center; justify-content: center;
+      background: transparent; border: none; color: var(--c-text-2);
+      cursor: pointer;
+    }
+    .menu-btn:active { background: var(--c-primary-soft); color: var(--c-primary); }
+    .greeting { font: var(--t-h2); color: var(--c-text-1); }
+    .date-text { font: var(--t-caption); color: var(--c-text-3); }
+
+    /* 主滚动区 */
+    .main-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 var(--s-4) calc(var(--tabbar-height) + var(--s-8));
+    }
+
+    /* 卡片基础 */
+    .card {
+      background: var(--c-surface);
+      border-radius: var(--r-md);
+      padding: var(--s-4);
+      box-shadow: var(--sh-card);
+      border: 1px solid transparent;
+    }
+
+    /* ===== Hero 重心卡：今日专注 ===== */
+    .hero-card {
+      background: var(--c-primary-soft);
+      display: flex;
+      flex-direction: column;
+      gap: var(--s-3);
+      margin-top: var(--s-2);
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    .hero-card:active { transform: translateY(-1px); box-shadow: var(--sh-card-hover); }
+    .hero-label {
+      display: flex; align-items: center; gap: var(--s-2);
+      font: var(--t-body);
+      color: var(--c-primary-strong);
+    }
+    .hero-label .ico { color: var(--c-primary); }
+    .hero-value {
+      font: var(--t-display);
+      color: var(--c-primary-strong);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+    }
+    .hero-compare {
+      font: var(--t-caption);
+      color: var(--c-text-2);
+    }
+
+    /* ===== 次级统计：3 等分卡 ===== */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--s-3);
+      margin-top: var(--s-3);
+    }
+    .stat-card {
+      text-align: center;
+      padding: var(--s-3) var(--s-2);
+      display: flex;
+      flex-direction: column;
+      gap: var(--s-1);
+    }
+    .stat-card .ico {
+      margin: 0 auto;
+      color: var(--c-primary);
+    }
+    .stat-value {
+      font: var(--t-h2);
+      color: var(--c-text-1);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-label {
+      font: var(--t-caption);
+      color: var(--c-text-3);
+    }
+
+    /* ===== 区块标题 ===== */
+    .section-title {
+      font: var(--t-h2);
+      color: var(--c-text-1);
+      margin: var(--s-6) 0 var(--s-3);
+    }
+
+    /* ===== 继续学习引导卡 ===== */
+    .continue-card {
+      display: flex;
+      align-items: center;
+      gap: var(--s-3);
+      cursor: pointer;
+    }
+    .continue-card:active { transform: translateY(-1px); box-shadow: var(--sh-card-hover); }
+    .continue-icon {
+      width: 44px; height: 44px;
+      border-radius: var(--r-sm);
+      background: var(--c-primary-soft);
+      color: var(--c-primary);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .continue-body { flex: 1; min-width: 0; }
+    .continue-title {
+      font: var(--t-body);
+      color: var(--c-text-1);
+      font-weight: 500;
+      margin-bottom: var(--s-2);
+    }
+    .progress-track {
+      height: 6px;
+      background: var(--c-border);
+      border-radius: var(--r-pill);
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 60%;
+      background: var(--c-primary);
+      border-radius: var(--r-pill);
+    }
+    .continue-meta {
+      font: var(--t-caption);
+      color: var(--c-text-3);
+      margin-top: var(--s-1);
+    }
+    .continue-action {
+      font: var(--t-caption);
+      color: var(--c-primary);
+      font-weight: 500;
+      display: flex; align-items: center; gap: var(--s-1);
+      flex-shrink: 0;
+    }
+
+    /* ===== 快捷入口 ===== */
+    .quick-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: var(--s-2);
+    }
+    .quick-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--s-2);
+      padding: var(--s-3) var(--s-1);
+      border-radius: var(--r-md);
+      cursor: pointer;
+      color: var(--c-text-2);
+      transition: background .15s ease, color .15s ease;
+    }
+    .quick-item:hover, .quick-item:active {
+      background: var(--c-primary-tint);
+      color: var(--c-primary);
+    }
+    .quick-item .tab-ico { color: currentColor; }
+    .quick-text { font: var(--t-label); color: currentColor; }
+
+    /* ===== 底部 Tab ===== */
+    .tabbar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: var(--tabbar-height);
+      background: var(--c-surface);
+      border-top: 1px solid var(--c-border);
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      align-items: center;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    .tab-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      height: 100%;
+      color: var(--c-text-3);
+      cursor: pointer;
+      transition: color .15s ease;
+    }
+    .tab-item.active { color: var(--c-primary); }
+    .tab-item:nth-child(3) .tab-ico { width: 26px; height: 26px; }
+    .tab-label { font: var(--t-label); }
+
+    /* ===== 深色抽屉 ===== */
+    .drawer-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(33,30,43,0.45);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s ease;
+      z-index: 90;
+    }
+    .drawer-overlay.open { opacity: 1; pointer-events: auto; }
+    .drawer {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: var(--drawer-width);
+      background: var(--drawer-bg);
+      color: var(--drawer-text-1);
+      box-shadow: var(--sh-drawer);
+      transform: translateX(-100%);
+      transition: transform .25s cubic-bezier(.4,0,.2,1);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      padding-top: var(--s-6);
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--s-3) var(--s-4) var(--s-4);
+    }
+    .drawer-brand {
+      display: flex; align-items: center; gap: var(--s-2);
+      font: var(--t-h2);
+      color: var(--drawer-text-1);
+    }
+    .drawer-brand .ico { color: var(--c-primary); }
+    .drawer-close {
+      width: 36px; height: 36px;
+      border-radius: var(--r-sm);
+      display: flex; align-items: center; justify-content: center;
+      background: transparent; border: none;
+      color: var(--drawer-text-2);
+      cursor: pointer;
+    }
+    .drawer-close:active { color: var(--drawer-text-1); background: rgba(255,255,255,0.06); }
+
+    .drawer-section { padding-top: var(--s-5); }
+    .drawer-section::before {
+      content: '';
+      display: block;
+      height: 1px;
+      background: var(--drawer-divider);
+      margin: 0 var(--s-4) var(--s-3);
+    }
+    .drawer-group-title {
+      font: var(--t-label);
+      letter-spacing: 0.08em;
+      color: var(--drawer-text-3);
+      padding: 0 var(--s-4) var(--s-2);
+      text-transform: uppercase;
+    }
+    .drawer-item {
+      display: flex; align-items: center; gap: var(--s-3);
+      padding: 12px var(--s-4);
+      color: var(--drawer-text-1);
+      font: var(--t-body);
+      cursor: pointer;
+      transition: background .15s ease;
+      position: relative;
+    }
+    .drawer-item:active, .drawer-item.active {
+      background: var(--drawer-active);
+    }
+    .drawer-item.active::before {
+      content: '';
+      position: absolute; left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--c-primary);
+    }
+    .drawer-item .ico { color: var(--drawer-text-2); }
+    .drawer-item.active .ico, .drawer-item.active { color: var(--c-primary); }
+    .drawer-badge {
+      margin-left: auto;
+      font: var(--t-caption);
+      color: var(--drawer-text-3);
+      background: rgba(255,255,255,0.06);
+      padding: 2px 8px;
+      border-radius: var(--r-pill);
+    }
+    .drawer-footer {
+      margin-top: auto;
+      padding: var(--s-3) var(--s-4);
+      font: var(--t-caption);
+      color: var(--drawer-text-3);
+      border-top: 1px solid var(--drawer-divider);
+    }
+
+    /* 原型标注 */
+    .proto-note {
+      text-align: center;
+      font: var(--t-caption);
+      color: var(--c-text-3);
+      padding: var(--s-4);
+    }
+  </style>
+</head>
+<body>
+
+<div class="phone-frame">
+  <div class="status-bar"></div>
+
+  <!-- 顶部栏 -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-btn" id="menuBtn" aria-label="打开菜单">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <span class="greeting">你好，考研人</span>
+    </div>
+    <span class="date-text">8月3日 周一</span>
+  </header>
+
+  <!-- 主内容 -->
+  <main class="main-scroll">
+
+    <!-- Hero：今日专注 -->
+    <section class="card hero-card">
+      <div class="hero-label">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        今日专注
+      </div>
+      <div class="hero-value">2h 35m</div>
+      <div class="hero-compare">较昨日 +18 min</div>
+    </section>
+
+    <!-- 次级统计：3 卡 -->
+    <section class="stat-row">
+      <div class="card stat-card">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <div class="stat-value">120</div>
+        <div class="stat-label">今日背词</div>
+      </div>
+      <div class="card stat-card">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <div class="stat-value">8</div>
+        <div class="stat-label">收录题目</div>
+      </div>
+      <div class="card stat-card">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <div class="stat-value">340</div>
+        <div class="stat-label">金币</div>
+      </div>
+    </section>
+
+    <!-- 继续学习 -->
+    <h2 class="section-title">继续学习</h2>
+    <section class="card continue-card">
+      <div class="continue-icon">
+        <svg class="ico ico-24" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </div>
+      <div class="continue-body">
+        <div class="continue-title">线性代数 · 矩阵基础</div>
+        <div class="progress-track"><div class="progress-fill"></div></div>
+        <div class="continue-meta">进度 60% · 预计 12 分钟完成</div>
+      </div>
+      <div class="continue-action">
+        继续
+        <svg class="ico ico-16" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+    </section>
+
+    <!-- 快捷入口 -->
+    <h2 class="section-title">快捷入口</h2>
+    <section class="quick-row">
+      <div class="quick-item">
+        <svg class="tab-ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span class="quick-text">专注</span>
+      </div>
+      <div class="quick-item">
+        <svg class="tab-ico" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span class="quick-text">背词</span>
+      </div>
+      <div class="quick-item">
+        <svg class="tab-ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M12 11V7a4 4 0 0 1 4-4h0"/></svg>
+        <span class="quick-text">AI</span>
+      </div>
+      <div class="quick-item">
+        <svg class="tab-ico" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+        <span class="quick-text">报表</span>
+      </div>
+      <div class="quick-item">
+        <svg class="tab-ico" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="quick-text">我的</span>
+      </div>
+    </section>
+
+    <p class="proto-note">本文件为首页高保真原型 · 按 global-ui-spec.md §10 实现</p>
+  </main>
+
+  <!-- 底部 Tab -->
+  <nav class="tabbar">
+    <div class="tab-item active">
+      <svg class="tab-ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+      <span class="tab-label">首页</span>
+    </div>
+    <div class="tab-item">
+      <svg class="tab-ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      <span class="tab-label">专注</span>
+    </div>
+    <div class="tab-item">
+      <svg class="tab-ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M12 11V7a4 4 0 0 1 4-4h0"/></svg>
+      <span class="tab-label">AI</span>
+    </div>
+    <div class="tab-item">
+      <svg class="tab-ico" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+      <span class="tab-label">报表</span>
+    </div>
+    <div class="tab-item">
+      <svg class="tab-ico" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span class="tab-label">我的</span>
+    </div>
+  </nav>
+
+  <!-- 抽屉遮罩 -->
+  <div class="drawer-overlay" id="drawerOverlay"></div>
+
+  <!-- 深色抽屉 -->
+  <aside class="drawer" id="drawer">
+    <div class="drawer-header">
+      <div class="drawer-brand">
+        <svg class="ico ico-24" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        考研学习助手
+      </div>
+      <button class="drawer-close" id="drawerClose" aria-label="关闭菜单">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="drawer-section">
+      <div class="drawer-group-title">英语专项</div>
+      <div class="drawer-item active">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        单词背诵
+      </div>
+      <div class="drawer-item">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        英语文章
+        <span class="drawer-badge">已读 12</span>
+      </div>
+      <div class="drawer-item">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        长难句
+      </div>
+    </div>
+
+    <div class="drawer-section">
+      <div class="drawer-group-title">数学专项</div>
+      <div class="drawer-item">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        数学题库
+      </div>
+      <div class="drawer-item">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        错题本
+      </div>
+    </div>
+
+    <div class="drawer-section">
+      <div class="drawer-group-title">拓展</div>
+      <div class="drawer-item">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        好友叫醒
+      </div>
+      <div class="drawer-item">
+        <svg class="ico ico-20" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+        考研资讯
+        <span class="drawer-badge">即将上线</span>
+      </div>
+    </div>
+
+    <div class="drawer-footer">v2026-08-03 · 设计原型</div>
+  </aside>
+</div>
+
+<script>
+  // 原型交互：打开/关闭抽屉
+  const menuBtn = document.getElementById('menuBtn');
+  const drawer = document.getElementById('drawer');
+  const overlay = document.getElementById('drawerOverlay');
+  const drawerClose = document.getElementById('drawerClose');
+
+  function openDrawer() {
+    drawer.classList.add('open');
+    overlay.classList.add('open');
+  }
+  function closeDrawer() {
+    drawer.classList.remove('open');
+    overlay.classList.remove('open');
+  }
+
+  menuBtn.addEventListener('click', openDrawer);
+  drawerClose.addEventListener('click', closeDrawer);
+  overlay.addEventListener('click', closeDrawer);
+</script>
+
+</body>
+</html>

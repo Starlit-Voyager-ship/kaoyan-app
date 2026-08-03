@@ -117,10 +117,13 @@ const MathBank = {
     const images = document.getElementById('detail-images');
     images.innerHTML = '';
     if (question.imageData) {
-      const img = document.createElement('img');
-      img.src = question.imageData;
-      img.onclick = () => window.open(question.imageData);
-      images.appendChild(img);
+      const arr = Array.isArray(question.imageData) ? question.imageData : [question.imageData];
+      arr.forEach(src => {
+        const img = document.createElement('img');
+        img.src = src;
+        img.onclick = () => window.open(src);
+        images.appendChild(img);
+      });
     }
 
     document.getElementById('detail-source').textContent = question.source || '-';

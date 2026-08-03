@@ -74,6 +74,12 @@ const AIAssistant = {
       if (e.target.files[0]) this.handleFile(e.target.files[0]);
       e.target.value = '';
     });
+    // Web 回退：上传面板专用多选文件输入
+    document.getElementById('upload-file-input').addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      files.forEach(f => this.handleFile(f));
+      e.target.value = '';
+    });
   },
 
   toggleUploadDrawer() {
@@ -92,10 +98,21 @@ const AIAssistant = {
   async capture(panel, kind) {
     if (this.cameraAvailable()) {
       try {
-        const r = kind === 'camera'
-          ? await Capacitor.Plugins.Camera.takePhoto()
-          : await Capacitor.Plugins.Camera.pickFromGallery();
-        if (r && r.data) this.setImage(panel, r.data);
+        let imgs = [];
+        if (kind === 'camera') {
+          const r = await Capacitor.Plugins.Camera.takePhoto();
+          if (r && r.data) imgs = [r.data];
+        } else {
+          const cam = Capacitor.Plugins.Camera;
+          if (cam.pickImages) {
+            const res = await cam.pickImages();
+            imgs = (res && res.photos) ? res.photos.map(p => p.data).filter(Boolean) : [];
+          } else {
+            const r = await cam.pickFromGallery();
+            if (r && r.data) imgs = [r.data];
+          }
+        }
+        imgs.forEach(d => this.setImage(panel, d));
       } catch (e) {
         Utils.toast('相机/相册已取消');
       }
@@ -103,7 +120,9 @@ const AIAssistant = {
     }
     // Web 回退：用隐藏文件输入
     this._pendingPanel = panel;
-    const input = document.getElementById('camera-file-input');
+    const input = (panel === 'upload')
+      ? document.getElementById('upload-file-input')
+      : document.getElementById('camera-file-input');
     if (kind === 'camera') input.setAttribute('capture', 'environment');
     else input.removeAttribute('capture');
     input.click();
@@ -118,12 +137,12 @@ const AIAssistant = {
 
   setImage(panel, dataUrl) {
     if (panel === 'upload') {
-      this.uploadImage = dataUrl;
-      const img = document.getElementById('upload-img');
-      img.src = dataUrl; img.style.display = 'block';
+      this.uploadImages = this.uploadImages || [];
+      this.uploadImages.push(dataUrl);
       document.getElementById('upload-empty').style.display = 'none';
       document.getElementById('upload-clear-btn').style.display = 'inline-flex';
       document.getElementById('upload-go-btn').disabled = false;
+      this.renderUploadThumbs();
     } else {
       this.pendingImage = dataUrl;
       document.getElementById('answer-clear-img').style.display = 'inline-flex';
@@ -133,9 +152,28 @@ const AIAssistant = {
     }
   },
 
+  renderUploadThumbs() {
+    const box = document.getElementById('upload-thumbs');
+    if (!box) return;
+    box.innerHTML = '';
+    (this.uploadImages || []).forEach((src, idx) => {
+      const t = document.createElement('div');
+      t.className = 'thumb';
+      t.innerHTML = `<img src="${src}"><button type="button" class="thumb-del" title="移除">×</button>`;
+      t.querySelector('.thumb-del').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.uploadImages.splice(idx, 1);
+        if (!this.uploadImages.length) this.clearUpload();
+        else this.renderUploadThumbs();
+      });
+      box.appendChild(t);
+    });
+  },
+
   clearUpload() {
-    this.uploadImage = null;
-    document.getElementById('upload-img').style.display = 'none';
+    this.uploadImages = [];
+    const box = document.getElementById('upload-thumbs');
+    if (box) box.innerHTML = '';
     document.getElementById('upload-empty').style.display = 'block';
     document.getElementById('upload-clear-btn').style.display = 'none';
     document.getElementById('upload-go-btn').disabled = true;
@@ -163,7 +201,7 @@ const AIAssistant = {
      链路一：上传归档
      ============================================================ */
   async doUpload() {
-    if (!this.uploadImage) return;
+    if (!this.uploadImages || !this.uploadImages.length) return;
     const settings = Store.getSettings(Store.getCurrentUser()) || {};
     if (!settings.qwenKey) { Utils.toast('上传归档需先配置千问VL Key'); return; }
 
@@ -173,7 +211,7 @@ const AIAssistant = {
 
     this.showUploadLoading(true);
     try {
-      const v = await this.callQwenVLClassify(settings, this.uploadImage);
+      const v = await this.callQwenVLClassify(settings, this.uploadImages);
       const topic = topicInput || v.topic || '其他';
       const errorReason = errorInput || v.errorHint || '';
       const user = Store.getCurrentUser();
@@ -198,7 +236,7 @@ const AIAssistant = {
           topic,
           errorReason,
           ocrText,
-          imageData: this.uploadImage,
+          imageData: this.uploadImages,
           aiResponse: solution,
           createdAt: new Date().toISOString()
         });
@@ -208,17 +246,40 @@ const AIAssistant = {
         this.showUploadResult('已归档到【数学题库】' + (solution ? '（含AI解析）' : ''), resultBody);
       } else if (v.type === 'english') {
         const title = source ? source : ('AI上传文章 ' + new Date().toLocaleDateString());
+        // 识别后自动生成阅读解析（含逐题答案），失败仅保存文章
+        let analysis = '';
+        if (v.text) {
+          try {
+            Utils.toast('正在生成阅读解析…');
+            const parsed = await this.callQwenEnglishAnalyze(settings, v.text);
+            analysis = parsed ? JSON.stringify(parsed) : '';
+          } catch (e) {
+            console.warn('[上传归档] 英语解析生成失败，仅保存文章：', e.message);
+            Utils.toast('阅读解析生成失败（' + e.message + '），文章已保存');
+          }
+        }
         await Store.put('articles', {
           id: Utils.uid(),
           username: user,
           title,
           source: source || '',
           content: v.text || '',
-          imageData: this.uploadImage,
+          imageData: this.uploadImages,
+          aiResponse: analysis,
+          wrongQuestions: [],
           createdAt: new Date().toISOString()
         });
-        this.showUploadResult('已归档到【英语文章】',
-          `标题：${title}\n\n英文全文：\n${v.text || ''}`);
+        const summaryTxt = (() => {
+          try { const p = JSON.parse(analysis); return p.summary || ''; } catch (_) { return ''; }
+        })();
+        const qCount = (() => {
+          try { const p = JSON.parse(analysis); return (p.questions || []).length; } catch (_) { return 0; }
+        })();
+        let body = `标题：${title}`;
+        if (summaryTxt) body += `\n\nAI摘要：\n${summaryTxt}`;
+        body += `\n\n英文全文：\n${v.text || ''}`;
+        if (qCount) body += `\n\n（已识别 ${qCount} 道题目，可在阅读页查看解析并标注错题）`;
+        this.showUploadResult('已归档到【英语文章】' + (analysis ? '（含AI解析）' : ''), body);
       } else {
         this.showUploadResult('ℹ️ 未识别为数学题或英语文章',
           `识别内容：\n${v.text || ''}\n\n如需解答，请切换到「智能解答」Tab。`);
@@ -370,6 +431,23 @@ const AIAssistant = {
     return await this.callQwenChat(settings, messages, '千问解析');
   },
 
+  /* ---------- 千问文本：英语阅读解析（概括 + 逐题答案） ---------- */
+  async callQwenEnglishAnalyze(settings, text) {
+    const messages = [
+      { role: 'system', content: '你是考研英语二阅读老师。针对用户提供的英语文章（可能包含阅读理解题目），请输出严格 JSON：' +
+        '{"summary":"用中文概括文章主旨与段落结构（2-4句）","questions":[{"no":"题号，如 21","question":"题干原文","answer":"正确选项及答案内容","explanation":"解析：为何选它、各干扰项错在哪"}]}。' +
+        '若文章不含明确题目，questions 返回空数组 []。只返回 JSON，不要任何额外文字或解释。' },
+      { role: 'user', content: text }
+    ];
+    const raw = await this.callQwenChat(settings, messages, '千问英语解析');
+    try {
+      const m = raw.match(/\{[\s\S]*\}/);
+      return JSON.parse(m ? m[0] : raw);
+    } catch (e) {
+      return { summary: raw, questions: [] };
+    }
+  },
+
   /* ---------- 跨平台 API 请求：App 直连，浏览器走本地代理 ---------- */
   isNativePlatform() {
     return typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform();
@@ -428,13 +506,13 @@ const AIAssistant = {
     return all.join('/') + '/其他';
   },
 
-  async requestQwen(settings, content, taskName) {
+  async requestQwen(settings, content, taskName, maxTokens = 2000) {
     const url = `${settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`;
     try {
       const res = await this.proxyFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.qwenKey}` },
-        body: JSON.stringify({ model: 'qwen-vl-max', messages: [{ role: 'user', content }], max_tokens: 2000 })
+        body: JSON.stringify({ model: 'qwen-vl-max', messages: [{ role: 'user', content }], max_tokens: maxTokens })
       });
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
@@ -461,23 +539,25 @@ const AIAssistant = {
     }
   },
 
-  async callQwenVLClassify(settings, imageData) {
+  async callQwenVLClassify(settings, images) {
+    const imgs = Array.isArray(images) ? images : [images];
     const content = [
-      { type: 'image_url', image_url: { url: imageData } },
-      { type: 'text', text: '请仔细识别图片中的内容。先判断类型，再逐字提取原文，最后以 JSON 返回（只返回 JSON，不要任何额外文字或解释）：\n' +
+      ...imgs.map(i => ({ type: 'image_url', image_url: { url: i } })),
+      { type: 'text', text: '请仔细识别图片中的内容（多张图按顺序排列，可能是同一道题/文章的不同部分）。先判断类型，再逐字提取原文，最后以 JSON 返回（只返回 JSON，不要任何额外文字或解释）：\n' +
         `{"type":"math|english|other","topic":"若为数学题请填知识点(${this.topicListForVL()})","errorHint":"若图片中可见明显错误原因请简述，否则为空字符串","text":"逐字提取图片中的题目或文章原文。数学公式和符号必须用可读的纯文字表达（例如：λx₁+x₂+x₃=λ-3、矩阵A=[1 λ; -2 1]、行列式|A|），绝对不要输出LaTeX代码（不要\\left、\\begin{array}、\\lambda等LaTeX标记），不要用任何特殊格式，就是普通文字"}` }
     ];
-    const raw = await this.requestQwen(settings, content, '千问VL识别');
+    const raw = await this.requestQwen(settings, content, '千问VL识别', 4000);
     return this.parseJSON(raw);
   },
 
   /* ---------- 千问VL：仅识图提取文字（用于解答链路） ---------- */
-  async callQwenVLOcr(settings, imageData) {
+  async callQwenVLOcr(settings, images) {
+    const imgs = Array.isArray(images) ? images : [images];
     const content = [
-      { type: 'image_url', image_url: { url: imageData } },
+      ...imgs.map(i => ({ type: 'image_url', image_url: { url: i } })),
       { type: 'text', text: '请识别图片中的题目或内容，提取完整文字。数学公式用可读纯文字表达（如 λx₁+x₂=3、矩阵A=[1 2; 3 4]），不要输出LaTeX代码（\\left、\\begin等），不要解答。' }
     ];
-    return await this.requestQwen(settings, content, '千问VL识图');
+    return await this.requestQwen(settings, content, '千问VL识图', 3000);
   },
 
   parseJSON(raw) {

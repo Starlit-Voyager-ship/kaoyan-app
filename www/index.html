@@ -370,7 +370,7 @@
                 <div class="welcome-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M3 8.5A2 2 0 0 1 5 6.5h2l1.2-1.8a1 1 0 0 1 .8-.4h3a1 1 0 0 1 .8.4L14.5 6.5h4A2 2 0 0 1 20.5 8.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="11.5" cy="13" r="3.2"/></svg></div>
                 <p>拍照或选择题目 / 文章图片，自动归档到题库/文章库</p>
               </div>
-              <img id="upload-img" class="upload-img" style="display:none">
+              <div id="upload-thumbs" class="upload-thumbs"></div>
             </div>
             <div class="upload-tools">
               <button class="tool-btn" id="upload-camera-btn"><svg class="ico" viewBox="0 0 24 24"><path d="M3 8.5A2 2 0 0 1 5 6.5h2l1.2-1.8a1 1 0 0 1 .8-.4h3a1 1 0 0 1 .8.4L14.5 6.5h4A2 2 0 0 1 20.5 8.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="11.5" cy="13" r="3.2"/></svg>拍照</button>
@@ -444,6 +444,7 @@
 
           <!-- Web 回退共用文件输入（无原生相机时） -->
           <input type="file" id="camera-file-input" accept="image/*" style="display:none">
+          <input type="file" id="upload-file-input" accept="image/*" multiple style="display:none">
         </div>
       </section>
 
@@ -552,8 +553,10 @@
             <div class="reader-toolbar">
               <button id="reader-translate-all" class="btn-sm btn-secondary">全文翻译</button>
               <button id="reader-quiz" class="btn-sm btn-secondary">阅读答题</button>
+              <button id="reader-mark-wrong" class="btn-sm btn-secondary">标注错题</button>
             </div>
             <div class="reader-content" id="reader-content"></div>
+            <div class="reader-ai" id="reader-ai" style="display:none"></div>
           </div>
         </div>
       </section>

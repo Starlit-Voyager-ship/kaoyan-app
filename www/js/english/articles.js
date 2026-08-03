@@ -15,6 +15,7 @@ const Articles = {
     document.getElementById('article-back').addEventListener('click', () => this.backToList());
     document.getElementById('reader-translate-all').addEventListener('click', () => this.translateAll());
     document.getElementById('reader-quiz').addEventListener('click', () => this.startQuiz());
+    document.getElementById('reader-mark-wrong').addEventListener('click', () => this.scrollToAI());
   },
 
   async renderList() {
@@ -36,8 +37,9 @@ const Articles = {
     articles.forEach(a => {
       const item = document.createElement('div');
       item.className = 'article-item';
+      const wrongN = (a.wrongQuestions && a.wrongQuestions.length) ? a.wrongQuestions.length : 0;
       item.innerHTML = `
-        <h4>${a.title}</h4>
+        <h4>${a.title}${wrongN ? ` <span class="wrong-badge">${wrongN} 错</span>` : ''}</h4>
         <p>${a.content.substring(0, 80)}...</p>
         <small style="color:var(--text-light)">${new Date(a.createdAt).toLocaleDateString()}</small>
       `;
@@ -66,10 +68,78 @@ const Articles = {
 
     // 渲染文章内容
     const contentEl = document.getElementById('reader-content');
-    const paragraphs = article.content.split('\n').filter(p => p.trim());
+    const paragraphs = (article.content || '').split('\n').filter(p => p.trim());
     contentEl.innerHTML = paragraphs.map(p =>
-      `<p style="margin-bottom:12px">${p}</p>`
+      `<p style="margin-bottom:12px">${this._esc(p)}</p>`
     ).join('');
+
+    // 渲染 AI 解析与错题标注
+    this.renderReaderAI();
+  },
+
+  scrollToAI() {
+    const box = document.getElementById('reader-ai');
+    if (box && box.style.display !== 'none') {
+      box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      Utils.toast('本文暂无 AI 解析，上传时含题目即可自动生成');
+    }
+  },
+
+  renderReaderAI() {
+    const box = document.getElementById('reader-ai');
+    if (!box) return;
+    const art = this.currentArticle;
+    const raw = art && art.aiResponse;
+    if (!raw) { box.innerHTML = ''; box.style.display = 'none'; return; }
+
+    let data;
+    try {
+      const m = raw.match(/\{[\s\S]*\}/);
+      data = JSON.parse(m ? m[0] : raw);
+    } catch (e) { data = { summary: raw, questions: [] }; }
+
+    const wrong = Array.isArray(art.wrongQuestions) ? art.wrongQuestions : [];
+    let html = '<div class="reader-ai-card">';
+    html += '<h4>AI 阅读解析</h4>';
+    if (data.summary) html += `<div class="ai-summary">${this._esc(data.summary)}</div>`;
+    if (data.questions && data.questions.length) {
+      html += '<div class="ai-questions">';
+      data.questions.forEach((q, i) => {
+        const isWrong = wrong.indexOf(i) !== -1;
+        html += `<div class="ai-q ${isWrong ? 'wrong' : ''}" data-idx="${i}">
+          <div class="ai-q-head">
+            <span class="ai-q-no">${this._esc(q.no || ('第' + (i + 1) + '题'))}</span>
+            <button type="button" class="ai-q-toggle ${isWrong ? 'on' : ''}" data-idx="${i}">${isWrong ? '✓ 我答错了' : '标记错题'}</button>
+          </div>
+          ${q.question ? `<div class="ai-q-text">${this._esc(q.question)}</div>` : ''}
+          ${q.answer ? `<div class="ai-q-ans"><b>答案：</b>${this._esc(q.answer)}</div>` : ''}
+          ${q.explanation ? `<div class="ai-q-exp">${this._esc(q.explanation)}</div>` : ''}
+        </div>`;
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+    box.innerHTML = html;
+    box.style.display = 'block';
+
+    box.querySelectorAll('.ai-q-toggle').forEach(btn => {
+      btn.addEventListener('click', () => this.toggleWrong(parseInt(btn.dataset.idx, 10)));
+    });
+  },
+
+  async toggleWrong(idx) {
+    const art = this.currentArticle;
+    if (!art) return;
+    const wrong = Array.isArray(art.wrongQuestions) ? art.wrongQuestions.slice() : [];
+    const pos = wrong.indexOf(idx);
+    if (pos === -1) wrong.push(idx); else wrong.splice(pos, 1);
+    art.wrongQuestions = wrong;
+    // 持久化到本地缓存 + 云端
+    await Store.put('articles', Object.assign({}, art));
+    this.renderReaderAI();
+    const n = wrong.length;
+    Utils.toast(n ? ('已标记 ' + n + ' 道错题') : '已清除错题标记');
   },
 
   showEditor() {
@@ -103,6 +173,8 @@ const Articles = {
       username: user,
       title,
       content,
+      wrongQuestions: [],
+      aiResponse: '',
       createdAt: new Date().toISOString()
     });
 

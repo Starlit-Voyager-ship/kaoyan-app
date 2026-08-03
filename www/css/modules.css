@@ -1254,3 +1254,110 @@
   position: absolute;
   inset: -6px;
 }
+
+/* ===== 上传多图缩略图 ===== */
+.upload-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.upload-thumbs .thumb {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  background: #fff;
+}
+.upload-thumbs .thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.upload-thumbs .thumb-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.upload-thumbs .thumb-del:hover { background: rgba(220,53,69,0.9); }
+
+/* ===== 文章阅读：AI 解析 + 错题标注 ===== */
+.reader-ai { margin-top: 18px; }
+.reader-ai-card {
+  padding: 16px;
+  background: var(--primary-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+}
+.reader-ai-card h4 {
+  margin: 0 0 10px;
+  color: var(--primary);
+  font-size: 1rem;
+}
+.ai-summary {
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+.ai-questions { display: flex; flex-direction: column; gap: 10px; }
+.ai-q {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: #fff;
+  border: 1px solid var(--border-light);
+}
+.ai-q.wrong {
+  border-color: var(--danger, #e5484d);
+  background: rgba(229,72,77,0.06);
+}
+.ai-q-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.ai-q-no { font-weight: 700; color: var(--text); }
+.ai-q-toggle {
+  border: 1px solid var(--border-light);
+  background: #fff;
+  color: var(--text-secondary);
+  border-radius: var(--radius-xl);
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ai-q-toggle.on {
+  background: var(--danger, #e5484d);
+  border-color: var(--danger, #e5484d);
+  color: #fff;
+}
+.ai-q-text { font-size: 0.9rem; margin-bottom: 6px; }
+.ai-q-ans { font-size: 0.88rem; margin-bottom: 4px; }
+.ai-q-exp { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; }
+
+/* 列表错题徽章 */
+.wrong-badge {
+  font-size: 0.68rem;
+  padding: 1px 7px;
+  border-radius: var(--radius-xl);
+  background: var(--danger, #e5484d);
+  color: #fff;
+  margin-left: 6px;
+  vertical-align: middle;
+}

@@ -179,20 +179,32 @@ const AIAssistant = {
       const user = Store.getCurrentUser();
 
       if (v.type === 'math') {
+        const ocrText = v.text || '';
+        // 识别后自动让千问生成解析（不依赖历史对话），失败仅保存题目
+        let solution = '';
+        if (ocrText) {
+          try {
+            Utils.toast('正在生成解析…');
+            solution = await this.callQwenSolve(settings, ocrText);
+          } catch (solveErr) {
+            console.warn('[上传归档] 解析生成失败，仅保存题目：', solveErr.message);
+          }
+        }
         await Store.put('math_questions', {
           id: Utils.uid(),
           username: user,
           source,
           topic,
           errorReason,
-          ocrText: v.text || '',
+          ocrText,
           imageData: this.uploadImage,
-          aiResponse: '',
+          aiResponse: solution,
           createdAt: new Date().toISOString()
         });
         await Store.addCoins(user, 5);
-        this.showUploadResult('已归档到【数学题库】',
-          `知识点：${topic}\n错因：${errorReason || '（未填写）'}\n\n识别文字：\n${v.text || ''}`);
+        const resultBody = `知识点：${topic}\n错因：${errorReason || '（未填写）'}\n\n识别文字：\n${ocrText}` +
+          (solution ? `\n\nAI解析：\n${solution}` : '\n\n（解析生成失败，题目已保存，可在题库详情中重新获取）');
+        this.showUploadResult('已归档到【数学题库】' + (solution ? '（含AI解析）' : ''), resultBody);
       } else if (v.type === 'english') {
         const title = 'AI上传文章 ' + new Date().toLocaleDateString();
         await Store.put('articles', {
@@ -226,8 +238,9 @@ const AIAssistant = {
     const el = document.getElementById('upload-result');
     el.innerHTML = `<div class="result-card">
       <div class="result-title">${title}</div>
-      <div class="result-body">${this.escapeHtml(body).replace(/\n/g, '<br>')}</div>
+      <div class="result-body">${this.formatContent(body)}</div>
     </div>`;
+    this.renderMath(el.querySelector('.result-body'));
   },
 
   /* ============================================================
@@ -335,6 +348,24 @@ const AIAssistant = {
       if (c) messages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: c });
     });
     return await this.callQwenChat(settings, messages, '千问解答');
+  },
+
+  /* ---------- 上传归档专用：仅依据题目文字生成解析（不依赖对话历史） ---------- */
+  async callQwenSolve(settings, questionText) {
+    const messages = [
+      {
+        role: 'system',
+        content: '你是考研数学二 AI 解题老师。请针对下面这道题给出详细解析，结构如下：\n' +
+          '【考查知识点】用一两句话说明本题涉及的核心考点；\n' +
+          '【解题思路】点明突破口与关键方法；\n' +
+          '【完整步骤】逐步推导，关键变形与计算都要写出；\n' +
+          '【最终答案】给出明确结果；\n' +
+          '【易错提醒】指出常见错误。\n' +
+          '数学公式使用标准 LaTeX：块级用 $$ ... $$，行内用 \\( ... \\)。用中文回答，结构清晰、段落自然。'
+      },
+      { role: 'user', content: questionText }
+    ];
+    return await this.callQwenChat(settings, messages, '千问解析');
   },
 
   /* ---------- 跨平台 API 请求：App 直连，浏览器走本地代理 ---------- */

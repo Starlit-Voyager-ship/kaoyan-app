@@ -129,12 +129,16 @@ const MathBank = {
     document.getElementById('detail-time').textContent =
       question.createdAt ? new Date(question.createdAt).toLocaleString() : '-';
 
+    const prevAi = document.getElementById('detail-ai');
+    if (prevAi) prevAi.remove();
     if (question.aiResponse) {
       const aiDiv = document.createElement('div');
+      aiDiv.id = 'detail-ai';
       aiDiv.style.cssText = 'margin-top:16px;padding:14px;background:var(--primary-bg);border-radius:8px;font-size:0.92rem;line-height:1.7';
       aiDiv.innerHTML = '<strong style="color:var(--primary)">AI解答：</strong><br>' +
-        question.aiResponse.replace(/\n/g, '<br>');
+        AIAssistant.formatContent(question.aiResponse);
       document.getElementById('detail-info').appendChild(aiDiv);
+      if (typeof AIAssistant.renderMath === 'function') AIAssistant.renderMath(aiDiv);
     }
   }
 };

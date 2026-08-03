@@ -6,15 +6,16 @@
    ======================================== */
 
 const Vocabulary = {
-  currentIndex: 0,
-  sessionWords: [],
+  // 背单词队列与状态（队列模型：答完一个shift一个，不认识/部分认识回插队尾）
+  queue: [],
+  studiedCount: 0,
+  reviewDone: 0,
+  newDone: 0,
+  initialCount: 0,
+  GROUP_SIZE: 10,
   showingMeaning: false,
-  knownIndices: [],
-  unknownIndices: [],
   sessionSeconds: 0,
   sessionTimer: null,
-  newWordCount: 0,
-  reviewWordCount: 0,
   currentSource: 'all',
 
   // 测试 session
@@ -142,17 +143,30 @@ const Vocabulary = {
     // 2) 新词：从词典取未背过的，取 50
     const newOnes = this.pickNewWords(all, 50);
 
-    this.sessionWords = [...review, ...newOnes];
-    this.reviewWordCount = review.length;
-    this.newWordCount = newOnes.length;
-    this.currentIndex = 0;
-    this.knownIndices = [];
-    this.unknownIndices = [];
+    // 构建队列：每条词记录来源(isNew)、初始序号(用于分组显示)、本次失败次数 failCount
+    // 后台按 10 个一组组织；答完一个 shift 一个；不认识/部分认识回插队尾(后续还会出现)
+    const queue = [];
+    let idx = 0;
+    [...review, ...newOnes].forEach(w => {
+      const isNew = !w.firstLearned;
+      queue.push({
+        rec: w,
+        isNew,
+        initialIndex: idx++,
+        failCount: 0
+      });
+    });
+
+    this.queue = queue;
+    this.initialCount = queue.length;
+    this.studiedCount = 0;
+    this.reviewDone = 0;
+    this.newDone = 0;
     this.showingMeaning = false;
     this.sessionSeconds = 0;
     this.startSessionTimer();
 
-    if (this.sessionWords.length === 0) {
+    if (this.queue.length === 0) {
       document.getElementById('current-word').textContent = '暂时没有可背的单词';
       return;
     }
@@ -230,22 +244,16 @@ const Vocabulary = {
     }
   },
 
-  async updateStudyStats() {
-    const user = Store.getCurrentUser();
-    const all = await Store.getUserData('vocab_words', user);
-    const today = Utils.today();
-    const dictWords = all.filter(w => (w.source || 'reading') === 'dict');
-    const reviewedToday = dictWords.filter(w => w.lastReview === today).length;
-    const newToday = dictWords.filter(w => w.firstLearned === today).length;
+  updateStudyStats() {
     const reviewEl = document.getElementById('study-review-count');
     const newEl = document.getElementById('study-new-count');
-    if (reviewEl) reviewEl.textContent = `${Math.min(reviewedToday, 150)}/150`;
-    if (newEl) newEl.textContent = `${Math.min(newToday, 50)}/50`;
+    if (reviewEl) reviewEl.textContent = `${Math.min(this.reviewDone || 0, 150)}/150`;
+    if (newEl) newEl.textContent = `${Math.min(this.newDone || 0, 50)}/50`;
   },
 
   speakCurrent() {
-    if (this.currentIndex >= this.sessionWords.length) return;
-    const w = this.sessionWords[this.currentIndex];
+    if (!this.queue || this.queue.length === 0) return;
+    const w = this.queue[0].rec;
     if ('speechSynthesis' in window && w && w.word) {
       const u = new SpeechSynthesisUtterance(w.word);
       u.lang = 'en-US';
@@ -254,24 +262,28 @@ const Vocabulary = {
   },
 
   async markTooEasy() {
-    if (this.currentIndex >= this.sessionWords.length) return;
-    const w = this.sessionWords[this.currentIndex];
+    if (!this.queue || this.queue.length === 0) return;
+    const item = this.queue.shift();
+    const w = item.rec;
+    this.studiedCount++;
     w.mastery = 100;
     w.lastReview = Utils.today();
     if (!w.firstLearned) w.firstLearned = Utils.today();
     w.ebbinghausStage = this.EBBINGHAUS.length - 1; // 不再安排复习
     await Store.put('vocab_words', w);
-    this.currentIndex++;
-    this.showCurrentWord();
+    if (item.isNew) this.newDone++;
+    else this.reviewDone++;
     this.updateStudyStats();
+    this.showCurrentWord();
   },
 
   showCurrentWord() {
-    if (this.currentIndex >= this.sessionWords.length) {
+    if (!this.queue || this.queue.length === 0) {
       this.finishSession();
       return;
     }
-    const w = this.sessionWords[this.currentIndex];
+    const item = this.queue[0];
+    const w = item.rec;
     document.getElementById('current-word').textContent = w.word;
     document.getElementById('word-phonetic').textContent = w.phonetic || '';
     document.getElementById('word-meaning').textContent = w.meaning;
@@ -281,23 +293,23 @@ const Vocabulary = {
 
     const tagEl = document.getElementById('word-study-tag');
     const hintEl = document.getElementById('word-study-hint');
-    if (tagEl) {
-      if (w.firstLearned) tagEl.textContent = '复习单词';
-      else tagEl.textContent = '新词';
-    }
+    if (tagEl) tagEl.textContent = item.isNew ? '新词' : '复习单词';
     if (hintEl) hintEl.style.display = 'block';
     this.showingMeaning = false;
 
-    // 进度
-    const total = this.sessionWords.length;
+    // 进度：按 10 个一组显示当前组；待学剩余随队列缩短而减少
+    const group = Math.floor(item.initialIndex / this.GROUP_SIZE) + 1;
+    const totalGroups = Math.ceil(this.initialCount / this.GROUP_SIZE);
+    const shown = item.failCount > 0 ? ` · 已错${item.failCount}次` : '';
     document.getElementById('word-progress-text').textContent =
-      `${this.currentIndex + 1} / ${total}`;
-    document.getElementById('word-progress-fill').style.width =
-      `${((this.currentIndex + 1) / total) * 100}%`;
+      `第${group}/${totalGroups}组 · 待学 ${this.queue.length}${shown}`;
+    const denom = this.studiedCount + this.queue.length;
+    const pct = denom > 0 ? (this.studiedCount / denom) * 100 : 0;
+    document.getElementById('word-progress-fill').style.width = `${pct}%`;
   },
 
   showMeaning() {
-    if (this.showingMeaning || this.currentIndex >= this.sessionWords.length) return;
+    if (this.showingMeaning || !this.queue || this.queue.length === 0) return;
     this.showingMeaning = true;
     document.getElementById('word-meaning').style.display = 'block';
     document.getElementById('word-example').style.display = 'block';
@@ -305,27 +317,36 @@ const Vocabulary = {
     if (hintEl) hintEl.style.display = 'none';
   },
 
+  // 点击「我认识」：failCount 为 0 才算真正掌握(不再回插)；
+  // 失败过则认识一次抵消一次，回插队尾直到 failCount 归零才毕业
   async markKnown() {
-    if (this.currentIndex >= this.sessionWords.length) return;
-    const w = this.sessionWords[this.currentIndex];
-    const isNew = !w.firstLearned;
-    w.mastery = Math.min(100, (w.mastery || 0) + 20);
-    w.lastReview = Utils.today();
-    if (!w.firstLearned) w.firstLearned = Utils.today();
-    // 复习阶段推进（新词第一次学不推进阶段，仅记录首次学习）
-    if (!isNew) {
-      w.ebbinghausStage = Math.min((w.ebbinghausStage || 0) + 1, this.EBBINGHAUS.length - 1);
+    if (!this.queue || this.queue.length === 0) return;
+    const item = this.queue.shift();
+    const w = item.rec;
+    this.studiedCount++;
+
+    if (item.failCount === 0) {
+      await this._recordKnown(w, item.isNew, false);
+      if (item.isNew) this.newDone++;
+      else this.reviewDone++;
+    } else {
+      item.failCount--;
+      this.queue.push(item); // 回插队尾：后续还会出现
+      await this._recordKnown(w, item.isNew, true);
     }
-    await Store.put('vocab_words', w);
-    this.knownIndices.push(this.currentIndex);
-    this.currentIndex++;
     this.updateStudyStats();
     this.showCurrentWord();
   },
 
+  // 点击「不认识」：failCount+1，回插队尾(后续还会出现)；出现次数随失败次数增多
   async markUnknown() {
-    if (this.currentIndex >= this.sessionWords.length) return;
-    const w = this.sessionWords[this.currentIndex];
+    if (!this.queue || this.queue.length === 0) return;
+    const item = this.queue.shift();
+    const w = item.rec;
+    this.studiedCount++;
+    item.failCount++;
+    this.queue.push(item); // 回插队尾：本轮后续还会出现
+
     w.wrongCount = (w.wrongCount || 0) + 1;
     w.mastery = Math.max(0, (w.mastery || 0) - 10);
     w.isWrong = true;
@@ -333,7 +354,6 @@ const Vocabulary = {
     if (!w.firstLearned) w.firstLearned = Utils.today();
     w.ebbinghausStage = 0; // 重置复习阶段
     await Store.put('vocab_words', w);
-    this.unknownIndices.push(this.currentIndex);
 
     // 加金币：每个新单词+2金币
     const user = Store.getCurrentUser();
@@ -343,20 +363,30 @@ const Vocabulary = {
     this.showCurrentWord();
   },
 
+  // 真正掌握：推进复习阶段、记首次学习
+  async _recordKnown(w, isNew, partial) {
+    w.mastery = Math.min(100, (w.mastery || 0) + 20);
+    w.lastReview = Utils.today();
+    if (!w.firstLearned) w.firstLearned = Utils.today();
+    if (!isNew && !partial) {
+      w.ebbinghausStage = Math.min((w.ebbinghausStage || 0) + 1, this.EBBINGHAUS.length - 1);
+    }
+    await Store.put('vocab_words', w);
+  },
+
   finishSession() {
     this.stopSessionTimer();
-    const total = this.sessionWords.length;
-    const known = this.knownIndices.length;
-    const unknown = this.unknownIndices.length;
-    document.getElementById('current-word').textContent = `本轮完成！认识 ${known} 个 · 不认识 ${unknown} 个`;
+    document.getElementById('current-word').textContent = `本轮完成！共学习 ${this.studiedCount} 次`;
     document.getElementById('word-phonetic').textContent = '';
     document.getElementById('word-meaning').style.display = 'none';
     document.getElementById('word-example').style.display = 'none';
+    document.getElementById('word-progress-text').textContent = '今日已背完';
+    document.getElementById('word-progress-fill').style.width = '100%';
     const tagEl = document.getElementById('word-study-tag');
     if (tagEl) tagEl.textContent = '完成';
 
     if (typeof app !== 'undefined' && app.updateHomeStats) app.updateHomeStats();
-    Utils.toast(`本次学习完成！认识${known}个，需复习${unknown}个`);
+    Utils.toast(`本次学习完成！认识 ${this.reviewDone + this.newDone} 个，需复习 ${this.studiedCount - this.reviewDone - this.newDone} 个`);
   },
 
   // ---------- 词汇表 / 错词本 ----------

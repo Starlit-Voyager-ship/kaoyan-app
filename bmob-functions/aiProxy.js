@@ -46,11 +46,8 @@ function onRequest(request, response, modules) {
 
   var jsonBody = (typeof payload === 'string') ? payload : JSON.stringify(payload);
 
-  // oHttp 是 request 库：oHttp.post(url, { headers, body }, callback)
-  modules.oHttp.post(target, {
-    headers: forwardHeaders,
-    body: jsonBody
-  }, function (err, res, resBody) {
+  // Bmob oHttp 规范位置参数签名：(url, method, headers, body, callback)
+  modules.oHttp(target, 'POST', forwardHeaders, jsonBody, function (err, res, resBody) {
     if (err) {
       finish(502, JSON.stringify({ error: 'aiProxy upstream error: ' + String(err) }), 'application/json');
       return;

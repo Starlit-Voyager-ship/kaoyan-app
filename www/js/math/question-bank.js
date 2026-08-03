@@ -119,6 +119,7 @@ const MathBank = {
     if (question.imageData) {
       const img = document.createElement('img');
       img.src = question.imageData;
+      img.onclick = () => window.open(question.imageData);
       images.appendChild(img);
     }
 

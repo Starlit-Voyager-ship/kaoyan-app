@@ -353,15 +353,17 @@
   min-height: 0;
 }
 
-/* AI 页面外层 section 精确适配视口，杜绝页面级滚动条 */
-#page-ai-assistant.content-section {
+/* AI 页面：仅 active 时锁死视口高度 + 内部 flex，杜绝页面级滚动条。
+   关键：display:flex 必须限定在 .active 上，否则 #id 优先级会盖过
+   .content-section{display:none}，导致 AI 页在所有页面都显示、布局全乱 */
+#page-ai-assistant.content-section.active {
+  display: flex;
+  flex-direction: column;
   padding: 0;
   min-height: 0;
   max-width: none;
   height: calc(100vh - var(--header-height) - var(--tabbar-height));
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 .ai-topbar {
   display: flex;

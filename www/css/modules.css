@@ -369,32 +369,6 @@
   max-width: none;
   overflow: hidden;
 }
-.ai-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px 10px;
-  margin-bottom: 4px;
-  flex-shrink: 0;
-}
-.ai-menu-btn, .ai-topbar-action {
-  width: 36px; height: 36px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.ai-topbar-title {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.ai-topbar-title span { font-size: 0.98rem; font-weight: 600; color: var(--text); }
-.ai-topbar-title small { font-size: 0.72rem; color: var(--text-light); margin-top: 3px; }
 
 .ai-config-banner {
   display: flex;

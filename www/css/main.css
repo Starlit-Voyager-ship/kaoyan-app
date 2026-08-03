@@ -110,8 +110,6 @@ html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
-  height: 100%;
-  overflow: hidden;
 }
 
 body {
@@ -120,8 +118,6 @@ body {
   color: var(--text);
   line-height: 1.6;
   overflow-x: hidden;
-  overflow-y: auto;
-  height: 100%;
 }
 
 /* 页面切换 */

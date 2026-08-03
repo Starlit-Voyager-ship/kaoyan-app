@@ -827,6 +827,52 @@
 .word-progress { text-align: center; padding-bottom: 8px; }
 #word-progress-text { font-size: 0.88rem; color: var(--text-secondary); }
 
+/* 背单词：速度设置 + 打卡 + 手动下一词 */
+.learn-settings {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.learn-speed { display: flex; align-items: center; gap: 6px; }
+.learn-settings-label { font-size: 0.8rem; color: var(--text-secondary); margin-right: 2px; }
+.speed-btn {
+  border: 1px solid var(--border-light);
+  background: var(--bg-card, #fff);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm, 8px);
+  padding: 5px 11px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.speed-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.checkin-btn {
+  border: 1px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  border-radius: var(--radius-sm, 8px);
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.checkin-btn.checked {
+  background: var(--success, #2e9e5b);
+  border-color: var(--success, #2e9e5b);
+  color: #fff;
+  cursor: default;
+}
+.study-btn-next { margin-top: 10px; background: var(--primary); color: #fff; border: none; }
+.study-btn-next:active { transform: scale(0.98); }
+
 /* 测试模式 */
 .test-mode-select {
   display: flex;

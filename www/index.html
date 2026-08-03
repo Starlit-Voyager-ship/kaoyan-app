@@ -48,7 +48,7 @@
   </script>
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/modules.css?v=20260803e">
+  <link rel="stylesheet" href="css/modules.css?v=20260803f">
   <!-- KaTeX：渲染 AI 模型返回的 LaTeX 数学公式 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
@@ -478,6 +478,15 @@
 
           <!-- 背单词面板（扇贝式） -->
           <div id="vocab-learn" class="vocab-panel">
+            <div class="learn-settings">
+              <div class="learn-speed">
+                <span class="learn-settings-label">翻页速度</span>
+                <button class="speed-btn" data-speed="2000">2秒</button>
+                <button class="speed-btn" data-speed="3000">3秒</button>
+                <button class="speed-btn" data-speed="manual">手动</button>
+              </div>
+              <button class="checkin-btn" id="word-checkin">今日打卡</button>
+            </div>
             <div class="study-stats">
               <div class="study-stat">
                 <span class="study-stat-label">今日复习</span>
@@ -516,6 +525,7 @@
               <button id="word-forget" class="study-btn study-btn-forget">不认识</button>
               <button id="word-know" class="study-btn study-btn-know">我认识</button>
             </div>
+            <button class="study-btn study-btn-next" id="word-next" style="display:none;width:100%">下一词 ▶</button>
             <div class="word-progress">
               <span id="word-progress-text">0 / 0</span>
               <div class="progress-bar"><div class="progress-fill" id="word-progress-fill" style="width:0%"></div></div>
@@ -857,7 +867,7 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <script src="js/config.js?v=20260803a"></script>
   <script src="js/ai-assistant.js?v=20260803d"></script>
-  <script src="js/english/vocabulary.js?v=20260803i"></script>
+  <script src="js/english/vocabulary.js?v=20260803j"></script>
   <script src="js/english/dict.js?v=20260803g"></script>
   <script src="js/english/articles.js?v=20260803e"></script>
   <script src="js/english/sentences.js?v=20260803d"></script>

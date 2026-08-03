@@ -137,7 +137,7 @@ const MathBank = {
       aiDiv.style.cssText = 'margin-top:16px;padding:14px;background:var(--primary-bg);border-radius:8px;font-size:0.92rem;line-height:1.7';
       aiDiv.innerHTML = '<strong style="color:var(--primary)">AI解答：</strong><br>' +
         AIAssistant.formatContent(question.aiResponse);
-      document.getElementById('detail-info').appendChild(aiDiv);
+      document.querySelector('.detail-info').appendChild(aiDiv);
       if (typeof AIAssistant.renderMath === 'function') AIAssistant.renderMath(aiDiv);
     }
   }

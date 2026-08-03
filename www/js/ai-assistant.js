@@ -464,7 +464,7 @@ const AIAssistant = {
     const content = [
       { type: 'image_url', image_url: { url: imageData } },
       { type: 'text', text: '请仔细识别图片中的内容。先判断类型，再逐字提取原文，最后以 JSON 返回（只返回 JSON，不要任何额外文字或解释）：\n' +
-        `{"type":"math|english|other","topic":"若为数学题请填知识点(${this.topicListForVL()})","errorHint":"若图片中可见明显错误原因请简述，否则为空字符串","text":"逐字提取图片中的题目或文章原文，数学公式与符号保持原样，不要改写"}` }
+        `{"type":"math|english|other","topic":"若为数学题请填知识点(${this.topicListForVL()})","errorHint":"若图片中可见明显错误原因请简述，否则为空字符串","text":"逐字提取图片中的题目或文章原文。数学公式和符号必须用可读的纯文字表达（例如：λx₁+x₂+x₃=λ-3、矩阵A=[1 λ; -2 1]、行列式|A|），绝对不要输出LaTeX代码（不要\\left、\\begin{array}、\\lambda等LaTeX标记），不要用任何特殊格式，就是普通文字"}` }
     ];
     const raw = await this.requestQwen(settings, content, '千问VL识别');
     return this.parseJSON(raw);
@@ -474,7 +474,7 @@ const AIAssistant = {
   async callQwenVLOcr(settings, imageData) {
     const content = [
       { type: 'image_url', image_url: { url: imageData } },
-      { type: 'text', text: '请识别图片中的题目或内容，提取完整文字，不要解答。' }
+      { type: 'text', text: '请识别图片中的题目或内容，提取完整文字。数学公式用可读纯文字表达（如 λx₁+x₂=3、矩阵A=[1 2; 3 4]），不要输出LaTeX代码（\\left、\\begin等），不要解答。' }
     ];
     return await this.requestQwen(settings, content, '千问VL识图');
   },

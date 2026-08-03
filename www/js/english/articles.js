@@ -70,6 +70,7 @@ const Articles = {
     // 重置点词翻译状态
     this._dictMode = false;
     this._wordDict = {};
+    this._shownWords = {};
     const dictBtn = document.getElementById('reader-dict');
     if (dictBtn) dictBtn.classList.remove('on');
 
@@ -191,12 +192,12 @@ const Articles = {
   },
 
   async translateAll() {
-    const contentEl = document.getElementById('reader-content');
-    if (!contentEl) return;
-    // 已翻译则切换显隐
+    const btn = document.getElementById('reader-translate-all');
+    // 已翻译过：在「展开 / 收起」之间切换，可随时收回
     if (this._translated) {
       this._translationVisible = !this._translationVisible;
       this.renderReaderContent();
+      if (btn) btn.textContent = this._translationVisible ? '收起翻译' : '全文翻译';
       return;
     }
     if (!this.currentArticle) return;
@@ -216,6 +217,7 @@ const Articles = {
       this._translated = true;
       this._translationVisible = true;
       this.renderReaderContent();
+      if (btn) btn.textContent = '收起翻译';
       Utils.toast('翻译完成');
     } catch (e) {
       console.error('[翻译失败]', e);
@@ -223,73 +225,35 @@ const Articles = {
     }
   },
 
-  /* ---------- 点词翻译：开启后单词可点击，点击显示释义并加入单词本 ---------- */
+  /* ---------- 点词翻译：本地内置词典即时模式（无需 API，零等待） ---------- */
   async toggleDict() {
     if (!this.currentArticle) return;
     this._dictMode = !this._dictMode;
     const btn = document.getElementById('reader-dict');
     if (btn) btn.classList.toggle('on', this._dictMode);
-
     if (this._dictMode) {
-      const settings = Store.getSettings(Store.getCurrentUser()) || {};
-      if (!settings.qwenKey) {
-        Utils.toast('请先在设置中配置千问 Key');
-        this._dictMode = false;
-        if (btn) btn.classList.remove('on');
-        return;
-      }
-      Utils.toast('正在生成点词词典…');
-      try {
-        this._wordDict = await this.buildWordDict(settings);
-        Utils.toast('点词词典已就绪（' + Object.keys(this._wordDict).length + ' 词）');
-      } catch (e) {
-        console.error('[点词词典生成失败]', e);
-        Utils.toast('词典生成失败，可点击单词单独查询');
-        this._wordDict = {};
-      }
+      const dictSize = window.EN_DICT ? Object.keys(window.EN_DICT).length : 0;
+      Utils.toast('点词翻译已开启（内置词典 ' + dictSize + ' 词，点词即显；未收录词自动查 AI）');
     }
     this.renderReaderContent();
   },
 
-  // 提取文章全部唯一单词，调用千问一次性返回 { word: "词性 释义" } 词典
-  async buildWordDict(settings) {
-    const text = (this.currentArticle.content || '').toLowerCase();
-    const set = new Set();
-    const re = /[a-z][a-z']*/g;
-    let m;
-    while ((m = re.exec(text)) !== null) {
-      if (m[0].length > 1) set.add(m[0]);
-    }
-    const list = Array.from(set);
-    if (!list.length) return {};
-    const prompt = '你是考研英语词典。请返回一个 JSON 对象：键为下列英文单词（保持原拼写），值为该词的中文释义（必须含词性，格式如 "v. 放弃；抛弃" 或 "n. 能力"）。不要任何解释、不要额外文字，只返回 JSON。\n单词列表：\n' + list.join(', ');
-    const raw = await AIAssistant.callQwenChat(settings,
-      [{ role: 'system', content: '你是一个严谨的英汉词典 API，只返回 JSON 对象，不要任何额外文字。' },
-       { role: 'user', content: prompt }],
-      '千问点词词典', { maxTokens: 6000 });
-    try {
-      const m2 = raw.match(/\{[\s\S]*\}/);
-      return m2 ? JSON.parse(m2[0]) : {};
-    } catch (e) {
-      console.warn('[词典解析失败]', e);
-      return {};
-    }
-  },
-
-  // 点击单词：显示词性+释义，并加入单词背诵表
+  // 点击单词：本地词典命中即瞬时显示，未命中再回退 AI 查询；并加入单词背诵表
   async onWordClick(sp) {
     const raw = sp.dataset.w;
     const word = raw.toLowerCase().replace(/[^a-z']/g, '');
     if (!word) return;
     if (sp.dataset.shown === '1') return; // 已显示则不再重复
 
-    let meaning = this._wordDict ? this._wordDict[word] : null;
+    // 1) 本地词典优先：瞬时取义
+    let meaning = (window.EN_DICT && window.EN_DICT[word]) || null;
+
+    // 2) 未命中 → 回退 AI 单独查询该词
     if (!meaning) {
-      // 词典未覆盖，单独查询该词
       const settings = Store.getSettings(Store.getCurrentUser()) || {};
       if (settings.qwenKey) {
         try {
-          Utils.toast('查询：' + raw);
+          Utils.toast('本地未收录，查询：' + raw);
           const r = await AIAssistant.callQwenChat(settings,
             [{ role: 'system', content: '你是英汉词典。只返回该英文单词的中文释义，含词性，格式如 "v. 放弃；抛弃"。不要解释。' },
              { role: 'user', content: raw }],
@@ -298,15 +262,19 @@ const Articles = {
         } catch (e) { console.warn(e); }
       }
     }
-    if (!meaning) { Utils.toast('翻译失败：' + raw); return; }
+    if (!meaning) { Utils.toast('未找到释义：' + raw); return; }
 
-    // 在单词后插入释义
+    // 在单词后插入释义：word（释义）
     const anno = document.createElement('span');
     anno.className = 'word-anno';
-    anno.textContent = ' ' + meaning;
+    anno.textContent = '（' + meaning + '）';
     sp.insertAdjacentElement('afterend', anno);
     sp.dataset.shown = '1';
     sp.classList.add('tword-done');
+
+    // 记录已显示，便于重新渲染（如切换全文翻译）时保留
+    if (!this._shownWords) this._shownWords = {};
+    this._shownWords[word] = meaning;
 
     // 加入单词背诵模块
     if (window.Vocabulary) await Vocabulary.addWord(word, meaning);
@@ -327,6 +295,7 @@ const Articles = {
   },
 
   // 统一渲染阅读内容：兼容「点词翻译」与「全文翻译」两种视图
+  // 每段用 .reader-para 容器包裹（英文段 + 可选中文段），保证段落严格对应、排版整齐
   renderReaderContent() {
     const contentEl = document.getElementById('reader-content');
     if (!contentEl || !this.currentArticle) return;
@@ -339,23 +308,33 @@ const Articles = {
 
     let html = '';
     paragraphs.forEach((p, i) => {
+      let inner;
       if (this._dictMode) {
         const toks = this._tokenize(p);
-        const inner = toks.map(t => t.isWord
-          ? `<span class="tword" data-w="${this._esc(t.word)}">${this._esc(t.word)}</span>`
-          : this._esc(t.text)).join('');
-        html += `<p class="dict-p" style="margin-bottom:4px">${inner}</p>`;
+        inner = toks.map(t => {
+          if (!t.isWord) return this._esc(t.text);
+          const w = t.word.toLowerCase().replace(/[^a-z']/g, '');
+          const shown = this._shownWords && this._shownWords[w];
+          if (shown) {
+            return `<span class="tword tword-done" data-w="${this._esc(t.word)}">${this._esc(t.word)}</span><span class="word-anno">（${this._esc(shown)}）</span>`;
+          }
+          return `<span class="tword" data-w="${this._esc(t.word)}">${this._esc(t.word)}</span>`;
+        }).join('');
       } else {
-        html += `<p style="margin-bottom:4px">${this._esc(p)}</p>`;
+        inner = this._esc(p);
       }
+      html += '<div class="reader-para">';
+      html += `<p class="reader-en" style="margin-bottom:${this._translationVisible ? '2px' : '12px'}">${inner}</p>`;
       const t = transParas[i];
       if (t) {
-        html += `<p class="reader-translation" style="margin-bottom:12px;color:var(--text-light);line-height:1.6">${this._esc(t)}</p>`;
+        html += `<p class="reader-translation">${this._esc(t)}</p>`;
       }
+      html += '</div>';
     });
+    // 翻译段多于原文段时（AI 多拆出段落），补在末尾
     if (transParas.length > paragraphs.length) {
       transParas.slice(paragraphs.length).forEach(t => {
-        html += `<p class="reader-translation" style="margin-bottom:12px;color:var(--text-light)">${this._esc(t)}</p>`;
+        html += `<div class="reader-para"><p class="reader-translation">${this._esc(t)}</p></div>`;
       });
     }
     contentEl.innerHTML = html;

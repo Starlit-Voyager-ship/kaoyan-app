@@ -1368,23 +1368,40 @@
   color: #fff;
   border-color: var(--primary);
 }
+/* 点词翻译：单词标红可点（对标参考实现） */
 .tword {
   cursor: pointer;
-  border-bottom: 1px dotted var(--primary);
+  color: var(--danger, #e5484d);
+  border-bottom: 1px dotted var(--danger, #e5484d);
+  font-weight: 500;
   transition: background 0.15s;
 }
 .tword:hover {
-  background: var(--primary-bg);
+  background: rgba(229, 72, 77, 0.12);
 }
 .tword-done {
+  color: inherit;
   border-bottom: none;
-  color: var(--primary);
+  font-weight: inherit;
 }
 .word-anno {
   color: var(--text-light);
   font-size: 0.82em;
   margin-left: 2px;
 }
-.dict-p {
-  line-height: 2;
+
+/* 阅读段落容器：英文段 + 中文段严格对应排版 */
+.reader-para { margin-bottom: 16px; }
+.reader-para:last-child { margin-bottom: 0; }
+.reader-en {
+  margin: 0;
+  line-height: 1.9;
+}
+.reader-translation {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.7;
+  margin: 2px 0 0 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--primary);
 }

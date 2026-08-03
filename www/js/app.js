@@ -194,8 +194,8 @@ const app = {
     document.getElementById('home-math-today').textContent = todayMath;
     document.getElementById('home-coins').textContent = coins;
 
-    // 继续学习引导卡：今日专注进度（目标 120 分钟）
-    const goalMin = 120;
+    // 继续学习引导卡：今日专注进度（目标可调，默认 120 分钟）
+    const goalMin = parseInt(localStorage.getItem('focus_goal_min') || '120', 10) || 120;
     const pct = Math.min(Math.round((todayMin / goalMin) * 100), 100);
     const progEl = document.getElementById('home-focus-progress');
     if (progEl) progEl.style.width = pct + '%';
@@ -203,6 +203,21 @@ const app = {
     if (metaEl) metaEl.textContent = todayMin + ' / ' + goalMin + ' min';
     const cmpEl = document.getElementById('home-focus-compare');
     if (cmpEl) cmpEl.textContent = todayMin > 0 ? ('已专注 ' + todayMin + ' 分钟，继续加油') : '开启今天的专注吧';
+    // 同步更新标题中的数字
+    const goalEditEl = document.getElementById('home-focus-goal-edit');
+    if (goalEditEl) goalEditEl.textContent = goalMin;
+  },
+
+  // 点击铅笔图标修改专注目标
+  editFocusGoal() {
+    const current = parseInt(localStorage.getItem('focus_goal_min') || '120', 10) || 120;
+    const val = prompt('设置今日专注目标（分钟）', current);
+    if (val === null) return; // 取消
+    const n = parseInt(val, 10);
+    if (!n || n < 1 || n > 999) { Utils.toast('请输入 1-999 之间的数字'); return; }
+    localStorage.setItem('focus_goal_min', String(n));
+    this.updateHomeStats(); // 立即刷新显示
+    Utils.toast('专注目标已设为 ' + n + ' 分钟');
   },
 
   async renderMine() {

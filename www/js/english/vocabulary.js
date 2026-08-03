@@ -250,11 +250,20 @@ const Vocabulary = {
       all.filter(w => (w.source || 'reading') === 'dict').map(w => w.word)
     );
     const dictAll = (typeof window !== 'undefined' && window.EN_DICT) ? window.EN_DICT : {};
-    const newOnes = [];
+    // 收集所有候选词（未背过、不在排除集合），然后乱序
+    const candidates = [];
     for (const word in dictAll) {
-      if (newOnes.length >= limit) break;
-      if (dictSet.has(word)) continue; // 已背过
-      if (exclude && exclude.has(word)) continue; // 今天已毕业
+      if (dictSet.has(word)) continue;
+      if (exclude && exclude.has(word)) continue;
+      candidates.push(word);
+    }
+    // Fisher-Yates 洗牌
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+    const newOnes = [];
+    for (const word of candidates.slice(0, limit)) {
       newOnes.push({
         id: `word_${user}_${word}`,
         username: user,

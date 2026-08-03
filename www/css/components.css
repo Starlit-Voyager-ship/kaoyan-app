@@ -167,6 +167,18 @@
   font-weight: 500;
   margin-bottom: var(--s-2);
 }
+.focus-goal-editable {
+  cursor: pointer;
+  padding: 0 3px;
+  border-radius: 4px;
+  transition: background .15s, color .15s;
+}
+.focus-goal-editable:hover {
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+.focus-goal-pencil { display: none; }
+.home-continue-title:hover .focus-goal-pencil { display: inline-block; }
 .home-progress-track {
   height: 6px;
   background: var(--border);

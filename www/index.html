@@ -47,7 +47,7 @@
     }
   </script>
   <link rel="stylesheet" href="css/main.css">
-  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/components.css?v=20260803a">
   <link rel="stylesheet" href="css/modules.css?v=20260803f">
   <!-- KaTeX：渲染 AI 模型返回的 LaTeX 数学公式 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
@@ -182,7 +182,10 @@
             <svg class="ico" viewBox="0 0 24 24" style="width:24px;height:24px"><circle cx="12" cy="13" r="8"/><path d="M12 13V9"/><path d="M9 2.5h6"/><path d="M18.5 6 20 4.5"/></svg>
           </div>
           <div class="home-continue-body">
-            <div class="home-continue-title">今日专注目标 · 120 分钟</div>
+            <div class="home-continue-title">
+              今日专注目标 · <span id="home-focus-goal-edit" class="focus-goal-editable" title="点击修改目标">120</span> 分钟
+              <svg class="ico focus-goal-pencil" viewBox="0 0 24 24" style="width:14px;height:14px;opacity:.5;vertical-align:-1px;margin-left:2px;cursor:pointer" onclick="app.editFocusGoal()"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            </div>
             <div class="home-progress-track"><div class="home-progress-fill" id="home-focus-progress" style="width:0%"></div></div>
             <div class="home-continue-meta" id="home-focus-meta">0 / 120 min</div>
           </div>
@@ -867,7 +870,7 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <script src="js/config.js?v=20260803a"></script>
   <script src="js/ai-assistant.js?v=20260803d"></script>
-  <script src="js/english/vocabulary.js?v=20260803j"></script>
+  <script src="js/english/vocabulary.js?v=20260803k"></script>
   <script src="js/english/dict.js?v=20260803j"></script>
   <script src="js/english/articles.js?v=20260803e"></script>
   <script src="js/english/sentences.js?v=20260803d"></script>
@@ -876,7 +879,7 @@
   <script src="js/math/weak-points.js?v=20260803d"></script>
   <script src="js/reports.js?v=20260803d"></script>
   <script src="js/friend-wake.js?v=20260803d"></script>
-  <script src="js/app.js?v=20260803d"></script>
+  <script src="js/app.js?v=20260803e"></script>
   <script>
     // 桌面 Web 调试阶段：不注册 Service Worker 缓存（避免加载到过期 JS，导致云端修复一直不生效）。
     // 同时每次启动都主动注销可能存在的旧 SW 并清空旧缓存，打破"改了代码仍加载旧版"的死循环。

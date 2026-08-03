@@ -57,16 +57,53 @@ function onRequest(request, response, modules) {
 
   var jsonBody = (typeof payload === 'string') ? payload : JSON.stringify(payload);
 
-  // 选择可用的 HTTP 模块：oLibHttp（request 风格）优先，oHttp（位置参数风格）兜底
-  var httpModule = null, useOptionsStyle = false;
-  if (modules && typeof modules.oLibHttp === 'function') {
-    httpModule = modules.oLibHttp; useOptionsStyle = true;
-  } else if (modules && typeof modules.oHttp === 'function') {
-    httpModule = modules.oHttp; useOptionsStyle = false;
+  // 探测 HTTP 模块的实际结构（Bmob 模块可能是对象而非函数）
+  var _diag = {};
+  ['oLibHttp', 'oHttp'].forEach(function(k) {
+    if (!modules || !modules[k]) { _diag[k] = 'missing'; return; }
+    var m = modules[k];
+    _diag[k] = { type: typeof m, keys: Object.keys(m).filter(function(x){return typeof m[x]==='function';}) };
+  });
+
+  // 尝试多种调用方式
+  function tryCall(name, fn) {
+    try { fn(); return true; } catch(e) { _diag[name+'_err'] = String(e.message||e); return false; }
   }
 
-  if (!httpModule) {
-    finish(500, JSON.stringify({ error: 'no http module available', modulesKeys: modules ? Object.keys(modules) : 'none' }), 'application/json');
+  // 方式 A: oLibHttp 作为函数直接调用 (options, cb)
+  // 方式 B: oLibHttp.request(options, cb)
+  // 方式 C: oHttp 作为函数直接调用 (url, method, headers, body, cb)
+  // 方式 D: oHttp.get/post(url, options, cb)
+  var called = false;
+
+  function doCall(httpFnOrObj, style) {
+    if (called) return;
+    if (style === 'libAsFunc' && typeof httpFnOrObj === 'function') {
+      called = true;
+      httpFnOrObj({ url: target, method: 'POST', headers: forwardHeaders, body: jsonBody }, cb);
+    } else if (style === 'libRequest' && httpFnOrObj && typeof httpFnOrObj.request === 'function') {
+      called = true;
+      httpFnOrObj.request({ url: target, method: 'POST', headers: forwardHeaders, body: jsonBody }, cb);
+    } else if (style === 'httpAsFunc' && typeof httpFnOrObj === 'function') {
+      called = true;
+      httpFnOrObj(target, 'POST', forwardHeaders, jsonBody, cb);
+    } else if (style === 'httpPost' && httpFnOrObj && typeof httpFnOrObj.post === 'function') {
+      called = true;
+      httpFnOrObj.post(target, { headers: forwardHeaders, body: jsonBody }, cb);
+    }
+  }
+
+  if (modules && modules.oLibHttp) {
+    doCall(modules.oLibHttp, 'libAsFunc');
+    if (!called) doCall(modules.oLibHttp, 'libRequest');
+  }
+  if (!called && modules && modules.oHttp) {
+    doCall(modules.oHttp, 'httpAsFunc');
+    if (!called) doCall(modules.oHttp, 'httpPost');
+  }
+
+  if (!called) {
+    finish(500, JSON.stringify({ error: 'no usable http method found', diag: _diag }), 'application/json');
     return;
   }
 
@@ -80,16 +117,4 @@ function onRequest(request, response, modules) {
     finish(statusCode, resBody != null ? resBody : '', ct);
   }
 
-  if (useOptionsStyle) {
-    // oLibHttp：request 库风格，options 对象 + 回调 (err, res, body)
-    httpModule({
-      url: target,
-      method: 'POST',
-      headers: forwardHeaders,
-      body: jsonBody
-    }, cb);
-  } else {
-    // oHttp：位置参数风格 (url, method, headers, body, callback)
-    httpModule(target, 'POST', forwardHeaders, jsonBody, cb);
-  }
 }

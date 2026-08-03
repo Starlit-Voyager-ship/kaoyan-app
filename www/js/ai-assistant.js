@@ -500,15 +500,27 @@ const AIAssistant = {
 
   formatContent(text) {
     if (!text) return '';
-    // 1) 先转义 HTML，防止模型输出恶意标签
-    const safe = this.escapeHtml(text);
-    // 2) 按空行分段落，让中文排版像豆包一样自然（不是每行都硬换行）
-    return safe.split(/\n\s*\n/).map(p => {
+    // 0) 保护 LaTeX 块，避免被段落拆分/换行处理破坏结构
+    const mathPlaceholders = [];
+    const protected = text.replace(/(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\]|\\\([\s\S]*?\\\))/g, (match) => {
+      const idx = mathPlaceholders.length;
+      mathPlaceholders.push(match);
+      return '\x00MATH' + idx + '\x00';
+    });
+    // 1) 转义 HTML，防 XSS
+    const safe = this.escapeHtml(protected);
+    // 2) 按空行分段落
+    let result = safe.split(/\n\s*\n/).map(p => {
       if (!p.trim()) return '';
-      // 若该段包含列表行（1. / - / *），保留换行；否则把单行换行合并成自然段落
+      if (p.includes('\x00')) return '<p>' + p.replace(/\n/g, '<br>') + '</p>'; // 含 LaTeX 的段落保留换行
       const hasList = /^\s*(\d+[\.\、)]|[-*+])\s+/m.test(p);
       return '<p>' + (hasList ? p.replace(/\n/g, '<br>') : p.replace(/\n/g, ' ')) + '</p>';
     }).join('');
+    // 3) 还原 LaTeX 块
+    mathPlaceholders.forEach((m, i) => {
+      result = result.split('\x00MATH' + i + '\x00').join(m);
+    });
+    return result;
   },
 
   renderMath(el) {

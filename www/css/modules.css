@@ -1481,3 +1481,148 @@
   padding-left: 10px;
   border-left: 3px solid var(--primary);
 }
+
+/* ===== 上传归档弹窗（轻量，替代原大抽屉） ===== */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+
+.modal-mask {
+  position: fixed;
+  left: 0; right: 0; top: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+.upload-modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  padding: 18px 18px 16px;
+}
+.upload-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.upload-modal-head span {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.modal-close {
+  width: 30px; height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-close:hover { background: var(--border); color: var(--text); }
+
+.upload-modal-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.upload-prev-img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.upload-modal-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.upload-modal-fields label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  gap: 5px;
+}
+.upload-modal-fields input,
+.upload-modal-fields select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  background: var(--bg);
+  color: var(--text);
+  box-sizing: border-box;
+}
+.upload-modal-fields select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888da8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+}
+.upload-modal-fields input:focus,
+.upload-modal-fields select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.upload-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.upload-modal-actions .btn-primary,
+.upload-modal-actions .btn-ghost {
+  flex: 1;
+  text-align: center;
+}
+
+.upload-modal-result { margin-top: 14px; }
+.result-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+.result-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--primary);
+  font-size: 0.95rem;
+}
+.result-body {
+  color: var(--text);
+  white-space: pre-wrap;
+  line-height: 1.6;
+  font-size: 0.88rem;
+}

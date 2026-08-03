@@ -59,26 +59,34 @@ const AIAssistant = {
       if (e.target.files[0]) this.handleFile(e.target.files[0]);
       e.target.value = '';
     });
-    // Web 回退：上传归档文件输入
+    // Web 回退：上传归档文件输入（仅选图，归档由弹窗触发）
     document.getElementById('upload-file-input').addEventListener('change', (e) => {
       const files = Array.from(e.target.files || []);
-      if (files.length) {
-        Promise.all(files.map(f => this.handleFile(f))).then(() => this.doUpload());
-      }
+      files.forEach(f => this.handleFile(f));
       e.target.value = '';
+    });
+
+    // 上传归档弹窗按钮
+    document.getElementById('upload-modal-go').addEventListener('click', () => {
+      if (this._uploadState === 'done') this.closeUploadModal();
+      else this.doUpload();
+    });
+    document.getElementById('upload-modal-cancel').addEventListener('click', () => this.closeUploadModal());
+    document.getElementById('upload-modal-close').addEventListener('click', () => this.closeUploadModal());
+    document.getElementById('upload-modal-mask').addEventListener('click', (e) => {
+      if (e.target.id === 'upload-modal-mask') this.closeUploadModal();
     });
   },
 
-  /* 快捷上传：选图后自动归档 */
+  /* 快捷上传：选图后弹出归档弹窗填写来源/知识点 */
   async quickUpload() {
     this.uploadImages = [];
     this._pendingPanel = 'upload';
     await this.capture('upload', 'gallery');
-    if (this.uploadImages && this.uploadImages.length) {
-      this.doUpload();
-    } else {
-      // Web 回退：触发隐藏的 file input
-      document.getElementById('upload-file-input').click();
+    // 原生相机下图片已在 setImage 中入队并开弹窗；
+    // Web 回退时 capture 仅触发 file input，图片稍后由 setImage 处理并开弹窗。
+    if (!this.cameraAvailable() && (!this.uploadImages || !this.uploadImages.length)) {
+      // 用户取消选择，不弹窗
     }
   },
 
@@ -127,6 +135,7 @@ const AIAssistant = {
     if (panel === 'upload') {
       this.uploadImages = this.uploadImages || [];
       this.uploadImages.push(dataUrl);
+      this.openUploadModal();
     } else {
       this.pendingImage = dataUrl;
       document.getElementById('answer-clear-img').style.display = 'inline-flex';
@@ -165,6 +174,10 @@ const AIAssistant = {
     const settings = Store.getSettings(Store.getCurrentUser()) || {};
     if (!settings.qwenKey) { Utils.toast('上传归档需先配置千问VL Key'); return; }
 
+    const goBtn = document.getElementById('upload-modal-go');
+    if (goBtn) { goBtn.disabled = true; goBtn.textContent = '识别中…'; }
+    this._uploadState = 'loading';
+
     const sourceEl = document.getElementById('upload-source');
     const source = sourceEl ? sourceEl.value : '';
     const topicEl = document.getElementById('upload-topic');
@@ -172,7 +185,6 @@ const AIAssistant = {
     const errorEl = document.getElementById('upload-error');
     const errorInput = errorEl ? errorEl.value.trim() : '';
 
-    this.showUploadLoading(true);
     try {
       const v = await this.callQwenVLClassify(settings, this.uploadImages);
       const topic = topicInput || v.topic || '其他';
@@ -221,6 +233,7 @@ const AIAssistant = {
         const resultBody = `知识点：${topic}\n错因：${errorReason || '（未填写）'}\n\n识别文字：\n${ocrText}` +
           (solution ? `\n\nAI解析：\n${solution}` : '\n\n（解析生成失败，题目已保存，可在题库详情中重新获取）');
         this.showUploadResult('已归档到【数学题库】' + (solution ? '（含AI解析）' : ''), resultBody);
+        this._afterUploadSuccess();
       } else if (v.type === 'english') {
         const title = source ? source : ('AI上传文章 ' + new Date().toLocaleDateString());
         // 识别后自动生成阅读解析（含逐题答案），失败仅保存文章
@@ -257,23 +270,83 @@ const AIAssistant = {
         body += `\n\n英文全文：\n${v.text || ''}`;
         if (qCount) body += `\n\n（已识别 ${qCount} 道题目，可在阅读页查看解析并标注错题）`;
         this.showUploadResult('已归档到【英语文章】' + (analysis ? '（含AI解析）' : ''), body);
+        this._afterUploadSuccess();
       } else {
         this.showUploadResult('ℹ️ 未识别为数学题或英语文章',
           `识别内容：\n${v.text || ''}\n\n如需解答，请切换到「智能解答」Tab。`);
+        this._afterUploadSuccess();
       }
     } catch (e) {
       this.showUploadResult('识别失败', e.message);
-    } finally {
-      this.showUploadLoading(false);
+      this._uploadState = 'input';
+      if (goBtn) { goBtn.textContent = '识别并归档'; goBtn.disabled = false; }
     }
   },
 
-  showUploadLoading(on) {
-    Utils.toast(on ? '正在识别归档…' : '');
+  _afterUploadSuccess() {
+    this._uploadState = 'done';
+    const goBtn = document.getElementById('upload-modal-go');
+    if (goBtn) { goBtn.textContent = '完成'; goBtn.disabled = false; }
+  },
+
+  /* ---------- 上传归档弹窗 ---------- */
+  openUploadModal() {
+    const mask = document.getElementById('upload-modal-mask');
+    if (!mask) return;
+    if (mask.style.display !== 'flex') {
+      mask.style.display = 'flex';
+      this._uploadState = 'input';
+      this.populateTopicOptions();
+      const s = document.getElementById('upload-source'); if (s) s.value = '';
+      const er = document.getElementById('upload-error'); if (er) er.value = '';
+      const r = document.getElementById('upload-result'); if (r) r.innerHTML = '';
+      const goBtn = document.getElementById('upload-modal-go');
+      if (goBtn) { goBtn.textContent = '识别并归档'; goBtn.disabled = false; }
+    }
+    this.refreshUploadPreview();
+  },
+
+  closeUploadModal() {
+    const mask = document.getElementById('upload-modal-mask');
+    if (mask) mask.style.display = 'none';
+    this.uploadImages = [];
+    this._pendingPanel = null;
+    this._uploadState = 'input';
+  },
+
+  refreshUploadPreview() {
+    const box = document.getElementById('upload-modal-preview');
+    if (!box) return;
+    box.innerHTML = '';
+    (this.uploadImages || []).forEach(src => {
+      const img = document.createElement('img');
+      img.src = src;
+      img.className = 'upload-prev-img';
+      box.appendChild(img);
+    });
+  },
+
+  populateTopicOptions() {
+    const sel = document.getElementById('upload-topic');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">（自动识别）</option>';
+    let topics = [];
+    try { topics = MATH_TOPICS.flatMap(g => g.subs); } catch (_) {}
+    if (!topics.length) topics = ['行列式', '矩阵', '向量', '线性方程组', '特征值与特征向量', '二次型', '其他'];
+    topics.forEach(t => {
+      const o = document.createElement('option');
+      o.value = t; o.textContent = t;
+      sel.appendChild(o);
+    });
   },
 
   showUploadResult(title, body) {
-    Utils.toast(title + (body ? '：' + body.slice(0, 50) : ''));
+    const el = document.getElementById('upload-result');
+    if (!el) { Utils.toast(title); return; }
+    const html = String(body)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+    el.innerHTML = `<div class="result-card"><div class="result-title">${title}</div><div class="result-body">${html}</div></div>`;
   },
 
   /* ============================================================

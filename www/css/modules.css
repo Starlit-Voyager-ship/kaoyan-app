@@ -362,6 +362,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  margin-top: 0; /* 抵消 main 的 margin-top，避免多出 header-height 的留白 */
 }
 .ai-topbar {
   display: flex;

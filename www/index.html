@@ -467,6 +467,11 @@
               <button class="filter-btn active" data-filter="all">全部</button>
               <button class="filter-btn" data-filter="today">今日新词</button>
             </div>
+            <div class="vocab-filter">
+              <button class="src-filter-btn active" data-source="all">全部来源</button>
+              <button class="src-filter-btn" data-source="dict">背诵词</button>
+              <button class="src-filter-btn" data-source="reading">阅读词</button>
+            </div>
             <div class="vocab-list" id="vocab-list"></div>
             <button class="btn-primary btn-block vocab-start-btn" id="vocab-start-btn">开始背单词</button>
           </div>
@@ -520,8 +525,8 @@
           <!-- 测试面板 -->
           <div id="vocab-test" class="vocab-panel">
             <div class="test-mode-select">
-              <button class="test-mode-btn active" data-mode="random">随机50词测试</button>
-              <button class="test-mode-btn" data-mode="ebbinghaus">艾宾浩斯70词复习</button>
+              <button class="test-mode-btn active" data-mode="today_dict">测试今日背诵单词</button>
+              <button class="test-mode-btn" data-mode="reading">测试阅读单词</button>
             </div>
             <div id="test-area" class="test-area">
               <p class="test-placeholder">选择测试模式后开始</p>
@@ -852,7 +857,7 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <script src="js/config.js?v=20260803a"></script>
   <script src="js/ai-assistant.js?v=20260803d"></script>
-  <script src="js/english/vocabulary.js?v=20260803f"></script>
+  <script src="js/english/vocabulary.js?v=20260803g"></script>
   <script src="js/english/dict.js?v=20260803g"></script>
   <script src="js/english/articles.js?v=20260803e"></script>
   <script src="js/english/sentences.js?v=20260803d"></script>

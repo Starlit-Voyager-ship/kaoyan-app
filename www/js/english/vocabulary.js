@@ -1,5 +1,8 @@
 /* ========================================
    单词背诵模块
+   总词表按来源区分：
+     source = 'dict'    -> 背单词板块背的词（词源：考研大纲词典 EN_DICT）
+     source = 'reading' -> 阅读中点词翻译收录的词
    ======================================== */
 
 const Vocabulary = {
@@ -10,73 +13,33 @@ const Vocabulary = {
   unknownIndices: [],
   sessionSeconds: 0,
   sessionTimer: null,
+  newWordCount: 0,
+  reviewWordCount: 0,
+  currentSource: 'all',
 
-  // 考研核心词汇库（示例数据）
-  defaultWords: [
-    { word: 'abandon', phonetic: '/əˈbændən/', meaning: 'v. 放弃；抛弃', example: 'He abandoned his car in the snow.' },
-    { word: 'ability', phonetic: '/əˈbɪləti/', meaning: 'n. 能力；本领', example: 'She has the ability to solve complex problems.' },
-    { word: 'abnormal', phonetic: '/æbˈnɔːml/', meaning: 'a. 反常的；不正常的', example: 'abnormal weather conditions' },
-    { word: 'abolish', phonetic: '/əˈbɒlɪʃ/', meaning: 'v. 废除；取消', example: 'abolish slavery' },
-    { word: 'abstract', phonetic: '/ˈæbstrækt/', meaning: 'a. 抽象的 n. 摘要', example: 'abstract concept' },
-    { word: 'academic', phonetic: '/ˌækəˈdemɪk/', meaning: 'a. 学术的；学院的', example: 'academic performance' },
-    { word: 'accelerate', phonetic: '/əkˈseləreɪt/', meaning: 'v. 加速；促进', example: 'accelerate economic growth' },
-    { word: 'accept', phonetic: '/əkˈsept/', meaning: 'v. 接受；承认', example: 'accept the invitation' },
-    { word: 'access', phonetic: '/ˈækses/', meaning: 'n./v. 进入；访问；存取', example: 'have access to the Internet' },
-    { word: 'accommodate', phonetic: '/əˈkɒmədeɪt/', meaning: 'v. 容纳；使适应', example: 'accommodate 500 people' },
-    { word: 'accompany', phonetic: '/əˈkʌmpəni/', meaning: 'v. 陪伴；伴随', example: 'accompany her to the hospital' },
-    { word: 'accomplish', phonetic: '/əˈkʌmplɪʃ/', meaning: 'v. 完成；实现', example: 'accomplish the task' },
-    { word: 'accordance', phonetic: '/əˈkɔːdns/', meaning: 'n. 一致；按照', example: 'in accordance with the rules' },
-    { word: 'account', phonetic: '/əˈkaʊnt/', meaning: 'n. 账户；描述 v. 解释', example: 'take into account' },
-    { word: 'accumulate', phonetic: '/əˈkjuːmjəleɪt/', meaning: 'v. 积累；积聚', example: 'accumulate wealth' },
-    { word: 'accurate', phonetic: '/ˈækjərət/', meaning: 'a. 准确的；精确的', example: 'accurate information' },
-    { word: 'achieve', phonetic: '/əˈtʃiːv/', meaning: 'v. 达到；完成', example: 'achieve success' },
-    { word: 'acknowledge', phonetic: '/əkˈnɒlɪdʒ/', meaning: 'v. 承认；致谢', example: 'acknowledge the truth' },
-    { word: 'acquire', phonetic: '/əˈkwaɪə(r)/', meaning: 'v. 获得；学到', example: 'acquire knowledge' },
-    { word: 'adapt', phonetic: '/əˈdæpt/', meaning: 'v. 使适应；改编', example: 'adapt to the new environment' },
-    { word: 'adequate', phonetic: '/ˈædɪkwət/', meaning: 'a. 充足的；适当的', example: 'adequate supply of water' },
-    { word: 'adjust', phonetic: '/əˈdʒʌst/', meaning: 'v. 调整；适应', example: 'adjust the focus' },
-    { word: 'administration', phonetic: '/ədˌmɪnɪˈstreɪʃn/', meaning: 'n. 管理；行政', example: 'business administration' },
-    { word: 'advocate', phonetic: '/ˈædvəkeɪt/', meaning: 'v./n. 提倡；拥护者', example: 'advocate for change' },
-    { word: 'affect', phonetic: '/əˈfekt/', meaning: 'v. 影响；感动', example: 'affect the decision' },
-    { word: 'aggressive', phonetic: '/əˈɡresɪv/', meaning: 'a. 侵略的；有进取心的', example: 'aggressive marketing strategy' },
-    { word: 'allocate', phonetic: '/ˈæləkeɪt/', meaning: 'v. 分配；拨出', example: 'allocate resources' },
-    { word: 'alternative', phonetic: '/ɔːlˈtɜːnətɪv/', meaning: 'n./a. 替代品；可供选择的', example: 'have no alternative' },
-    { word: 'ambitious', phonetic: /æmˈbɪʃəs/, meaning: 'a. 有雄心的；有野心的', example: 'an ambitious plan' },
-    { word: 'analyze', phonetic: '/ˈænəlaɪz/', meaning: 'v. 分析；分解', example: 'analyze the data' },
-    { word: 'anticipate', phonetic: /ænˈtɪsɪpeɪt/, meaning: 'v. 预期；期望', example: 'anticipate problems' },
-    { word: 'apparent', phonetic: '/əˈpærənt/', meaning: 'a. 明显的；表面的', example: 'apparent reason' },
-    { word: 'appeal', phonetic: '/əˈpiːl/', meaning: 'v./n. 呼吁；吸引；上诉', example: 'appeal to the public' },
-    { word: 'application', phonetic: '/ˌæplɪˈkeɪʃn/', meaning: 'n. 申请；应用', example: 'job application' },
-    { word: 'approach', phonetic: '/əˈprəʊtʃ/', meaning: 'v./n. 接近；方法', example: 'a new approach to teaching' },
-    { word: 'appropriate', phonetic: '/əˈprəʊpriət/', meaning: 'a. 适当的；恰当的', example: 'take appropriate measures' },
-    { word: 'approximate', phonetic: '/əˈprɒksɪmət/', meaning: 'a. 大约的；近似的', example: 'approximate number' },
-    { word: 'arbitrary', phonetic: '/ɑːrbɪtreri/', meaning: 'a. 任意的；武断的', example: 'arbitrary decision' },
-    { word: 'arise', phonetic: '/əˈraɪz/', meaning: 'v. 出现；产生', example: 'problems may arise' },
-    { word: 'arrange', phonetic: '/əˈreɪndʒ/', meaning: 'v. 安���；整理', example: 'arrange a meeting' },
-    { word: 'artificial', phonetic: '/ˌɑːtɪˈfɪʃl/', meaning: 'a. 人造的；人工的', example: 'artificial intelligence' },
-    { word: 'aspect', phonetic: '/ˈæspekt/', meaning: 'n. 方面；层面', example: 'every aspect of life' },
-    { word: 'assess', phonetic: '/əˈses/', meaning: 'v. 评估；评价', example: 'assess the situation' },
-    { word: 'assign', phonetic: '/əˈsaɪn/', meaning: 'v. 分配；指派', example: 'assign homework' },
-    { word: 'assist', phonetic: '/əˈsɪst/', meaning: 'v. 协助；帮助', example: 'assist in the research' },
-    { word: 'associate', phonetic: '/əˈsəʊʃieɪt/', meaning: 'v. 联系；联想 n. 同事', example: 'associate with success' },
-    { word: 'assume', phonetic: '/əˈsjuːm/', meaning: 'v. 假设；承担', example: 'assume responsibility' },
-    { word: 'assure', phonetic: '/əˈʃʊə(r)/', meaning: 'v. 保证；使确信', example: 'assure you of quality' },
-    { word: 'attach', phonetic: '/əˈtætʃ/', meaning: 'v. 附上；贴上', example: 'attach a file' },
-    { word: 'attain', phonetic: '/əˈteɪn/', meaning: 'v. 达到；获得', example: 'attain the goal' },
-    { word: 'attribute', phonetic: '/əˈtrɪbjuːt/', meaning: 'v. 归因于 n. 属性', example: 'attribute success to hard work' }
-  ],
+  // 测试 session
+  testQuestions: [],
+  testIndex: 0,
+  testCorrect: 0,
+  testWrong: 0,
+  testMode: null,
+  testAnswered: false,
+
+  // 艾宾浩斯复习间隔（天）：学完后的第 1/2/4/7/15/30/60 天复习
+  EBBINGHAUS: [1, 2, 4, 7, 15, 30, 60],
 
   init() {
     this.bindEvents();
-    this.initDefaultWords().then(() => this.renderVocabList('all'));
+    this.renderVocabList('all', 'all');
   },
 
-  // 从文章点词翻译加入单词：去重后写入 vocab_words，并刷新当前列表
+  // 阅读中点词翻译加入单词：来源标记为 reading
   async addWord(word, meaning, phonetic) {
     if (!word) return;
     const user = Store.getCurrentUser();
     const existing = await Store.getUserData('vocab_words', user);
-    if (existing.some(w => w.word === word)) return; // 已存在则跳过
+    // 同词不重复收录（无论来源）
+    if (existing.some(w => w.word === word)) return;
     await Store.put('vocab_words', {
       id: `word_${user}_${word}`,
       username: user,
@@ -87,14 +50,14 @@ const Vocabulary = {
       mastery: 0,
       wrongCount: 0,
       lastReview: null,
-      firstLearned: Utils.today(),
-      isWrong: false
+      firstLearned: null, // 阅读词不计入「今日新词」统计
+      isWrong: false,
+      source: 'reading'
     });
-    Utils.toast('已加入单词本：' + word);
-    // 若单词背诵页当前可见，刷新列表
+    Utils.toast('已加入单词本（阅读）：' + word);
     const vocabPage = document.getElementById('page-vocab');
     if (vocabPage && vocabPage.classList.contains('active')) {
-      this.renderVocabList('all');
+      this.renderVocabList('all', this.currentSource);
     }
   },
 
@@ -128,63 +91,60 @@ const Vocabulary = {
       this.markTooEasy();
     });
 
-    // 测试模式
+    // 测试模式：今日背诵词 / 阅读词
     document.querySelectorAll('.test-mode-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.test-mode-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+        this.startTest(btn.dataset.mode);
       });
     });
 
-    // 词汇表筛选
+    // 词汇表「时间」筛选
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        this.renderVocabList(btn.dataset.filter);
+        this.renderVocabList(btn.dataset.filter, this.currentSource);
+      });
+    });
+
+    // 词汇表「来源」筛选
+    document.querySelectorAll('.src-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.src-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.currentSource = btn.dataset.source;
+        this.renderVocabList('all', this.currentSource);
       });
     });
 
     // 搜索
     document.getElementById('vocab-search-input').addEventListener('input',
-      Utils.debounce(() => this.renderVocabList('all'), 300));
+      Utils.debounce(() => this.renderVocabList('all', this.currentSource), 300));
   },
 
   switchTab(tabName) {
     document.querySelectorAll('.vocab-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
     document.querySelectorAll('.vocab-panel').forEach(p => p.classList.toggle('active', p.id === 'vocab-' + tabName));
+    if (tabName === 'all') this.renderVocabList('all', this.currentSource);
+    if (tabName === 'wrong') this.renderWrongList();
   },
 
-  async initDefaultWords() {
-    const user = Store.getCurrentUser();
-    const existing = await Store.getUserData('vocab_words', user);
-    if (existing.length === 0) {
-      // 初始化默认词库
-      for (const w of this.defaultWords) {
-        await Store.put('vocab_words', {
-          id: `word_${user}_${w.word}`,
-          username: user,
-          word: w.word,
-          phonetic: w.phonetic,
-          meaning: w.meaning,
-          example: w.example,
-          mastery: 0,
-          wrongCount: 0,
-          lastReview: null,
-          firstLearned: null,
-          isWrong: false
-        });
-      }
-    }
-  },
-
+  // ---------- 背单词：艾宾浩斯选词 ----------
   async startLearning() {
     const user = Store.getCurrentUser();
-    const allWords = await Store.getUserData('vocab_words', user);
-    // 筛选需要学习的单词（掌握度低的优先）
-    this.sessionWords = allWords
-      .sort((a, b) => (a.mastery || 0) - (b.mastery || 0))
-      .slice(0, 30);
+    const all = await Store.getUserData('vocab_words', user);
+    const dictLearned = all.filter(w => (w.source || 'reading') === 'dict');
+
+    // 1) 复习词：按遗忘曲线到期排序，取 150
+    const review = this.pickReviewWords(dictLearned, 150);
+    // 2) 新词：从词典取未背过的，取 50
+    const newOnes = this.pickNewWords(all, 50);
+
+    this.sessionWords = [...review, ...newOnes];
+    this.reviewWordCount = review.length;
+    this.newWordCount = newOnes.length;
     this.currentIndex = 0;
     this.knownIndices = [];
     this.unknownIndices = [];
@@ -193,12 +153,65 @@ const Vocabulary = {
     this.startSessionTimer();
 
     if (this.sessionWords.length === 0) {
-      document.getElementById('current-word').textContent = '没有待学习的单词';
+      document.getElementById('current-word').textContent = '暂时没有可背的单词';
       return;
     }
 
     this.showCurrentWord();
     this.updateStudyStats();
+  },
+
+  // 从已背过的词里挑「到期」复习的（超期越久越优先）
+  pickReviewWords(learned, limit) {
+    const today = Utils.today();
+    const cands = learned
+      .filter(w => w.firstLearned) // 已经学过的
+      .map(w => {
+        const base = w.lastReview || w.firstLearned;
+        const gap = this.daysBetween(base, today);
+        const stage = Math.min(w.ebbinghausStage || 0, this.EBBINGHAUS.length - 1);
+        const due = this.EBBINGHAUS[stage];
+        return { w, overdue: gap - due, stage };
+      })
+      .filter(x => x.overdue >= 0) // 已到期的
+      .sort((a, b) => b.overdue - a.overdue); // 越超期越先背
+    return cands.slice(0, limit).map(x => x.w);
+  },
+
+  // 从词典挑未背过的新词
+  pickNewWords(all, limit) {
+    const user = Store.getCurrentUser();
+    const dictSet = new Set(
+      all.filter(w => (w.source || 'reading') === 'dict').map(w => w.word)
+    );
+    const dictAll = (typeof window !== 'undefined' && window.EN_DICT) ? window.EN_DICT : {};
+    const newOnes = [];
+    for (const word in dictAll) {
+      if (newOnes.length >= limit) break;
+      if (dictSet.has(word)) continue; // 已背过
+      newOnes.push({
+        id: `word_${user}_${word}`,
+        username: user,
+        word,
+        phonetic: '',
+        meaning: dictAll[word],
+        example: '',
+        mastery: 0,
+        wrongCount: 0,
+        lastReview: null,
+        firstLearned: null, // 学到时由 mark 设置
+        isWrong: false,
+        source: 'dict',
+        ebbinghausStage: 0
+      });
+    }
+    return newOnes;
+  },
+
+  daysBetween(a, b) {
+    const da = new Date(a + 'T00:00:00');
+    const db = new Date(b + 'T00:00:00');
+    return Math.floor((db - da) / 86400000);
   },
 
   startSessionTimer() {
@@ -219,14 +232,15 @@ const Vocabulary = {
 
   async updateStudyStats() {
     const user = Store.getCurrentUser();
-    const allWords = await Store.getUserData('vocab_words', user);
+    const all = await Store.getUserData('vocab_words', user);
     const today = Utils.today();
-    const reviewedToday = allWords.filter(w => w.lastReview === today).length;
-    const newToday = allWords.filter(w => w.firstLearned === today).length;
+    const dictWords = all.filter(w => (w.source || 'reading') === 'dict');
+    const reviewedToday = dictWords.filter(w => w.lastReview === today).length;
+    const newToday = dictWords.filter(w => w.firstLearned === today).length;
     const reviewEl = document.getElementById('study-review-count');
     const newEl = document.getElementById('study-new-count');
-    if (reviewEl) reviewEl.textContent = `${reviewedToday}/150`;
-    if (newEl) newEl.textContent = `${newToday}/50`;
+    if (reviewEl) reviewEl.textContent = `${Math.min(reviewedToday, 150)}/150`;
+    if (newEl) newEl.textContent = `${Math.min(newToday, 50)}/50`;
   },
 
   speakCurrent() {
@@ -245,6 +259,7 @@ const Vocabulary = {
     w.mastery = 100;
     w.lastReview = Utils.today();
     if (!w.firstLearned) w.firstLearned = Utils.today();
+    w.ebbinghausStage = this.EBBINGHAUS.length - 1; // 不再安排复习
     await Store.put('vocab_words', w);
     this.currentIndex++;
     this.showCurrentWord();
@@ -258,7 +273,7 @@ const Vocabulary = {
     }
     const w = this.sessionWords[this.currentIndex];
     document.getElementById('current-word').textContent = w.word;
-    document.getElementById('word-phonetic').textContent = w.phonetic;
+    document.getElementById('word-phonetic').textContent = w.phonetic || '';
     document.getElementById('word-meaning').textContent = w.meaning;
     document.getElementById('word-example').textContent = w.example ? `"${w.example}"` : '';
     document.getElementById('word-meaning').style.display = 'none';
@@ -267,7 +282,7 @@ const Vocabulary = {
     const tagEl = document.getElementById('word-study-tag');
     const hintEl = document.getElementById('word-study-hint');
     if (tagEl) {
-      if (w.mastery && w.mastery > 0) tagEl.textContent = '复习单词';
+      if (w.firstLearned) tagEl.textContent = '复习单词';
       else tagEl.textContent = '新词';
     }
     if (hintEl) hintEl.style.display = 'block';
@@ -293,9 +308,14 @@ const Vocabulary = {
   async markKnown() {
     if (this.currentIndex >= this.sessionWords.length) return;
     const w = this.sessionWords[this.currentIndex];
-    w.mastery = Math.min(100, (w.mastery || 0) + 15);
+    const isNew = !w.firstLearned;
+    w.mastery = Math.min(100, (w.mastery || 0) + 20);
     w.lastReview = Utils.today();
     if (!w.firstLearned) w.firstLearned = Utils.today();
+    // 复习阶段推进（新词第一次学不推进阶段，仅记录首次学习）
+    if (!isNew) {
+      w.ebbinghausStage = Math.min((w.ebbinghausStage || 0) + 1, this.EBBINGHAUS.length - 1);
+    }
     await Store.put('vocab_words', w);
     this.knownIndices.push(this.currentIndex);
     this.currentIndex++;
@@ -311,9 +331,9 @@ const Vocabulary = {
     w.isWrong = true;
     w.lastReview = Utils.today();
     if (!w.firstLearned) w.firstLearned = Utils.today();
+    w.ebbinghausStage = 0; // 重置复习阶段
     await Store.put('vocab_words', w);
     this.unknownIndices.push(this.currentIndex);
-    this.currentIndex++;
 
     // 加金币：每个新单词+2金币
     const user = Store.getCurrentUser();
@@ -335,15 +355,20 @@ const Vocabulary = {
     const tagEl = document.getElementById('word-study-tag');
     if (tagEl) tagEl.textContent = '完成';
 
-    app.updateHomeStats();
+    if (typeof app !== 'undefined' && app.updateHomeStats) app.updateHomeStats();
     Utils.toast(`本次学习完成！认识${known}个，需复习${unknown}个`);
   },
 
-  async renderVocabList(filter) {
+  // ---------- 词汇表 / 错词本 ----------
+  async renderVocabList(filter, sourceFilter) {
+    sourceFilter = sourceFilter || 'all';
     const user = Store.getCurrentUser();
     let words = await Store.getUserData('vocab_words', user);
-    const search = document.getElementById('vocab-search-input').value.toLowerCase();
+    const search = (document.getElementById('vocab-search-input').value || '').toLowerCase();
 
+    if (sourceFilter !== 'all') {
+      words = words.filter(w => (w.source || 'reading') === sourceFilter);
+    }
     if (filter === 'today') {
       const today = Utils.today();
       words = words.filter(w => w.firstLearned === today);
@@ -351,7 +376,7 @@ const Vocabulary = {
     if (search) {
       words = words.filter(w =>
         w.word.toLowerCase().includes(search) ||
-        w.meaning.includes(search)
+        (w.meaning || '').includes(search)
       );
     }
 
@@ -366,12 +391,18 @@ const Vocabulary = {
     words.forEach(w => {
       const item = document.createElement('div');
       item.className = 'vocab-item';
+      const src = w.source === 'reading'
+        ? '<span class="vocab-src reading">阅读</span>'
+        : '<span class="vocab-src dict">背诵</span>';
       item.innerHTML = `
         <div>
-          <span class="vocab-word-text">${w.word}</span>
-          <span style="margin-left:8px;color:var(--text-light);font-size:0.82rem">${w.phonetic}</span>
+          <span class="vocab-word-text">${this.esc(w.word)}</span>
+          <span style="margin-left:8px;color:var(--text-light);font-size:0.82rem">${this.esc(w.phonetic || '')}</span>
         </div>
-        <span class="vocab-word-meaning">${w.meaning}</span>
+        <div style="display:flex;align-items:center;gap:8px;max-width:60%">
+          <span class="vocab-word-meaning">${this.esc(w.meaning)}</span>
+          ${src}
+        </div>
       `;
       list.appendChild(item);
     });
@@ -380,6 +411,7 @@ const Vocabulary = {
   async renderWrongList() {
     const user = Store.getCurrentUser();
     const words = await Store.getUserData('vocab_words', user);
+    // 错词本收录两类：背单词错词 + 阅读错词
     const wrongWords = words.filter(w => w.isWrong && w.wrongCount > 0);
 
     const list = document.getElementById('wrong-word-list');
@@ -393,9 +425,155 @@ const Vocabulary = {
     wrongWords.forEach(w => {
       const item = document.createElement('div');
       item.className = 'wrong-item';
-      item.innerHTML = `<span class="word">${w.word} - ${w.meaning}</span><span class="wrong-count">错${w.wrongCount}次</span>`;
+      const src = w.source === 'reading'
+        ? '<span class="wrong-src">阅读</span>'
+        : '<span class="wrong-src">背诵</span>';
+      item.innerHTML = `<span class="word">${this.esc(w.word)} - ${this.esc(w.meaning)}</span><span class="wrong-meta"><span class="wrong-count">错${w.wrongCount}次</span>${src}</span>`;
       list.appendChild(item);
     });
+  },
+
+  // ---------- 单词测试 ----------
+  async startTest(mode) {
+    this.testMode = mode;
+    const user = Store.getCurrentUser();
+    const all = await Store.getUserData('vocab_words', user);
+    let pool = [];
+    if (mode === 'today_dict') {
+      const today = Utils.today();
+      pool = all.filter(w =>
+        (w.source || 'reading') === 'dict' &&
+        (w.firstLearned === today || w.lastReview === today)
+      );
+      if (pool.length === 0) { Utils.toast('今天还没背单词，先去背~'); return; }
+    } else if (mode === 'reading') {
+      pool = all.filter(w => (w.source || 'reading') === 'reading');
+      if (pool.length === 0) { Utils.toast('还没有阅读单词，去阅读时点词翻译吧~'); return; }
+    }
+    this.testQuestions = this.buildTestQuestions(pool, all, 20);
+    if (this.testQuestions.length === 0) { Utils.toast('暂无可用题目'); return; }
+    this.testIndex = 0;
+    this.testCorrect = 0;
+    this.testWrong = 0;
+    this.renderTestQuestion();
+  },
+
+  // 给每个候选词生成一道「给英文选中文」选择题，配 3 个干扰项
+  buildTestQuestions(pool, all, max) {
+    const meaningPool = all.map(w => w.meaning).filter(Boolean);
+    const questions = [];
+    const picked = this.shuffle(pool.slice()).slice(0, max);
+    for (const w of picked) {
+      const correct = w.meaning;
+      const opts = [correct];
+      let guard = 0;
+      while (opts.length < 4 && guard < 60) {
+        guard++;
+        const r = meaningPool[Math.floor(Math.random() * meaningPool.length)];
+        if (r && !opts.includes(r)) opts.push(r);
+      }
+      questions.push({
+        word: w.word,
+        phonetic: w.phonetic,
+        correct,
+        options: this.shuffle(opts),
+        ref: w
+      });
+    }
+    return questions;
+  },
+
+  renderTestQuestion() {
+    const area = document.getElementById('test-area');
+    if (this.testIndex >= this.testQuestions.length) {
+      this.renderTestResult();
+      return;
+    }
+    const q = this.testQuestions[this.testIndex];
+    this.testAnswered = false;
+    const total = this.testQuestions.length;
+    const optionsHtml = q.options.map((opt, i) =>
+      `<button class="test-option" data-val="${this.esc(opt)}">${this.esc(opt)}</button>`
+    ).join('');
+    area.innerHTML = `
+      <div class="test-progress-info">
+        <span>第 ${this.testIndex + 1} / ${total} 题</span>
+        <span>对 ${this.testCorrect} · 错 ${this.testWrong}</span>
+      </div>
+      <div class="test-progress-bar"><div class="progress-fill" style="width:${(this.testIndex / total) * 100}%"></div></div>
+      <div class="test-question">
+        <div class="test-question-word">${this.esc(q.word)}</div>
+        ${q.phonetic ? `<div style="color:var(--text-light);margin-bottom:12px">${this.esc(q.phonetic)}</div>` : ''}
+        <div style="color:var(--text-secondary);font-size:0.9rem">选择正确的释义</div>
+      </div>
+      <div class="test-options">${optionsHtml}</div>
+    `;
+    area.querySelectorAll('.test-option').forEach(btn => {
+      btn.addEventListener('click', () => this.onTestAnswer(btn));
+    });
+  },
+
+  async onTestAnswer(btn) {
+    if (this.testAnswered) return;
+    this.testAnswered = true;
+    const q = this.testQuestions[this.testIndex];
+    const chosen = btn.dataset.val;
+    const correct = q.correct;
+    if (chosen === correct) {
+      btn.classList.add('correct');
+      this.testCorrect++;
+    } else {
+      btn.classList.add('wrong');
+      // 标出正确项
+      document.querySelectorAll('#test-area .test-option').forEach(b => {
+        if (b.dataset.val === correct) b.classList.add('correct');
+      });
+      this.testWrong++;
+      // 错词写入错词本（两类模式统一收录）
+      const w = Object.assign({}, q.ref);
+      w.wrongCount = (w.wrongCount || 0) + 1;
+      w.isWrong = true;
+      w.lastReview = Utils.today();
+      await Store.put('vocab_words', w);
+    }
+    setTimeout(() => {
+      this.testIndex++;
+      this.renderTestQuestion();
+    }, 900);
+  },
+
+  renderTestResult() {
+    const area = document.getElementById('test-area');
+    const total = this.testQuestions.length;
+    const rate = total ? Math.round((this.testCorrect / total) * 100) : 0;
+    area.innerHTML = `
+      <div style="text-align:center;padding:30px 0">
+        <div style="font-size:2.4rem;font-weight:700;color:var(--primary)">${rate}%</div>
+        <p style="margin:12px 0;color:var(--text-secondary)">本次 ${total} 题 · 对 ${this.testCorrect} · 错 ${this.testWrong}</p>
+        <button class="btn-primary" id="test-again">再来一次</button>
+        <button class="btn-secondary" id="test-back" style="margin-left:8px">返回</button>
+      </div>`;
+    area.querySelector('#test-again').addEventListener('click', () => this.startTest(this.testMode));
+    area.querySelector('#test-back').addEventListener('click', () => {
+      area.innerHTML = '<p class="test-placeholder">选择测试模式后开始</p>';
+    });
+  },
+
+  // ---------- 工具 ----------
+  shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  },
+
+  esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 };
 

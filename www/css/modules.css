@@ -908,6 +908,34 @@
   color: #fff;
   border-color: var(--primary);
 }
+.src-filter-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--bg-card);
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: all var(--transition-fast);
+}
+.src-filter-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.vocab-src {
+  font-size: 0.7rem;
+  padding: 1px 7px;
+  border-radius: var(--radius-xl);
+  flex-shrink: 0;
+}
+.vocab-src.dict { background: var(--primary-bg); color: var(--primary); }
+.vocab-src.reading { background: rgba(245,158,11,0.15); color: #d97706; }
+.wrong-src {
+  font-size: 0.7rem;
+  color: var(--text-light);
+  margin-left: 6px;
+}
+.wrong-meta { display: flex; align-items: center; gap: 6px; }
 .vocab-list {
   display: flex;
   flex-direction: column;

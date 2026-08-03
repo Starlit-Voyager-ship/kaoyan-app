@@ -49,7 +49,7 @@
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/modules.css">
-  <!-- KaTeX：渲染 DeepSeek 返回的 LaTeX 数学公式 -->
+  <!-- KaTeX：渲染 AI 模型返回的 LaTeX 数学公式 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
@@ -359,7 +359,7 @@
           </div>
 
           <div class="ai-config-banner" id="ai-config-banner">
-            <p><svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>请先在设置中配置 API Key（上传归档需千问VL，解答需 DeepSeek）</p>
+            <p><svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>请先在设置中配置 API Key（上传归档与解答均需千问 Key）</p>
             <button class="btn-sm" onclick="app.navigate('settings')">去配置</button>
           </div>
 
@@ -780,19 +780,11 @@
           <div class="settings-section">
             <h4>API Key 配置</h4>
             <div class="setting-row">
-              <label>DeepSeek API Key</label>
-              <input type="password" id="setting-deepseek-key" placeholder="sk-..." class="setting-input">
-            </div>
-            <div class="setting-row">
-              <label>DeepSeek API 地址</label>
-              <input type="text" id="setting-deepseek-base" placeholder="https://api.deepseek.com" class="setting-input" value="https://api.deepseek.com">
-            </div>
-            <div class="setting-row">
-              <label>千问VL API Key</label>
+              <label>千问 API Key</label>
               <input type="password" id="setting-qwen-key" placeholder="sk-..." class="setting-input">
             </div>
             <div class="setting-row">
-              <label>千问VL API 地址</label>
+              <label>千问 API 地址</label>
               <input type="text" id="setting-qwen-base" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" class="setting-input" value="https://dashscope.aliyuncs.com/compatible-mode/v1">
             </div>
             <button id="save-api-keys" class="btn-primary">保存API配置</button>
@@ -850,7 +842,7 @@
   <div id="toast" class="toast" style="display:none"></div>
 
   <!-- 版本标识（调试用：确认浏览器加载的是新版代码） -->
-  <div id="version-badge" style="position:fixed;top:0;left:50%;transform:translateX(-50%);background:#5A8F9E;color:#fff;font-size:11px;padding:2px 12px;z-index:99999;border-radius:0 0 8px 8px;opacity:0.8;font-family:monospace">v2026-08-03b</div>
+  <div id="version-badge" style="position:fixed;top:0;left:50%;transform:translateX(-50%);background:#5A8F9E;color:#fff;font-size:11px;padding:2px 12px;z-index:99999;border-radius:0 0 8px 8px;opacity:0.8;font-family:monospace">v2026-08-03c</div>
 
   <script src="js/utils.js?v=20260802x"></script>
   <script src="js/bmob.js?v=20260802x"></script>

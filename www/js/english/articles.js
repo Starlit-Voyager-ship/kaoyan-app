@@ -55,6 +55,9 @@ const Articles = {
 
   async openArticle(article) {
     this.currentArticle = article;
+    this._translated = false;
+    this._translationVisible = false;
+    this._rawTranslation = null;
     document.getElementById('article-list').style.display = 'none';
     document.getElementById('articles-empty').style.display = 'none';
     document.getElementById('article-reader').style.display = 'block';
@@ -112,33 +115,66 @@ const Articles = {
     app.updateHomeStats();
   },
 
-  translateAll() {
-    if (!this.currentArticle) return;
-    // 调用DeepSeek翻译（如果配置了的话）
-    const settings = Store.getSettings(Store.getCurrentUser()) || {};
-    if (!settings.deepseekKey) {
-      Utils.toast('请先在设置中配置 DeepSeek API Key 以使用翻译功能');
+  async translateAll() {
+    const contentEl = document.getElementById('reader-content');
+    if (!contentEl) return;
+    // 已翻译则切换显隐
+    if (this._translated) {
+      this._translationVisible = !this._translationVisible;
+      this._renderTranslation();
       return;
     }
-    Utils.toast('正在翻译全文...');
-    // 实际翻译逻辑在AI调用中处理，这里做简单标记
-    this.markTranslatedWords();
+    if (!this.currentArticle) return;
+    const settings = Store.getSettings(Store.getCurrentUser()) || {};
+    if (!settings.qwenKey) {
+      Utils.toast('请先在设置中配置千问 Key 以使用翻译功能');
+      return;
+    }
+    Utils.toast('正在调用千问翻译全文...');
+    try {
+      const english = this.currentArticle.content.trim();
+      const translation = await AIAssistant.callQwenChat(settings, [
+        { role: 'system', content: '你是严谨的考研英语翻译专家。请将用户提供的英文文章逐段翻译成中文，保持原有段落划分：每段英文对应一段中文，段间用空行分隔。只输出译文，不要解释、不要序号、不要额外标记。' },
+        { role: 'user', content: english }
+      ], '千问翻译');
+      this._rawTranslation = translation;
+      this._translated = true;
+      this._translationVisible = true;
+      this._renderTranslation();
+      Utils.toast('翻译完成');
+    } catch (e) {
+      console.error('[翻译失败]', e);
+      Utils.toast((e && e.message) ? e.message : '翻译失败，请重试');
+    }
   },
 
-  markTranslatedWords() {
-    const content = document.getElementById('reader-content');
-    const text = content.textContent;
-    // 简单分词并标记（实际应调API）
-    const words = text.match(/[a-zA-Z]+/g) || [];
-    const uniqueWords = [...new Set(words)].slice(0, 20);
-
-    let html = this.currentArticle.content;
-    uniqueWords.forEach(w => {
-      html = html.replace(new RegExp(`\\b${w}\\b`, 'g'),
-        `<span class="highlight-word">${w}</span>`);
+  _renderTranslation() {
+    const contentEl = document.getElementById('reader-content');
+    if (!contentEl || !this.currentArticle) return;
+    const paragraphs = this.currentArticle.content.split('\n').filter(p => p.trim());
+    if (!this._translationVisible || !this._rawTranslation) {
+      contentEl.innerHTML = paragraphs.map(p => `<p style="margin-bottom:12px">${this._esc(p)}</p>`).join('');
+      return;
+    }
+    const transParas = this._rawTranslation.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+    let html = '';
+    paragraphs.forEach((p, i) => {
+      html += `<p style="margin-bottom:4px">${this._esc(p)}</p>`;
+      const t = transParas[i];
+      if (t) {
+        html += `<p class="reader-translation" style="margin-bottom:12px;color:var(--text-light);line-height:1.6">${this._esc(t)}</p>`;
+      }
     });
-    content.innerHTML = html.split('\n').filter(p => p.trim())
-      .map(p => `<p style="margin-bottom:12px">${p}</p>`).join('');
+    if (transParas.length > paragraphs.length) {
+      transParas.slice(paragraphs.length).forEach(t => {
+        html += `<p class="reader-translation" style="margin-bottom:12px;color:var(--text-light)">${this._esc(t)}</p>`;
+      });
+    }
+    contentEl.innerHTML = html;
+  },
+
+  _esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   },
 
   startQuiz() {

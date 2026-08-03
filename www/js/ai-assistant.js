@@ -60,15 +60,6 @@ const AIAssistant = {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.sendAnswer(); }
     });
 
-    // 快捷 chips
-    document.querySelectorAll('.ai-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        const input = document.getElementById('chat-input');
-        input.value = chip.dataset.prompt;
-        input.focus();
-      });
-    });
-
     // Web 回退：共享文件输入（无原生相机时）
     document.getElementById('camera-file-input').addEventListener('change', (e) => {
       if (e.target.files[0]) this.handleFile(e.target.files[0]);

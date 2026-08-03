@@ -349,7 +349,7 @@
 .ai-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--header-height) - var(--tabbar-height) - 32px);
+  height: calc(100vh - var(--header-height) - var(--tabbar-height));
   min-height: 0;
 }
 .ai-topbar {
@@ -455,7 +455,6 @@
   border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  margin-bottom: 12px;
   min-height: 0;
 }
 .chat-welcome {
@@ -544,37 +543,6 @@
 @keyframes typingBounce {
   0%, 60%, 100% { transform: translateY(0); }
   30% { transform: translateY(-6px); }
-}
-
-/* 快捷 chips */
-.ai-quick-chips {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  margin-bottom: 10px;
-  flex-shrink: 0;
-}
-.ai-quick-chips::-webkit-scrollbar { display: none; }
-.ai-chip {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background: var(--bg-card);
-  color: var(--text);
-  font-size: 0.84rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.ai-chip::before {
-  content: '';
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--primary);
 }
 
 /* 底部输入栏 */
@@ -1206,13 +1174,47 @@
 }
 .bank-filters { display: flex; gap: 8px; }
 .filter-select {
-  padding: 6px 12px;
+  padding: 8px 32px 8px 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: 0.85rem;
   background: var(--bg-card);
   color: var(--text);
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888da8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  min-width: 100px;
+}
+.filter-select:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+/* 上传抽屉内的 select 同步美化 */
+.ai-upload-drawer select,
+.ai-upload-drawer input[type="text"] {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  background: var(--bg);
+  color: var(--text);
+  box-sizing: border-box;
+}
+.ai-upload-drawer select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888da8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
 }
 .question-list { display: flex; flex-direction: column; gap: 10px; }
 .question-item {

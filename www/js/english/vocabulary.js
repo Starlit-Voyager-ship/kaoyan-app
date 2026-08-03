@@ -71,6 +71,33 @@ const Vocabulary = {
     this.initDefaultWords().then(() => this.renderVocabList('all'));
   },
 
+  // 从文章点词翻译加入单词：去重后写入 vocab_words，并刷新当前列表
+  async addWord(word, meaning, phonetic) {
+    if (!word) return;
+    const user = Store.getCurrentUser();
+    const existing = await Store.getUserData('vocab_words', user);
+    if (existing.some(w => w.word === word)) return; // 已存在则跳过
+    await Store.put('vocab_words', {
+      id: `word_${user}_${word}`,
+      username: user,
+      word,
+      phonetic: phonetic || '',
+      meaning: meaning || '',
+      example: '',
+      mastery: 0,
+      wrongCount: 0,
+      lastReview: null,
+      firstLearned: Utils.today(),
+      isWrong: false
+    });
+    Utils.toast('已加入单词本：' + word);
+    // 若单词背诵页当前可见，刷新列表
+    const vocabPage = document.getElementById('page-vocab');
+    if (vocabPage && vocabPage.classList.contains('active')) {
+      this.renderVocabList('all');
+    }
+  },
+
   bindEvents() {
     // Tab切换
     document.querySelectorAll('.vocab-tab').forEach(tab => {

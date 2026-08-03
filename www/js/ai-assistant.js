@@ -356,8 +356,10 @@ const AIAssistant = {
   },
 
   /* ---------- 通用千问文本对话：走 proxyFetch，浏览器端经 Bmob 代理（国内可达），App 内直连 ---------- */
-  async callQwenChat(settings, messages, taskName) {
+  async callQwenChat(settings, messages, taskName, opts = {}) {
     const url = `${settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`;
+    const model = opts.model || 'qwen-max';
+    const maxTokens = opts.maxTokens || 2000;
     try {
       const res = await this.proxyFetch(url, {
         method: 'POST',
@@ -366,9 +368,9 @@ const AIAssistant = {
           'Authorization': `Bearer ${settings.qwenKey}`
         },
         body: JSON.stringify({
-          model: 'qwen-max',
+          model,
           messages,
-          max_tokens: 2000,
+          max_tokens: maxTokens,
           temperature: 0.7
         })
       });

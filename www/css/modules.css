@@ -1361,3 +1361,30 @@
   margin-left: 6px;
   vertical-align: middle;
 }
+
+/* ===== 点词翻译 ===== */
+.btn-sm.on {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.tword {
+  cursor: pointer;
+  border-bottom: 1px dotted var(--primary);
+  transition: background 0.15s;
+}
+.tword:hover {
+  background: var(--primary-bg);
+}
+.tword-done {
+  border-bottom: none;
+  color: var(--primary);
+}
+.word-anno {
+  color: var(--text-light);
+  font-size: 0.82em;
+  margin-left: 2px;
+}
+.dict-p {
+  line-height: 2;
+}

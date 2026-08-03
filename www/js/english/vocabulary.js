@@ -398,3 +398,6 @@ const Vocabulary = {
     });
   }
 };
+
+// 暴露为全局，供阅读页点词翻译调用 addWord
+window.Vocabulary = Vocabulary;

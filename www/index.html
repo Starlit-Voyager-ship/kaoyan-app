@@ -48,7 +48,7 @@
   </script>
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/components.css?v=20260803a">
-  <link rel="stylesheet" href="css/modules.css?v=20260803f">
+  <link rel="stylesheet" href="css/modules.css?v=20260803g">
   <!-- KaTeX：渲染 AI 模型返回的 LaTeX 数学公式 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
@@ -490,6 +490,10 @@
               </div>
               <button class="checkin-btn" id="word-checkin">今日打卡</button>
             </div>
+            <div class="learn-filter-row">
+              <button class="filter-known-btn" id="word-filter-known">过滤熟词（词汇量测试）</button>
+              <span class="learn-filter-tip" id="filter-known-tip"></span>
+            </div>
             <div class="study-stats">
               <div class="study-stat">
                 <span class="study-stat-label">今日复习</span>
@@ -811,6 +815,11 @@
             <button id="export-data" class="btn-secondary">导出数据</button>
             <button id="clear-data" class="btn-danger">清除所有数据</button>
           </div>
+          <div class="settings-section">
+            <h4>已过滤熟词</h4>
+            <p class="setting-tip">通过「词汇量测试」标记为已掌握的单词，背单词时将不再出现。可在此查看或恢复。</p>
+            <button id="manage-known-words" class="btn-secondary">管理已过滤熟词</button>
+          </div>
         </div>
       </section>
     </main>
@@ -870,8 +879,9 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <script src="js/config.js?v=20260803a"></script>
   <script src="js/ai-assistant.js?v=20260803d"></script>
-  <script src="js/english/vocabulary.js?v=20260803k"></script>
+  <script src="js/english/vocabulary.js?v=20260803l"></script>
   <script src="js/english/dict.js?v=20260803j"></script>
+  <script src="js/english/freq.js?v=20260803a"></script>
   <script src="js/english/articles.js?v=20260803e"></script>
   <script src="js/english/sentences.js?v=20260803d"></script>
   <script src="js/english/essay.js?v=20260803d"></script>

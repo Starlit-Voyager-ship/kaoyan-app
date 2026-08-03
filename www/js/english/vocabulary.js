@@ -34,6 +34,14 @@ const Vocabulary = {
   testMode: null,
   testAnswered: false,
 
+  // 过滤熟词测试 session
+  filterQuestions: [],
+  filterIndex: 0,
+  filterCorrect: 0,
+  filterWrong: 0,
+  filterBand: {},
+  _filterAnswered: false,
+
   // 艾宾浩斯复习间隔（天）：学完后的第 1/2/4/7/15/30/60 天复习
   EBBINGHAUS: [1, 2, 4, 7, 15, 30, 60],
 
@@ -107,6 +115,11 @@ const Vocabulary = {
     });
     // 今日打卡
     document.getElementById('word-checkin').addEventListener('click', () => this.checkIn());
+    // 过滤熟词（词汇量测试）
+    document.getElementById('word-filter-known').addEventListener('click', () => this.startFilterTest());
+    // 设置页：管理已过滤熟词
+    const mkw = document.getElementById('manage-known-words');
+    if (mkw) mkw.addEventListener('click', () => this.openKnownManager());
     // 手动模式「下一词」
     document.getElementById('word-next').addEventListener('click', () => this._advanceManual());
 
@@ -148,7 +161,7 @@ const Vocabulary = {
     document.querySelectorAll('.vocab-panel').forEach(p => p.classList.toggle('active', p.id === 'vocab-' + tabName));
     if (tabName === 'all') this.renderVocabList('all', this.currentSource);
     if (tabName === 'wrong') this.renderWrongList();
-    if (tabName === 'learn') { this._restoreSpeedUI(); this._refreshCheckinBtn(); }
+    if (tabName === 'learn') { this._restoreSpeedUI(); this._refreshCheckinBtn(); this.refreshFilterTip(); }
   },
 
   // ---------- 背单词：艾宾浩斯选词 + 进度多端保留 ----------
@@ -185,7 +198,8 @@ const Vocabulary = {
     // 2) 新建今日队列（150 复习 + 50 新词）
     const all = await Store.getUserData('vocab_words', user);
     const dictLearned = all.filter(w => (w.source || 'reading') === 'dict');
-    const exclude = new Set(this.graduated); // 今日已毕业的词不重复出现
+    const known = await this.getKnownSet(); // 已过滤的熟词
+    const exclude = new Set([...this.graduated, ...known]); // 今日已毕业 + 熟词 都不重复出现
     const review = this.pickReviewWords(dictLearned, 150, exclude);
     const newOnes = this.pickNewWords(all, 50, exclude);
 
@@ -901,6 +915,250 @@ const Vocabulary = {
     area.querySelector('#test-again').addEventListener('click', () => this.startTest(this.testMode));
     area.querySelector('#test-back').addEventListener('click', () => {
       area.innerHTML = '<p class="test-placeholder">选择测试模式后开始</p>';
+    });
+  },
+
+  // ---------- 过滤熟词（词汇量测试，基于 COCA 词频分层抽样） ----------
+  FILTER_BANDS: [
+    { name: '高频·很可能认识', min: 1, max: 2500 },
+    { name: '中频', min: 2501, max: 6000 },
+    { name: '较低频', min: 6001, max: 12000 },
+    { name: '低频·考研难词', min: 12001, max: 999999 }
+  ],
+
+  // 读取已标记熟词集合（云端 vocab_known 单条记录）
+  async getKnownSet() {
+    const user = Store.getCurrentUser();
+    if (!user) return new Set();
+    try {
+      const all = await Store.getUserData('vocab_known', user);
+      const rec = (all || []).find(r => r.username === user);
+      if (rec && Array.isArray(rec.words)) return new Set(rec.words);
+    } catch (e) {}
+    return new Set();
+  },
+
+  // 保存熟词集合（覆盖式写入单条记录）
+  async saveKnownSet(set) {
+    const user = Store.getCurrentUser();
+    if (!user) return;
+    const payload = { id: `known_${user}`, username: user, words: [...set] };
+    const p = Store.put('vocab_known', payload);
+    if (p && p.catch) p.catch(() => {});
+  },
+
+  // 词汇量测试：按词频带分层抽样，4 选 1 考义
+  async startFilterTest() {
+    const dict = (typeof window !== 'undefined' && window.EN_DICT) ? window.EN_DICT : {};
+    const freq = (typeof window !== 'undefined' && window.WORD_FREQ) ? window.WORD_FREQ : {};
+    const known = await this.getKnownSet();
+
+    // 1) 按词频带分组（排除已标记熟词）
+    const byBand = {};
+    this.FILTER_BANDS.forEach(b => byBand[b.name] = []);
+    for (const word in dict) {
+      if (known.has(word)) continue;
+      const rank = freq[word] || 99999;
+      const band = this.FILTER_BANDS.find(b => rank >= b.min && rank <= b.max) || this.FILTER_BANDS[3];
+      byBand[band.name].push({ word, meaning: dict[word], rank });
+    }
+
+    // 2) 每带打乱后抽 10 个（分层抽样）
+    const PER = 10;
+    const meaningPool = Object.values(dict).filter(Boolean);
+    const questions = [];
+    this.FILTER_BANDS.forEach(b => {
+      const sample = this.shuffle(byBand[b.name].slice()).slice(0, PER);
+      sample.forEach(p => {
+        const opts = [p.meaning];
+        let g = 0;
+        while (opts.length < 4 && g < 80) {
+          g++;
+          const r = meaningPool[Math.floor(Math.random() * meaningPool.length)];
+          if (r && !opts.includes(r)) opts.push(r);
+        }
+        questions.push({
+          word: p.word,
+          phonetic: '',
+          correct: p.meaning,
+          options: this.shuffle(opts),
+          rank: p.rank,
+          bandName: b.name
+        });
+      });
+    });
+    if (questions.length === 0) { Utils.toast('没有可测试的词，可能已过滤完'); return; }
+
+    this.filterQuestions = questions;
+    this.filterIndex = 0;
+    this.filterCorrect = 0;
+    this.filterWrong = 0;
+    this.filterBand = {};
+    this._filterAnswered = false;
+    this.switchTab('test');
+    this.renderFilterQuestion();
+  },
+
+  renderFilterQuestion() {
+    const area = document.getElementById('test-area');
+    if (this.filterIndex >= this.filterQuestions.length) {
+      this.renderFilterResult();
+      return;
+    }
+    const q = this.filterQuestions[this.filterIndex];
+    const total = this.filterQuestions.length;
+    const optionsHtml = q.options.map(opt =>
+      `<button class="test-option" data-val="${this.esc(opt)}">${this.esc(opt)}</button>`
+    ).join('');
+    area.innerHTML = `
+      <div class="test-progress-info">
+        <span>第 ${this.filterIndex + 1} / ${total} 题 · 词汇量测试</span>
+        <span>对 ${this.filterCorrect} · 错 ${this.filterWrong}</span>
+      </div>
+      <div class="test-progress-bar"><div class="progress-fill" style="width:${(this.filterIndex / total) * 100}%"></div></div>
+      <div class="test-question">
+        <div class="test-question-word">${this.esc(q.word)}</div>
+        <div style="color:var(--text-secondary);font-size:0.9rem">选择正确的释义（${this.esc(q.bandName)}）</div>
+      </div>
+      <div class="test-options">${optionsHtml}</div>
+    `;
+    area.querySelectorAll('.test-option').forEach(btn => {
+      btn.addEventListener('click', () => this.onFilterAnswer(btn));
+    });
+  },
+
+  async onFilterAnswer(btn) {
+    if (this._filterAnswered) return;
+    this._filterAnswered = true;
+    const q = this.filterQuestions[this.filterIndex];
+    const chosen = btn.dataset.val;
+    const correct = q.correct;
+    const bn = q.bandName;
+    if (!this.filterBand[bn]) this.filterBand[bn] = { total: 0, correct: 0 };
+    this.filterBand[bn].total++;
+    if (chosen === correct) {
+      btn.classList.add('correct');
+      this.filterCorrect++;
+      this.filterBand[bn].correct++;
+    } else {
+      btn.classList.add('wrong');
+      document.querySelectorAll('#test-area .test-option').forEach(b => {
+        if (b.dataset.val === correct) b.classList.add('correct');
+      });
+      this.filterWrong++;
+    }
+    setTimeout(() => {
+      this._filterAnswered = false;
+      this.filterIndex++;
+      this.renderFilterQuestion();
+    }, 900);
+  },
+
+  async renderFilterResult() {
+    const area = document.getElementById('test-area');
+    const total = this.filterQuestions.length;
+    const rate = total ? Math.round((this.filterCorrect / total) * 100) : 0;
+
+    // 估算断点：按难度带顺序，准确率 >= 0.6 的最高带上限作为 cutoff
+    let cutoffRank = 0;
+    this.FILTER_BANDS.forEach(b => {
+      const r = this.filterBand[b.name];
+      if (r && r.total > 0 && r.correct / r.total >= 0.6) {
+        cutoffRank = Math.max(cutoffRank, b.max);
+      }
+    });
+
+    const dict = (typeof window !== 'undefined' && window.EN_DICT) ? window.EN_DICT : {};
+    const freq = (typeof window !== 'undefined' && window.WORD_FREQ) ? window.WORD_FREQ : {};
+    const known = await this.getKnownSet();
+    let toFilter = 0;
+    for (const word in dict) {
+      if (known.has(word)) continue;
+      const rank = freq[word] || 99999;
+      if (rank <= cutoffRank) toFilter++;
+    }
+    const bandsText = this.FILTER_BANDS.map(b => {
+      const r = this.filterBand[b.name];
+      const acc = r && r.total ? Math.round((r.correct / r.total) * 100) : '-';
+      return `${b.name}: ${acc}%`;
+    }).join(' ｜ ');
+
+    area.innerHTML = `
+      <div style="text-align:center;padding:24px 0">
+        <div style="font-size:2.2rem;font-weight:700;color:var(--primary)">${rate}%</div>
+        <p style="margin:10px 0;color:var(--text-secondary);font-size:0.85rem">${bandsText}</p>
+        <p style="margin:14px 0;font-size:0.95rem">预估词汇量约 <b>${cutoffRank === 0 ? '较低' : cutoffRank}</b> 词（COCA 频率）</p>
+        <p style="margin:6px 0 18px;color:var(--text-secondary)">将过滤 <b style="color:var(--primary)">${toFilter}</b> 个熟词，背单词不再出现它们</p>
+        <button class="btn-primary" id="filter-apply">应用过滤</button>
+        <button class="btn-secondary" id="filter-again" style="margin-left:8px">再测一次</button>
+        <button class="btn-secondary" id="filter-cancel" style="margin-left:8px">取消</button>
+      </div>`;
+    area.querySelector('#filter-apply').addEventListener('click', async () => {
+      await this._applyFilterKnown(cutoffRank);
+      area.innerHTML = '<p class="test-placeholder">已过滤熟词！去「背单词」开始学习吧</p>';
+      this.refreshFilterTip();
+    });
+    area.querySelector('#filter-again').addEventListener('click', () => this.startFilterTest());
+    area.querySelector('#filter-cancel').addEventListener('click', () => {
+      area.innerHTML = '<p class="test-placeholder">选择测试模式后开始</p>';
+    });
+  },
+
+  async _applyFilterKnown(cutoffRank) {
+    const dict = (typeof window !== 'undefined' && window.EN_DICT) ? window.EN_DICT : {};
+    const freq = (typeof window !== 'undefined' && window.WORD_FREQ) ? window.WORD_FREQ : {};
+    const known = await this.getKnownSet();
+    for (const word in dict) {
+      const rank = freq[word] || 99999;
+      if (rank <= cutoffRank) known.add(word);
+    }
+    await this.saveKnownSet(known);
+    Utils.toast(`已过滤 ${known.size} 个熟词 🎉`);
+  },
+
+  async refreshFilterTip() {
+    const tip = document.getElementById('filter-known-tip');
+    if (!tip) return;
+    const known = await this.getKnownSet();
+    tip.textContent = known.size > 0 ? `已过滤 ${known.size} 个熟词` : '';
+  },
+
+  // 设置页：查看/恢复已过滤熟词
+  async openKnownManager() {
+    const known = await this.getKnownSet();
+    const dict = (typeof window !== 'undefined' && window.EN_DICT) ? window.EN_DICT : {};
+    const words = [...known].sort();
+    if (words.length === 0) {
+      Utils.showModal('已过滤熟词', '<p class="empty-hint">还没有过滤任何熟词。去背单词页点「过滤熟词（词汇量测试）」吧。</p>', '<button class="btn-secondary" onclick="Utils.hideModal()">关闭</button>');
+      return;
+    }
+    const items = words.map(w =>
+      `<div class="known-item">
+        <span class="known-word">${this.esc(w)}</span>
+        <span class="known-meaning">${this.esc(dict[w] || '')}</span>
+        <button class="known-restore" data-word="${this.esc(w)}">恢复</button>
+      </div>`
+    ).join('');
+    const body = `<div class="known-list">${items}</div><p class="setting-tip">共 ${words.length} 个熟词</p>`;
+    const footer = `<button class="btn-secondary" id="known-restore-all">全部恢复</button><button class="btn-secondary" onclick="Utils.hideModal()">关闭</button>`;
+    Utils.showModal('已过滤熟词', body, footer);
+    document.querySelectorAll('#modal-body .known-restore').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const w = btn.dataset.word;
+        const ks = await this.getKnownSet();
+        ks.delete(w);
+        await this.saveKnownSet(ks);
+        btn.closest('.known-item').remove();
+        Utils.toast('已恢复：' + w);
+        this.refreshFilterTip();
+      });
+    });
+    const allBtn = document.getElementById('known-restore-all');
+    if (allBtn) allBtn.addEventListener('click', async () => {
+      await this.saveKnownSet(new Set());
+      Utils.hideModal();
+      Utils.toast('已恢复全部熟词');
+      this.refreshFilterTip();
     });
   },
 

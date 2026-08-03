@@ -873,6 +873,66 @@
 .study-btn-next { margin-top: 10px; background: var(--primary); color: #fff; border: none; }
 .study-btn-next:active { transform: scale(0.98); }
 
+/* 过滤熟词入口 */
+.learn-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 2px;
+  flex-wrap: wrap;
+}
+.filter-known-btn {
+  border: 1px solid var(--border, #ddd);
+  background: var(--surface, #fff);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm, 8px);
+  padding: 7px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.filter-known-btn:hover { border-color: var(--primary); color: var(--primary); }
+.learn-filter-tip { font-size: 0.78rem; color: var(--text-light); }
+
+/* 熟词管理弹窗 */
+.known-list {
+  max-height: 56vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.known-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-light, #f6f7fb);
+  border-radius: var(--radius-sm, 8px);
+}
+.known-word { font-weight: 600; min-width: 90px; }
+.known-meaning {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.known-restore {
+  border: 1px solid var(--border, #ddd);
+  background: #fff;
+  color: var(--primary);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.known-restore:hover { background: var(--primary-bg); }
+.setting-tip { font-size: 0.78rem; color: var(--text-light); margin: 6px 0 0; }
+
 /* 测试模式 */
 .test-mode-select {
   display: flex;

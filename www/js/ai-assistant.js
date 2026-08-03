@@ -544,7 +544,7 @@ const AIAssistant = {
     const content = [
       ...imgs.map(i => ({ type: 'image_url', image_url: { url: i } })),
       { type: 'text', text: '请仔细识别图片中的内容（多张图按顺序排列，可能是同一道题/文章的不同部分）。先判断类型，再逐字提取原文，最后以 JSON 返回（只返回 JSON，不要任何额外文字或解释）：\n' +
-        `{"type":"math|english|other","topic":"若为数学题请填知识点(${this.topicListForVL()})","errorHint":"若图片中可见明显错误原因请简述，否则为空字符串","text":"逐字提取图片中的题目或文章原文。数学公式和符号必须用可读的纯文字表达（例如：λx₁+x₂+x₃=λ-3、矩阵A=[1 λ; -2 1]、行列式|A|），绝对不要输出LaTeX代码（不要\\left、\\begin{array}、\\lambda等LaTeX标记），不要用任何特殊格式，就是普通文字"}` }
+        `{"type":"math|english|other","topic":"若为数学题请填知识点(${this.topicListForVL()})","errorHint":"若图片中可见明显错误原因请简述，否则为空字符串","text":"逐字提取图片中的题目或文章原文。数学公式和符号必须用可读的纯文字表达（例如：λx₁+x₂+x₃=λ-3、矩阵A=[1 λ; -2 1]、行列式|A|），绝对不要输出LaTeX代码（不要\\left、\\begin{array}、\\lambda等LaTeX标记），不要用任何特殊格式，就是普通文字。【重要】请忽略以下非正文内容，不要提取到text中：页眉页脚（如"第X页"、"Page X"、年份+科目+"试题/试卷"等试卷标题）、水印、来源标注、二维码、装订线文字。只提取题目和文章本身的实际内容。"}` }
     ];
     const raw = await this.requestQwen(settings, content, '千问VL识别', 4000);
     return this.parseJSON(raw);
@@ -555,7 +555,7 @@ const AIAssistant = {
     const imgs = Array.isArray(images) ? images : [images];
     const content = [
       ...imgs.map(i => ({ type: 'image_url', image_url: { url: i } })),
-      { type: 'text', text: '请识别图片中的题目或内容，提取完整文字。数学公式用可读纯文字表达（如 λx₁+x₂=3、矩阵A=[1 2; 3 4]），不要输出LaTeX代码（\\left、\\begin等），不要解答。' }
+      { type: 'text', text: '请识别图片中的题目或内容，提取完整文字。数学公式用可读纯文字表达（如 λx₁+x₂=3、矩阵A=[1 2; 3 4]），不要输出LaTeX代码（\\left、\\begin等），不要解答。忽略页眉页脚（如"第X页"、"Page X"、年份+科目+"试题/试卷"等试卷标题）、水印、来源标注等非正文内容，只提取题目本身。' }
     ];
     return await this.requestQwen(settings, content, '千问VL识图', 3000);
   },

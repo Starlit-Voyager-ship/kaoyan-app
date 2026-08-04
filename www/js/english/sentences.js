@@ -116,7 +116,8 @@ const Sentences = {
 
     await Store.put('sentences', sentence);
     Utils.hideModal();
-    Utils.toast('长难句已保存');
+    Utils.toast('长难句已保存，+15 金币');
+    Pet.onLearnReward('sentence_complete', 1).catch(() => {});
     this.renderList();
   },
 

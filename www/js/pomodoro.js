@@ -201,7 +201,8 @@ const Pomodoro = {
         timestamp: new Date().toISOString()
       });
 
-      Utils.toast(`专注结束！${this.currentTodo.title} ${minutes} 分钟，+${minutes} 金币`);
+      Pet.onLearnReward('pomodoro_per_min', minutes).then(() => {});
+      Utils.toast(`专注结束！${this.currentTodo.title} ${minutes} 分钟，+${minutes * 10} 金币`);
     } else if (wasRunning) {
       Utils.toast('专注时间不足1分钟，未记录');
     }

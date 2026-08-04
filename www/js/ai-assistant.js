@@ -467,6 +467,7 @@ const AIAssistant = {
       await Store.put('ai_chats', aiMsg);
       this.hideTyping();
       this.renderMessages();
+      Pet.onLearnReward('ai_chat_per_msg', 1).catch(() => {});
 
       // 数学内容自动归档 + 记录薄弱点
       if (this.containsMathContent(text || '') || img) {

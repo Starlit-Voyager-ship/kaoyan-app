@@ -280,5 +280,121 @@ const Store = {
     const today = Utils.today();
     const chats = await this.getUserData('ai_chats', username);
     return chats.filter(c => c.timestamp && c.timestamp.startsWith(today)).length;
+  },
+
+  // ============================================================
+  // 金币系统（coins_<user>，单条记录，balance 字段）
+  // ============================================================
+
+  async getCoins(username) {
+    const user = username || this.getCurrentUser();
+    if (!user) return 0;
+    try {
+      const all = await this.getUserData('coins', user);
+      const rec = (all || []).find(r => r.id === 'coins_' + user);
+      return Number(rec && rec.balance) || 0;
+    } catch (e) { return 0; }
+  },
+
+  async addCoins(username, delta) {
+    if (!delta) return 0;
+    const user = username || this.getCurrentUser();
+    if (!user) return 0;
+    const cur = await this.getCoins(user);
+    const next = Math.max(0, cur + delta);
+    await this.put('coins', { id: 'coins_' + user, balance: next });
+    return next;
+  },
+
+  // 扣金币：余额不足返回 -1；成功返回扣后余额
+  async spendCoins(username, amount) {
+    if (!amount || amount <= 0) return await this.getCoins(username);
+    const user = username || this.getCurrentUser();
+    if (!user) return -1;
+    const cur = await this.getCoins(user);
+    if (cur < amount) return -1;
+    const next = cur - amount;
+    await this.put('coins', { id: 'coins_' + user, balance: next });
+    return next;
+  },
+
+  // ============================================================
+  // 宠物系统（pet_<user>，单条记录，含 lvl/exp/mood/hunger/thirst/lastUpdate）
+  // ============================================================
+
+  // 衰减参数：每 5 分钟 hunger-1、thirst-1；mood 综合前两者
+  _PET_DECAY_INTERVAL_MS: 5 * 60 * 1000,
+  _PET_HUNGER_LOSS_PER_TICK: 1,
+  _PET_THIRST_LOSS_PER_TICK: 1,
+
+  _applyDecay(pet) {
+    const now = Date.now();
+    const last = pet.lastUpdate || now;
+    const ticks = Math.floor((now - last) / this._PET_DECAY_INTERVAL_MS);
+    if (ticks <= 0) return pet;
+    pet.hunger = Math.max(0, (pet.hunger || 0) - ticks * this._PET_HUNGER_LOSS_PER_TICK);
+    pet.thirst = Math.max(0, (pet.thirst || 0) - ticks * this._PET_THIRST_LOSS_PER_TICK);
+    // 心情 = (hunger+thirst)/2 - 5（最低 0 最高 100）
+    pet.mood = Math.max(0, Math.min(100, Math.round((pet.hunger + pet.thirst) / 2 - 5)));
+    pet.lastUpdate = now;
+    return pet;
+  },
+
+  async getPet(username) {
+    const user = username || this.getCurrentUser();
+    if (!user) return null;
+    try {
+      const all = await this.getUserData('pet_data', user);
+      const rec = (all || []).find(r => r.id === 'pet_' + user);
+      const pet = rec ? Object.assign({
+        lvl: 1, exp: 0, mood: 80, hunger: 80, thirst: 80, lastUpdate: Date.now()
+      }, rec) : null;
+      if (!pet) return null;
+      // 应用时间衰减（不写回云端，避免每次读都触发写）
+      return this._applyDecay(pet);
+    } catch (e) { return null; }
+  },
+
+  // 取宠物并写回（用于衰减后保存，保证下次打开从最新开始计时）
+  async loadPetWithPersist(username) {
+    const pet = await this.getPet(username);
+    if (pet) await this.savePet(pet, { skipDecay: true });
+    return pet;
+  },
+
+  // 写宠物数据：默认会先应用衰减，避免覆盖未保存的衰减进度
+  async savePet(petData, opts) {
+    const user = this.getCurrentUser();
+    if (!user || !petData) return;
+    const skipDecay = opts && opts.skipDecay;
+    const pet = skipDecay ? Object.assign({}, petData) : this._applyDecay(Object.assign({}, petData));
+    pet.username = user;
+    pet.lastUpdate = Date.now();
+    await this.put('pet_data', pet);
+  },
+
+  // 经验升级曲线：exp_to_next(lvl) = 80 * (1 + 0.18*(lvl-1))，不封顶
+  expToNext(lvl) {
+    return Math.round(80 * (1 + 0.18 * Math.max(0, (lvl || 1) - 1)));
+  },
+
+  // 给宠物加经验；返回 { leveledUp, newLvl, expGained }
+  async addPetExp(username, exp) {
+    if (!exp || exp <= 0) return { leveledUp: false, newLvl: 0, expGained: 0 };
+    const user = username || this.getCurrentUser();
+    if (!user) return { leveledUp: false, newLvl: 0, expGained: 0 };
+    const pet = await this.getPet(user);
+    if (!pet) return { leveledUp: false, newLvl: 0, expGained: 0 };
+    // 多倍经验药 buff（30 分钟）
+    if (pet.expBuffUntil && Date.now() < pet.expBuffUntil) exp = exp * 2;
+    pet.exp = (pet.exp || 0) + exp;
+    let leveledUp = false;
+    while (pet.exp >= this.expToNext(pet.lvl)) {
+      pet.exp -= this.expToNext(pet.lvl);
+      pet.lvl = (pet.lvl || 1) + 1;
+      leveledUp = true;
+    }
+    await this.savePet(pet);
+    return { leveledUp, newLvl: pet.lvl, expGained: exp };
   }
 };

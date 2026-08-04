@@ -108,6 +108,9 @@ const app = {
       case 'friend-wake':
         FriendWake.loadBinding();
         break;
+      case 'pet':
+        PetUI.render();
+        break;
       case 'settings':
         this.loadSettingsUI();
         break;

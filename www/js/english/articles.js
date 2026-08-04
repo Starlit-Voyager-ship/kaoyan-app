@@ -223,7 +223,8 @@ const Articles = {
       this._translationVisible = true;
       this.renderReaderContent();
       if (btn) btn.textContent = '收起翻译';
-      Utils.toast('翻译完成');
+      Utils.toast('翻译完成，+20 金币');
+      Pet.onLearnReward('article_complete', 1).catch(() => {});
     } catch (e) {
       console.error('[翻译失败]', e);
       Utils.toast((e && e.message) ? e.message : '翻译失败，请重试');

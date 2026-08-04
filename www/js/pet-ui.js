@@ -505,7 +505,7 @@ const PetUI = (() => {
   function closePanel() {
     if (!_elPanel) return;
     _elPanel.classList.remove('open');
-    // 重置 sheet 内联 transform（下滑手势未结束也会被重置）
+    // 复位所有残留样式，避免下次打开还看见旧的 transform
     const sheet = _elPanel.querySelector('.pet-panel-sheet');
     if (sheet) sheet.style.transform = '';
   }

@@ -258,6 +258,67 @@
   transition: width 0.3s ease;
 }
 
+/* ========================================
+   首页倒数日卡
+   ======================================== */
+.home-countdown-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(124, 107, 196, 0.10), rgba(224, 122, 159, 0.10));
+  border: 1px solid rgba(124, 107, 196, 0.18);
+  border-radius: var(--radius-md, 14px);
+  padding: 14px 16px;
+  margin-top: -4px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.home-countdown-card:hover  { box-shadow: 0 4px 16px rgba(124, 107, 196, 0.18); }
+.home-countdown-card:active { transform: scale(0.98); }
+.home-countdown-left { flex: 1; min-width: 0; }
+.home-countdown-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary, #6E5CA8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-countdown-sub {
+  font-size: 0.74rem;
+  color: var(--text-secondary, #666);
+  margin-top: 2px;
+}
+.home-countdown-right {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.home-countdown-num {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--primary, #6E5CA8);
+  font-variant-numeric: tabular-nums;
+}
+.home-countdown-unit {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary, #666);
+}
+.home-countdown-pencil {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  color: var(--text-secondary, #666);
+  opacity: 0.45;
+}
+.home-countdown-card.is-past .home-countdown-num { color: #C8A24B; }
+.home-countdown-card.is-today .home-countdown-num { color: #E05050; }
+
 /* 开关按钮 */
 .toggle-switch {
   position: relative;

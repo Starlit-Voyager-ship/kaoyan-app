@@ -143,6 +143,19 @@
           </div>
         </div>
 
+        <!-- 倒数日卡 -->
+        <div class="home-countdown-card" id="home-countdown-card" onclick="Countdown.openEditor()">
+          <div class="home-countdown-left">
+            <div class="home-countdown-name" id="home-countdown-name">未设置目标日</div>
+            <div class="home-countdown-sub" id="home-countdown-sub">点击设置考研/考试日期</div>
+          </div>
+          <div class="home-countdown-right">
+            <div class="home-countdown-num" id="home-countdown-num">--</div>
+            <div class="home-countdown-unit">天</div>
+          </div>
+          <svg class="home-countdown-pencil" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" onclick="Countdown.openEditor(event)"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+        </div>
+
         <!-- 次级统计：3 等分卡 -->
         <div class="home-stat-row">
           <div class="home-stat" onclick="app.navigate('vocab')">
@@ -857,6 +870,7 @@
   <script src="js/store.js?v=20260804a"></script>
   <script src="js/pet.js?v=20260804a"></script>
   <script src="js/pet-ui.js?v=20260804a"></script>
+  <script src="js/countdown.js?v=20260804b"></script>
   <script src="js/auth.js?v=20260804a"></script>
   <script src="js/pomodoro.js?v=20260803n"></script>
   <!-- KaTeX：公式渲染 -->

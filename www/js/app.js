@@ -76,6 +76,7 @@ const app = {
       case 'home':
         this.updateHomeStats();
         if (typeof PetUI !== 'undefined' && PetUI.updateHomeCard) PetUI.updateHomeCard();
+        if (typeof Countdown !== 'undefined' && Countdown.renderHome) Countdown.renderHome();
         break;
       case 'mine':
         this.renderMine();
@@ -136,6 +137,7 @@ const app = {
 
     this.updateHomeStats();
     if (typeof PetUI !== 'undefined' && PetUI.updateHomeCard) PetUI.updateHomeCard();
+    if (typeof Countdown !== 'undefined' && Countdown.renderHome) Countdown.renderHome();
   },
 
   async updateHomeStats() {

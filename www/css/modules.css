@@ -48,47 +48,70 @@
 }
 .pomo-todo-card {
   position: relative;
-  border-radius: var(--radius-lg);
-  padding: 18px 20px;
+  border-radius: var(--radius-lg, 16px);
+  padding: 18px 20px 18px 24px;
   min-height: 88px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   overflow: hidden;
-  color: #fff;
-  background: var(--primary);
-  box-shadow: var(--glass-shadow);
-  border: 1px solid rgba(255,255,255,0.2);
+  color: var(--text, #1E3A50);
+  background: var(--glass-bg-heavy, rgba(255,255,255,0.48));
+  backdrop-filter: var(--glass-blur, blur(12px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(12px));
+  box-shadow: var(--glass-shadow, 0 6px 24px rgba(30,58,80,0.08));
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.28));
+  transition: transform 0.12s ease, box-shadow 0.15s ease;
 }
-.pomo-todo-card:nth-child(2) { background: var(--c-sky); }
-.pomo-todo-card:nth-child(3) { background: var(--c-cyan); }
-.pomo-todo-card:nth-child(4) { background: var(--c-coral); }
-.pomo-todo-card:nth-child(5) { background: var(--c-amber); }
-.pomo-todo-card:nth-child(6) { background: var(--c-violet); }
+.pomo-todo-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 12px; bottom: 12px;
+  width: 4px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent, var(--primary, #4A90B8));
+  opacity: 0.85;
+}
+.pomo-todo-card:active { transform: scale(0.99); }
+.pomo-todo-card:nth-child(1) { --accent: var(--primary, #4A90B8); }
+.pomo-todo-card:nth-child(2) { --accent: #2EA39A; }
+.pomo-todo-card:nth-child(3) { --accent: #5B8DBF; }
+.pomo-todo-card:nth-child(4) { --accent: #E08A6A; }
+.pomo-todo-card:nth-child(5) { --accent: #D4A24E; }
+.pomo-todo-card:nth-child(6) { --accent: #8B79C9; }
+.pomo-todo-card:nth-child(n+7) { --accent: var(--text-light, #7A94A8); }
 .pomo-todo-info { z-index: 1; }
-.pomo-todo-title { font-size: 1.15rem; font-weight: 600; margin-bottom: 4px; }
-.pomo-todo-sub { font-size: 0.82rem; opacity: 0.9; }
+.pomo-todo-title { font-size: 1.15rem; font-weight: 600; margin-bottom: 4px; color: var(--text, #1E3A50); }
+.pomo-todo-sub { font-size: 0.82rem; color: var(--text-tertiary, #7A94A8); }
 .pomo-todo-actions { display: flex; align-items: center; gap: 10px; z-index: 1; }
 .pomo-todo-del {
-  width: 28px; height: 28px;
+  width: 30px; height: 30px;
   border-radius: 50%;
   border: none;
-  background: rgba(255,255,255,0.25);
-  color: #fff;
+  background: rgba(74, 144, 184, 0.08);
+  color: var(--text-tertiary, #7A94A8);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
+.pomo-todo-del:hover { background: rgba(224, 82, 82, 0.12); color: #E05252; }
 .pomo-start-btn {
-  padding: 7px 16px;
-  border-radius: var(--radius-xl);
-  border: 1px solid rgba(255,255,255,0.6);
-  background: rgba(255,255,255,0.2);
+  padding: 7px 18px;
+  border-radius: var(--radius-xl, 999px);
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.28));
+  background: var(--primary, #4A90B8);
   color: #fff;
   font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
+.pomo-start-btn:hover { box-shadow: 0 4px 12px rgba(74, 144, 184, 0.32); }
+.pomo-start-btn:active { transform: scale(0.96); }
 .pomo-todo-empty { text-align: center; color: var(--text-light); padding: 40px 0; }
 
 /* 计时中 */

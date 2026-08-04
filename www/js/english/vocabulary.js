@@ -39,8 +39,10 @@ const Vocabulary = {
   filterIndex: 0,
   filterCorrect: 0,
   filterWrong: 0,
+  filterUnknown: 0,   // 用户主动点「不认识」的题数（区别于 4 选 1 答错）
   filterBand: {},
   _filterAnswered: false,
+  filterQuestionCount: 40,  // 本次测试的总题数（用户从弹窗选择，默认 40）
 
   // 艾宾浩斯复习间隔（天）：学完后的第 1/2/4/7/15/30/60 天复习
   EBBINGHAUS: [1, 2, 4, 7, 15, 30, 60],
@@ -116,7 +118,7 @@ const Vocabulary = {
     // 今日打卡
     document.getElementById('word-checkin').addEventListener('click', () => this.checkIn());
     // 过滤熟词（词汇量测试）
-    document.getElementById('word-filter-known').addEventListener('click', () => this.startFilterTest());
+    document.getElementById('word-filter-known').addEventListener('click', () => this._showFilterCountPicker());
     // 设置页：管理已过滤熟词
     const mkw = document.getElementById('manage-known-words');
     if (mkw) mkw.addEventListener('click', () => this.openKnownManager());
@@ -967,8 +969,35 @@ const Vocabulary = {
     }
   },
 
-  // 词汇量测试：按词频带分层抽样，4 选 1 考义
-  async startFilterTest() {
+  // 词汇量测试题数选择弹窗（最少 40，上不封顶；题数越多估算越准）
+  _showFilterCountPicker() {
+    const options = [40, 60, 80, 100, 200, 500];
+    const body = `
+      <p style="margin:0 0 14px;color:var(--text-secondary);font-size:0.9rem;line-height:1.5">
+        题目越多，词汇量估算越精确。最少 <b>40</b> 题，上不封顶。<br>
+        测试中遇到「不认识」的单词可主动标记，结果按词频带概率加权计算。
+      </p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        ${options.map(n => `<button class="btn-secondary filter-count-btn" data-n="${n}" style="padding:14px 8px">${n} 题</button>`).join('')}
+      </div>`;
+    Utils.showModal('词汇量测试 · 选择题数', body,
+      '<button class="btn-secondary" onclick="Utils.hideModal()">取消</button>');
+    document.querySelectorAll('.filter-count-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const n = parseInt(btn.dataset.n, 10);
+        Utils.hideModal();
+        this.startFilterTest(n);
+      });
+    });
+  },
+
+  // 词汇量测试：按词频带分层抽样，4 选 1 考义 + 「不认识」按钮
+  // 算法（扇贝"精简单词"思路的简化版）：
+  //   每带抽 K 题 → p_i = (correct+1)/(total+2) 拉普拉斯平滑
+  //   词汇量 ≈ Σ(每带词数 × p_i)
+  //   过滤 = p_i≥0.75 整带 / p_i<0.5 不过滤 / 中间线性插值
+  async startFilterTest(questionCount = 40) {
+    const N = Math.max(40, questionCount | 0);
     const dict = (typeof window !== 'undefined' && window.EN_DICT) ? window.EN_DICT : {};
     const freq = (typeof window !== 'undefined' && window.WORD_FREQ) ? window.WORD_FREQ : {};
     const known = await this.getKnownSet();
@@ -979,16 +1008,16 @@ const Vocabulary = {
     for (const word in dict) {
       if (known.has(word)) continue;
       const rank = freq[word] || 99999;
-      const band = this.FILTER_BANDS.find(b => rank >= b.min && rank <= b.max) || this.FILTER_BANDS[3];
+      const band = this.FILTER_BANDS.find(b => rank >= b.min && rank <= b.max) || this.FILTER_BANDS[this.FILTER_BANDS.length - 1];
       byBand[band.name].push({ word, meaning: dict[word], rank });
     }
 
-    // 2) 每带打乱后抽 10 个（分层抽样）
-    const PER = 10;
+    // 2) 按带均分（每带至少 10 题；带内不足则有多少取多少）
+    const PER = Math.max(10, Math.floor(N / this.FILTER_BANDS.length));
     const meaningPool = Object.values(dict).filter(Boolean);
     const questions = [];
     this.FILTER_BANDS.forEach(b => {
-      const sample = this.shuffle(byBand[b.name].slice()).slice(0, PER);
+      const sample = this.shuffle(byBand[b.name].slice()).slice(0, Math.min(PER, byBand[b.name].length));
       sample.forEach(p => {
         const opts = [p.meaning];
         let g = 0;
@@ -1013,8 +1042,10 @@ const Vocabulary = {
     this.filterIndex = 0;
     this.filterCorrect = 0;
     this.filterWrong = 0;
+    this.filterUnknown = 0;
     this.filterBand = {};
     this._filterAnswered = false;
+    this.filterQuestionCount = N;
     this.switchTab('test');
     this.renderFilterQuestion();
   },
@@ -1027,13 +1058,14 @@ const Vocabulary = {
     }
     const q = this.filterQuestions[this.filterIndex];
     const total = this.filterQuestions.length;
+    const unk = this.filterUnknown || 0;
     const optionsHtml = q.options.map(opt =>
       `<button class="test-option" data-val="${this.esc(opt)}">${this.esc(opt)}</button>`
     ).join('');
     area.innerHTML = `
       <div class="test-progress-info">
         <span>第 ${this.filterIndex + 1} / ${total} 题 · 词汇量测试</span>
-        <span>对 ${this.filterCorrect} · 错 ${this.filterWrong}</span>
+        <span>对 ${this.filterCorrect} · 错 ${this.filterWrong} · 不认识 ${unk}</span>
       </div>
       <div class="test-progress-bar"><div class="progress-fill" style="width:${(this.filterIndex / total) * 100}%"></div></div>
       <div class="test-question">
@@ -1041,10 +1073,17 @@ const Vocabulary = {
         <div style="color:var(--text-secondary);font-size:0.9rem">选择正确的释义（${this.esc(q.bandName)}）</div>
       </div>
       <div class="test-options">${optionsHtml}</div>
+      <div style="margin-top:14px;text-align:center">
+        <button id="test-unknown-btn" style="background:transparent;border:1px dashed var(--text-tertiary,#9aa3b2);color:var(--text-secondary,#666);padding:10px 22px;border-radius:10px;font-size:0.92rem;cursor:pointer;font-family:inherit">
+          我不认识这个单词
+        </button>
+      </div>
     `;
     area.querySelectorAll('.test-option').forEach(btn => {
       btn.addEventListener('click', () => this.onFilterAnswer(btn));
     });
+    const ub = area.querySelector('#test-unknown-btn');
+    if (ub) ub.addEventListener('click', () => this.onFilterUnknown());
   },
 
   async onFilterAnswer(btn) {
@@ -1067,6 +1106,8 @@ const Vocabulary = {
       });
       this.filterWrong++;
     }
+    const ub = document.getElementById('test-unknown-btn');
+    if (ub) ub.disabled = true;
     setTimeout(() => {
       this._filterAnswered = false;
       this.filterIndex++;
@@ -1074,68 +1115,137 @@ const Vocabulary = {
     }, 900);
   },
 
+  // 「不认识」按钮：诚实信号，避免 4 选 1 的随机猜对拉高准确率
+  async onFilterUnknown() {
+    if (this._filterAnswered) return;
+    this._filterAnswered = true;
+    const q = this.filterQuestions[this.filterIndex];
+    const bn = q.bandName;
+    if (!this.filterBand[bn]) this.filterBand[bn] = { total: 0, correct: 0 };
+    this.filterBand[bn].total++;
+    this.filterUnknown = (this.filterUnknown || 0) + 1;
+    this.filterWrong++;
+    // 高亮正确释义给用户看
+    document.querySelectorAll('#test-area .test-option').forEach(b => {
+      if (b.dataset.val === q.correct) b.classList.add('correct');
+    });
+    const ub = document.getElementById('test-unknown-btn');
+    if (ub) ub.disabled = true;
+    setTimeout(() => {
+      this._filterAnswered = false;
+      this.filterIndex++;
+      this.renderFilterQuestion();
+    }, 1300);
+  },
+
   async renderFilterResult() {
     const area = document.getElementById('test-area');
     const total = this.filterQuestions.length;
-    const rate = total ? Math.round((this.filterCorrect / total) * 100) : 0;
-
-    // 估算断点：按难度带顺序，准确率 >= 0.6 的最高带上限作为 cutoff
-    let cutoffRank = 0;
-    this.FILTER_BANDS.forEach(b => {
-      const r = this.filterBand[b.name];
-      if (r && r.total > 0 && r.correct / r.total >= 0.6) {
-        cutoffRank = Math.max(cutoffRank, b.max);
-      }
-    });
+    const correctCount = this.filterCorrect;
+    const unknownCount = this.filterUnknown || 0;
+    const wrongCount = this.filterWrong;
+    const guessWrong = wrongCount - unknownCount; // 4选1答错的题
+    const overallAcc = total ? Math.round((correctCount / total) * 100) : 0;
 
     const dict = (typeof window !== 'undefined' && window.EN_DICT) ? window.EN_DICT : {};
     const freq = (typeof window !== 'undefined' && window.WORD_FREQ) ? window.WORD_FREQ : {};
-    const known = await this.getKnownSet();
-    let toFilter = 0;
-    let vocabEstimate = 0;
+
+    // 统计每带词数（包含已过滤的也要算：分母是整带，不是剩余）
+    const bandSize = {};
+    this.FILTER_BANDS.forEach(b => bandSize[b.name] = 0);
     for (const word in dict) {
       const rank = freq[word] || 99999;
-      if (rank <= cutoffRank) vocabEstimate++;
-      if (known.has(word)) continue;
-      if (rank <= cutoffRank) toFilter++;
+      const band = this.FILTER_BANDS.find(b => rank >= b.min && rank <= b.max) || this.FILTER_BANDS[this.FILTER_BANDS.length - 1];
+      bandSize[band.name]++;
     }
-    const bandsText = this.FILTER_BANDS.map(b => {
-      const r = this.filterBand[b.name];
-      const acc = r && r.total ? Math.round((r.correct / r.total) * 100) : '-';
-      return `${b.name}: ${acc}%`;
-    }).join(' ｜ ');
+
+    // 分层概率加权：vocab ≈ Σ(每带词数 × p_i)，过滤按比例/整带
+    let vocabEstimate = 0;
+    let toFilter = 0;
+    const bandDisplay = this.FILTER_BANDS.map(b => {
+      const r = this.filterBand[b.name] || { total: 0, correct: 0 };
+      const sz = bandSize[b.name] || 0;
+      if (r.total === 0) {
+        return { name: b.name, correct: 0, total: 0, acc: null, p: 0, bandSize: sz };
+      }
+      // 拉普拉斯平滑：避免 p=0 或 1 极端
+      const p = (r.correct + 1) / (r.total + 2);
+      vocabEstimate += sz * p;
+      // 过滤比例：p≥0.75 整带 / p<0.5 不过滤 / 中间线性
+      let f;
+      if (p >= 0.75) f = 1;
+      else if (p < 0.5) f = 0;
+      else f = (p - 0.5) / 0.25;
+      toFilter += sz * f;
+      const acc = Math.round((r.correct / r.total) * 100);
+      return { name: b.name, correct: r.correct, total: r.total, acc, p, bandSize: sz };
+    });
+    vocabEstimate = Math.round(vocabEstimate);
+    toFilter = Math.round(toFilter);
+
+    const bandsText = bandDisplay.map(b =>
+      b.total
+        ? `${b.name}：${b.acc}%（${b.correct}/${b.total}）`
+        : `${b.name}：未抽到`
+    ).join('<br>');
 
     area.innerHTML = `
       <div style="text-align:center;padding:24px 0">
-        <div style="font-size:2.2rem;font-weight:700;color:var(--primary)">${rate}%</div>
-        <p style="margin:10px 0;color:var(--text-secondary);font-size:0.85rem">${bandsText}</p>
-        <p style="margin:14px 0;font-size:0.95rem">预估词汇量约 <b>${cutoffRank === 0 ? '较低' : vocabEstimate}</b> 词（COCA 频率）</p>
+        <div style="font-size:2.2rem;font-weight:700;color:var(--primary)">${overallAcc}%</div>
+        <p style="margin:8px 0;color:var(--text-secondary);font-size:0.85rem">本次 ${total} 题 · 对 ${correctCount} · 答错 ${guessWrong} · 不认识 ${unknownCount}</p>
+        <div style="margin:10px auto 14px;display:inline-block;text-align:left;font-size:0.8rem;color:var(--text-secondary);line-height:1.7;padding:8px 12px;background:var(--bg-soft,#f4f6fa);border-radius:8px">
+          ${bandsText}
+        </div>
+        <div style="margin:14px auto;max-width:240px;padding:16px;background:var(--bg-soft,#f4f6fa);border-radius:14px">
+          <div style="font-size:1.9rem;font-weight:700;color:var(--primary);line-height:1.1">${vocabEstimate}</div>
+          <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px">预估词汇量（词）</div>
+          <div style="font-size:0.72rem;color:var(--text-tertiary,#9aa3b2);margin-top:6px;line-height:1.4">分层概率加权 + 拉普拉斯平滑<br>题越多越准</div>
+        </div>
         <p style="margin:6px 0 18px;color:var(--text-secondary)">将过滤 <b style="color:var(--primary)">${toFilter}</b> 个熟词，背单词不再出现它们</p>
         <button class="btn-primary" id="filter-apply">应用过滤</button>
         <button class="btn-secondary" id="filter-again" style="margin-left:8px">再测一次</button>
         <button class="btn-secondary" id="filter-cancel" style="margin-left:8px">取消</button>
       </div>`;
     area.querySelector('#filter-apply').addEventListener('click', async () => {
-      await this._applyFilterKnown(cutoffRank);
+      await this._applyFilterKnown();
       area.innerHTML = '<p class="test-placeholder">已过滤熟词！去「背单词」开始学习吧</p>';
       this.refreshFilterTip();
     });
-    area.querySelector('#filter-again').addEventListener('click', () => this.startFilterTest());
+    area.querySelector('#filter-again').addEventListener('click', () => this.startFilterTest(this.filterQuestionCount || 40));
     area.querySelector('#filter-cancel').addEventListener('click', () => {
       area.innerHTML = '<p class="test-placeholder">选择测试模式后开始</p>';
     });
   },
 
-  async _applyFilterKnown(cutoffRank) {
+  // 应用过滤：按每带概率比，从最高频词起标记熟词
+  async _applyFilterKnown() {
     const dict = (typeof window !== 'undefined' && window.EN_DICT) ? window.EN_DICT : {};
     const freq = (typeof window !== 'undefined' && window.WORD_FREQ) ? window.WORD_FREQ : {};
     const known = await this.getKnownSet();
-    for (const word in dict) {
-      const rank = freq[word] || 99999;
-      if (rank <= cutoffRank) known.add(word);
+    let added = 0;
+    for (const b of this.FILTER_BANDS) {
+      const r = this.filterBand[b.name] || { total: 0, correct: 0 };
+      if (r.total === 0) continue;
+      const p = (r.correct + 1) / (r.total + 2);
+      let ratio;
+      if (p >= 0.75) ratio = 1;
+      else if (p < 0.5) ratio = 0;
+      else ratio = (p - 0.5) / 0.25;
+      if (ratio === 0) continue;
+      // 收集该带词（按 rank 升序，优先过滤最常见词）
+      const words = [];
+      for (const word in dict) {
+        const rank = freq[word] || 99999;
+        if (rank >= b.min && rank <= b.max) words.push({ word, rank });
+      }
+      words.sort((x, y) => x.rank - y.rank);
+      const n = Math.round(words.length * ratio);
+      for (let i = 0; i < n; i++) {
+        if (!known.has(words[i].word)) { known.add(words[i].word); added++; }
+      }
     }
-    await this.saveKnownSet(known);
-    Utils.toast(`已过滤 ${known.size} 个熟词 🎉`);
+    if (added > 0) await this.saveKnownSet(known);
+    Utils.toast(added > 0 ? `已过滤 ${added} 个熟词` : '当前测试未筛出更多熟词');
   },
 
   async refreshFilterTip() {

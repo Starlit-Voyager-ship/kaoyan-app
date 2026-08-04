@@ -124,8 +124,12 @@ html {
 
 body {
   font-family: var(--font-sans);
-  /* 天空渐变背景：上蓝下白，模拟晴朗天空 */
-  background: linear-gradient(180deg, #87CEEB 0%, #B8DCF0 35%, #E4F2FC 65%, #F5FAFD 100%);
+  /* 实拍蓝天白云背景，全屏覆盖；渐变兜底 */
+  background-color: #B8DCF0;
+  background-image: url('../images/A_pristine_clear_blue_sky_back_2026-08-04T05-59-32.png');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
   background-attachment: fixed;
   color: var(--text);
   line-height: 1.6;
@@ -169,7 +173,13 @@ body {
 #page-title { font-size: 1.05rem; font-weight: 600; letter-spacing: 0.02em; }
 
 /* main 不再需要 margin-top（已删除标题栏） */
-main { margin-top: 0; }
+main {
+  margin-top: 0;
+  width: 100%;
+  max-width: var(--max-content);
+  margin-left: auto;
+  margin-right: auto;
+}
 
 /* 侧边抽屉（深色、平涂、无渐变 · 规范 §9） */
 #sidebar {
@@ -328,8 +338,9 @@ h3 svg, h4 svg { vertical-align: middle; }
   border-top: 1px solid var(--glass-border);
   display: flex;
   align-items: flex-end;
-  z-index: 100;
+  z-index: 500;
   padding-bottom: env(safe-area-inset-bottom);
+  pointer-events: auto;
 }
 .tab-item {
   position: relative;
@@ -647,6 +658,32 @@ h3 svg, h4 svg { vertical-align: middle; }
   .nav-item {
     padding: 13px 20px;
     font-size: 1rem;
+  }
+}
+
+/* 桌面端/宽屏适配 */
+@media (min-width: 769px) {
+  :root {
+    --max-content: 520px;
+    --tabbar-height: 60px;
+  }
+  body {
+    background-size: cover;
+    background-position: center center;
+  }
+  .content-section {
+    padding: 28px 32px;
+    padding-bottom: calc(32px + var(--tabbar-height) + 24px);
+  }
+  #tabbar {
+    max-width: calc(var(--max-content) + 64px);
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 20px 20px 0 0;
+    bottom: 0;
+  }
+  .home-quick {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 

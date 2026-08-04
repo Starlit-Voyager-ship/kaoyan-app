@@ -524,13 +524,17 @@ const Vocabulary = {
   // 真正掌握：推进复习阶段、记首次学习
   async _recordKnown(w, isNew, partial) {
     const wasMastered = (w.mastery || 0) >= 100;
-    w.mastery = Math.min(100, (w.mastery || 0) + 20);
+    w.mastery = Math.min(100, (w.mastery || 0) + 25);
     w.lastReview = Utils.today();
-    if (!w.firstLearned) w.firstLearned = Utils.today();
+    // 首次接触该词：+2 金币（开始学习的即时反馈）
+    if (!w.firstLearned) {
+      w.firstLearned = Utils.today();
+      Pet.onLearnReward('vocab_per_word', 1).catch(() => {});
+    }
     if (!isNew && !partial) {
       w.ebbinghausStage = Math.min((w.ebbinghausStage || 0) + 1, this.EBBINGHAUS.length - 1);
     }
-    // 首次完全掌握 → +2 金币（学习奖励）
+    // 真正掌握（从 <100 到 100）：额外 +2 金币（攻克奖励）
     if (w.mastery >= 100 && !wasMastered) {
       Pet.onLearnReward('vocab_per_word', 1).catch(() => {});
     }

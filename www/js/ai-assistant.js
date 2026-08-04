@@ -193,10 +193,18 @@ const AIAssistant = {
     const errorInput = errorEl ? errorEl.value.trim() : '';
 
     try {
+      // 先上传图片到 Bmob 云存储（拿 URL），避免 base64 超字段限制
+      Utils.toast('正在上传图片…');
+      const imageUrls = await Bmob.uploadImages(this.uploadImages, 'archive');
+      console.log('[上传归档] 图片URL:', imageUrls);
+
       const v = await this.callQwenVLClassify(settings, this.uploadImages);
       const topic = topicInput || v.topic || '其他';
       const errorReason = errorInput || v.errorHint || '';
       const user = Store.getCurrentUser();
+
+      // imageData 存 URL 数组而非 base64（Bmob 字段限制 ~40KB，图片必须走文件 API）
+      const imageData = imageUrls;
 
       if (v.type === 'math') {
         const ocrText = v.text || '';
@@ -218,7 +226,7 @@ const AIAssistant = {
           topic,
           errorReason,
           ocrText,
-          imageData: this.uploadImages,
+          imageData,
           aiResponse: solution,
           createdAt: new Date().toISOString()
         });
@@ -260,7 +268,7 @@ const AIAssistant = {
           title,
           source: source || '',
           content: v.text || '',
-          imageData: this.uploadImages,
+          imageData,
           aiResponse: analysis,
           wrongQuestions: [],
           createdAt: new Date().toISOString()

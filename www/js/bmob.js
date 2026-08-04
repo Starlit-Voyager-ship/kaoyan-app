@@ -198,5 +198,63 @@ const Bmob = {
         try { await this.request('DELETE', '/classes/AppData/' + r.objectId); } catch (e) {}
       }
     } catch (e) { console.warn('[Bmob] 清空失败', e); }
+  },
+
+  /* ---------- 文件上传 ---------- */
+  // 上传文件到 Bmob 云存储，返回 { url, cdn, filename }
+  // Bmob 免费版单字段限制 ~40KB，图片必须走文件 API 不能内嵌 base64
+  async uploadFile(base64DataUrl, remoteName) {
+    if (!this.hasCredentials()) throw new Error('Bmob 未初始化');
+    // 从 dataURL 提取纯 base64 数据
+    const commaIdx = base64DataUrl.indexOf(',');
+    const mimeMatch = base64DataUrl.match(/^data:(.+?);base64,/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const b64 = base64DataUrl.substring(commaIdx + 1);
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime });
+
+    const filename = remoteName || ('img_' + Date.now() + '.jpg');
+    const url = this.apiUrl.replace(/\/1\/?$/, '') + '/2/files/' + filename;
+
+    const h = {
+      'X-Bmob-Application-Id': this.appId,
+      'X-Bmob-REST-API-Key': this.restKey,
+      'Content-Type': mime
+    };
+    if (this.sessionToken) h['X-Bmob-Session-Token'] = this.sessionToken;
+
+    console.log('[Bmob] ▶ 上传文件:', filename, '| 大小:', blob.size, 'bytes');
+    const res = await fetch(url, { method: 'POST', headers: h, body: blob });
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    console.log('[Bmob] ◀ 文件上传 status:', res.status, '| response:', text.substring(0, 200));
+    if (!res.ok) {
+      throw new Error((data && (data.error || data.message)) || ('文件上传失败 HTTP ' + res.status));
+    }
+    // Bmob 返回格式: { url: "https://...", cdn: "https://...", filename: "..." }
+    return {
+      url: data.url || data.cdn || '',
+      cdn: data.cdn || data.url || '',
+      filename: data.filename || filename
+    };
+  },
+
+  // 批量上传图片数组（base64 data URL 数组），返回 URL 数组
+  async uploadImages(imageDataUrls, prefix) {
+    const results = [];
+    for (let i = 0; i < imageDataUrls.length; i++) {
+      try {
+        const name = (prefix || 'img') + '_' + Date.now() + '_' + i + '.jpg';
+        const uploaded = await this.uploadFile(imageDataUrls[i], name);
+        results.push(uploaded.url || uploaded.cdn || '');
+      } catch (e) {
+        console.warn('[Bmob] 图片', i, '上传失败:', e.message);
+        results.push(''); // 失败存空，不阻断整批
+      }
+    }
+    return results;
   }
 };

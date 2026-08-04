@@ -196,69 +196,41 @@ const AIAssistant = {
     const errorInput = errorEl ? errorEl.value.trim() : '';
 
     try {
-      // === 统一压缩：存档质量（<80KB）===
-      const STORE_MAX = 80 * 1024;
-      const storeImages = [];
+      // 图片仅用于本地识别，不存云端（用户需求：只同步解析后的文字）
+      // 逐张压缩到 <15KB，单张请求 aiProxy 云函数（限制 40KB）不会超限
+      const AI_MAX = 15 * 1024;
+      const aiImages = [];
       for (const img of this.uploadImages) {
         let c = img;
-        for (const [mw, q] of [[1024, 0.7], [800, 0.6], [600, 0.5]]) {
+        for (const [mw, q] of [[800, 0.5], [640, 0.45], [512, 0.4], [400, 0.35]]) {
           c = await Utils.compressImg(c, mw, q);
-          if ((c.substring(c.indexOf(',') + 1).length * 0.75) < STORE_MAX) break;
+          if ((c.substring(c.indexOf(',') + 1).length * 0.75) < AI_MAX) break;
         }
-        storeImages.push(c);
-      }
-      this.uploadImages = storeImages;
-
-      // === 第一步：尝试上传图片到 Bmob 文件服务拿 URL（最优路径）===
-      let imageUrls = [];
-      let useUrlMode = false;
-      Utils.toast('正在上传图片…');
-      try {
-        imageUrls = await Bmob.uploadImages(this.uploadImages, 'archive');
-        const validUrls = imageUrls.filter(u => u);
-        if (validUrls.length > 0) {
-          useUrlMode = true;
-          console.log('[上传] 文件服务可用，使用 URL 模式');
-        } else {
-          console.warn('[上传] 文件服务返回空 URL，降级为 base64 模式');
-        }
-      } catch (uploadErr) {
-        if (uploadErr.code === 10007 || /10007|文件服务|FILE_SERVICE/.test(uploadErr.message)) {
-          console.warn('[上传] Bmob 文件服务未开启（需去控制台绑定域名），降级为 base64 模式');
-          Utils.toast('文件服务未开启，使用备用模式…');
-        } else {
-          console.warn('[上传] 文件上传失败:', uploadErr.message, '→ 降级为 base64 模式');
-        }
+        aiImages.push(c);
       }
 
-      // === 第二步：VL 识图（URL 模式 或 base64 备用模式）===
+      // 逐张识图（每轮只发 1 张，避免多图 base64 累计超 aiProxy 限制），合并结果
       Utils.toast('正在识别图片…');
-      let v;
-      if (useUrlMode) {
-        v = await this.callQwenVLClassify(settings, imageUrls.filter(u => u));
-      } else {
-        // 备用：极小 base64 直传 VL（绕过 aiProxy 云函数限制，走 proxyFetch 直连 DashScope）
-        const AI_MAX = 20 * 1024; // <20KB/张，确保直连 DashScope 时不会超限
-        const aiImages = [];
-        for (const img of this.uploadImages) {
-          let c = img;
-          for (const [mw, q] of [[800, 0.5], [600, 0.4], [480, 0.35], [360, 0.3]]) {
-            c = await Utils.compressImg(c, mw, q);
-            if ((c.substring(c.indexOf(',') + 1).length * 0.75) < AI_MAX) break;
-          }
-          aiImages.push(c);
-        }
-        v = await this.callQwenVLClassify(settings, aiImages);
-        // 备用模式下 imageData 存压缩后的 base64（已控制在 AppData 字段限制内）
-        imageUrls = aiImages;
+      const merged = { type: 'other', topic: '', errorHint: '', text: '' };
+      const texts = [];
+      const hints = [];
+      for (const im of aiImages) {
+        const r = await this.callQwenVLClassify(settings, [im]);
+        if (r && r.text) texts.push(r.text);
+        if (r && r.errorHint) hints.push(r.errorHint);
+        if (r && r.topic) merged.topic = r.topic;
+        if (r && r.type && r.type !== 'other') merged.type = r.type;
       }
+      merged.text = texts.join('\n\n');
+      merged.errorHint = hints.join('；');
+      const v = merged;
 
       const topic = topicInput || v.topic || '其他';
       const errorReason = errorInput || v.errorHint || '';
       const user = Store.getCurrentUser();
 
-      // imageData：URL 模式存 URL 数组，base64 模式存压缩后的 base64 数组
-      const imageData = imageUrls;
+      // 不存图片：imageData 置空（文字结果已存云端，自动双端同步）
+      const imageData = null;
 
       if (v.type === 'math') {
         const ocrText = v.text || '';
@@ -470,41 +442,19 @@ const AIAssistant = {
 
     try {
       let visionText = '';
-      let imageUrl = null;
       if (img) {
-        // 优先：上传 Bmob 拿 URL（请求体最小）
-        Utils.toast('正在上传图片...');
-        let uploadOk = false;
-        try {
-          const uploaded = await Bmob.uploadImages([img], 'chat');
-          imageUrl = (uploaded[0]) || null;
-          if (imageUrl) uploadOk = true;
-        } catch (e) {
-          if (e.code === 10007 || /10007|文件服务/.test(e.message)) {
-            console.warn('[AI聊天] 文件服务未开启，降级为 base64 直传');
-          }
+        // 图片仅本地压缩识别，不存云端（用户需求：只同步解析后的文字）
+        Utils.toast('正在识别图片...');
+        let aiImg = img;
+        for (const [mw, q] of [[800, 0.5], [640, 0.45], [512, 0.4], [400, 0.35]]) {
+          aiImg = await Utils.compressImg(aiImg, mw, q);
+          if ((aiImg.substring(aiImg.indexOf(',') + 1).length * 0.75) < 15 * 1024) break;
         }
-
-        if (uploadOk && imageUrl) {
-          // URL 模式：用 URL 调 VL
-          Utils.toast('正在识别图片...');
-          visionText = await this.callQwenVLOcr(settings, [imageUrl]);
-        } else {
-          // 备用模式：压缩后 base64 直传 VL
-          console.warn('[AI聊天] 使用 base64 备用模式');
-          Utils.toast('正在识别图片...');
-          let aiImg = img;
-          for (const [mw, q] of [[800, 0.5], [600, 0.4], [480, 0.35], [360, 0.3]]) {
-            aiImg = await Utils.compressImg(aiImg, mw, q);
-            if ((aiImg.substring(aiImg.indexOf(',') + 1).length * 0.75) < 20 * 1024) break;
-          }
-          visionText = await this.callQwenVLOcr(settings, [aiImg]);
-          imageUrl = aiImg; // 存压缩后的 base64
-        }
-        // 消息中存 URL 或压缩 base64
-        userMsg.image = imageUrl;
+        visionText = await this.callQwenVLOcr(settings, [aiImg]);
+        // 不存图片，只同步文字（userMsg.image 保持 null）
+        userMsg.image = null;
         const idx = this.messages.findIndex(m => m.id === userMsg.id);
-        if (idx >= 0) this.messages[idx].image = imageUrl;
+        if (idx >= 0) this.messages[idx].image = null;
       }
       const response = await this.callQwenText(settings, userMsg, visionText);
       const aiMsg = {

@@ -8,14 +8,8 @@
    ======================================== */
 
 const PetUI = (() => {
-  // ---- 资源 ----
-  const PET_GIFS = [
-    './assets/pet/ameath_idle1.gif',
-    './assets/pet/ameath_idle2.gif',
-    './assets/pet/ameath_idle3.gif',
-    './assets/pet/ameath_idle4.gif',
-    './assets/pet/ameath_main.gif'
-  ];
+  // ---- 资源（动态从 Pet.getAssets 取，支持多宠物类型） ----
+  const DEFAULT_GIFS = ['./assets/pet/ameath_main.gif'];
   const PET_SIZE = 96;        // px (mobile)
   const POS_KEY = 'pet_pos_v1';
   const GIF_INTERVAL = 5000;
@@ -39,6 +33,7 @@ const PetUI = (() => {
   let _pressX = 0, _pressY = 0, _startX = 0, _startY = 0;
   let _lastInteract = 0;
   let _mounted = false;
+  let _pet = null;     // 当前宠物数据（含 petType）
 
   // ---- DOM helpers ----
   function _el(html) {
@@ -121,12 +116,17 @@ const PetUI = (() => {
   // ---- GIF cycle ----
   function _setGif(forceMain) {
     if (!_elImg) return;
-    if (forceMain) {
-      _elImg.src = PET_GIFS[4] + '?t=' + Date.now();
+    const assets = Pet.getAssets(_pet);
+    if (!assets) return;
+    const main = assets.main || DEFAULT_GIFS[0];
+    const gifs = (assets.gifs && assets.gifs.length) ? assets.gifs : [main];
+    const ts = '?t=' + Date.now();
+    if (forceMain || gifs.length === 1) {
+      _elImg.src = main + ts;
       return;
     }
-    _gifIdx = (_gifIdx + 1 + Math.floor(Math.random() * 3)) % 4;
-    _elImg.src = PET_GIFS[_gifIdx] + '?t=' + Date.now();
+    _gifIdx = (_gifIdx + 1 + Math.floor(Math.random() * 3)) % (gifs.length - 1);
+    _elImg.src = gifs[_gifIdx] + ts;
   }
   function _startGifTimer() {
     if (_gifTimer) clearInterval(_gifTimer);
@@ -263,6 +263,13 @@ const PetUI = (() => {
           <div>
             <span class="pet-lvl">Lv.${pet.lvl}</span>
             <span class="pet-state-tag ${tagCls}">${_esc(state.label)}</span>
+            <button class="pet-change-btn" id="pet-change-btn" title="换一只宠物">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 7h13a5 5 0 0 1 5 5M21 7l-3-3M21 7l-3 3"/>
+                <path d="M21 17H8a5 5 0 0 1-5-5M3 17l3 3M3 17l3-3"/>
+              </svg>
+              <span>换一只</span>
+            </button>
           </div>
           <span class="pet-coins">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="12" cy="12" r="8.5" fill="#E5BE6A"/><text x="12" y="16" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">¥</text></svg>
@@ -326,6 +333,8 @@ const PetUI = (() => {
         _actUseItem(map[key], key);
       });
     });
+    const changeBtn = _elPanelBody.querySelector('#pet-change-btn');
+    if (changeBtn) changeBtn.addEventListener('click', () => _showAdoptDialog());
     const shopBtn = _elPanelBody.querySelector('#pet-shop-open');
     const shopHost = _elPanelBody.querySelector('#pet-shop-host');
     if (shopBtn && shopHost) {
@@ -398,6 +407,11 @@ const PetUI = (() => {
       _showToast('请先登录后开启宠物小窝');
       return;
     }
+    _pet = await Pet.loadPet();
+    if (!_pet || !_pet.petType) {
+      _showAdoptDialog();
+      return;
+    }
     const snap = await Pet.snapshot();
     if (!snap) { _showToast('加载失败'); return; }
     _elPanelBody.innerHTML = _renderPanelContent(snap);
@@ -408,6 +422,63 @@ const PetUI = (() => {
   function closePanel() {
     if (_elPanel) _elPanel.classList.remove('open');
   }
+
+  // ---- 领养选择对话框 ----
+  let _elAdopt = null;
+  let _adoptEsc = null;
+  function _buildAdoptDialog() {
+    _elAdopt = _el(`<div class="pet-adopt" id="pet-adopt">
+      <div class="pet-adopt-mask"></div>
+      <div class="pet-adopt-card">
+        <div class="pet-adopt-handle"></div>
+        <h3 class="pet-adopt-title">领养你的宠物</h3>
+        <p class="pet-adopt-sub">选择一位伙伴，开始陪伴你的学习</p>
+        <div class="pet-adopt-grid" id="pet-adopt-grid"></div>
+      </div>
+    </div>`);
+    document.body.appendChild(_elAdopt);
+    const mask = _elAdopt.querySelector('.pet-adopt-mask');
+    mask.addEventListener('click', () => _closeAdoptDialog());
+    _adoptEsc = (e) => { if (e.key === 'Escape' && _elAdopt && _elAdopt.classList.contains('open')) _closeAdoptDialog(); };
+    document.addEventListener('keydown', _adoptEsc);
+  }
+  function _closeAdoptDialog() {
+    if (_elAdopt) _elAdopt.classList.remove('open');
+  }
+  async function _showAdoptDialog() {
+    if (!_elAdopt) _buildAdoptDialog();
+    const types = Pet.PET_TYPES;
+    const grid = _elAdopt.querySelector('#pet-adopt-grid');
+    const currentType = (_pet && _pet.petType) || null;
+    grid.innerHTML = Object.values(types).map(t => `
+      <button class="pet-adopt-item" data-type="${t.id}" ${t.id === currentType ? 'data-current="1"' : ''}>
+        <div class="pet-adopt-img-wrap">
+          <img class="pet-adopt-img ${t.gifs === null ? 'is-static' : ''}" src="${t.preview}" alt="${_esc(t.name)}">
+        </div>
+        <div class="pet-adopt-name">${_esc(t.name)}</div>
+        <div class="pet-adopt-desc">${_esc(t.desc)}</div>
+        <div class="pet-adopt-cta">${t.id === currentType ? '当前领养中' : '选择 →'}</div>
+      </button>
+    `).join('');
+    grid.querySelectorAll('.pet-adopt-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const type = btn.dataset.type;
+        btn.disabled = true;
+        const newPet = await Pet.adopt(type);
+        if (newPet) {
+          _pet = newPet;
+          _applyAssetsToImg();
+          _showToast('已领养 ' + Pet.PET_TYPES[type].name);
+          setTimeout(() => _closeAdoptDialog(), 300);
+          if (_elPanel && _elPanel.classList.contains('open')) {
+            setTimeout(() => openPanel(), 350);
+          }
+        }
+      });
+    });
+    _elAdopt.classList.add('open');
+  }
+
   let _escHandler = null;
   function _buildPanel() {
     _elPanel = _el(`<div class="pet-panel" id="pet-panel">
@@ -466,11 +537,12 @@ const PetUI = (() => {
   }
 
   // ---- mount ----
-  function mount() {
+  async function mount() {
     if (_mounted) return;
+    if (!Store.getCurrentUser()) return;   // 未登录不挂载
     _elPet = _el(`<div class="desktop-pet" id="desktop-pet">
       <div class="pet-mood-bubble" id="pet-mood-bubble"></div>
-      <img class="desktop-pet-img" id="desktop-pet-img" src="${PET_GIFS[4]}" alt="宠物" draggable="false">
+      <img class="desktop-pet-img is-static" id="desktop-pet-img" src="" alt="宠物" draggable="false">
     </div>`);
     document.body.appendChild(_elPet);
     _elImg = _elPet.querySelector('#desktop-pet-img');
@@ -488,16 +560,38 @@ const PetUI = (() => {
     _applyPos();
 
     _bindDrag();
+    // 加载当前宠物数据 → 设置图片 + 启动动画
+    _pet = await Pet.loadPet();
+    _applyAssetsToImg();
     _startGifTimer();
     _scheduleWander();
     _startMoodTimer();
     _mounted = true;
+    // 首次进入：弹领养选择对话框
+    if (_pet && !_pet.petType) {
+      setTimeout(() => _showAdoptDialog(), 300);
+    }
+  }
+
+  // ---- 切换宠物类型后，更新图片 src 与 CSS class ----
+  function _applyAssetsToImg() {
+    if (!_elImg) return;
+    const assets = Pet.getAssets(_pet);
+    if (!assets) return;
+    _elImg.src = assets.main || DEFAULT_GIFS[0];
+    if (assets.gifs === null) {
+      _elImg.classList.add('is-static');
+    } else {
+      _elImg.classList.remove('is-static');
+    }
   }
 
   return {
     mount,
     openPanel,
-    closePanel
+    closePanel,
+    showAdoptDialog: _showAdoptDialog,
+    changeAssets: _applyAssetsToImg
   };
 })();
 

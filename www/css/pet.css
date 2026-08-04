@@ -344,6 +344,177 @@
   white-space: nowrap;
 }
 
+/* ---- 静态宠物（PNG，没有 GIF idle）—— CSS 营造活感 ---- */
+.desktop-pet-img.is-static {
+  animation: pet-static-idle 3.6s ease-in-out infinite;
+}
+@keyframes pet-static-idle {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  25%      { transform: translateY(-3px) rotate(-1.2deg) scale(1.02); }
+  50%      { transform: translateY(0)    rotate(0deg)   scale(1); }
+  75%      { transform: translateY(-2px) rotate(1.2deg)  scale(1.01); }
+}
+
+/* ========================================
+   领养选择对话框
+   - 全屏居中，背景 mask
+   - 2 列网格卡片，预览图 + 名称 + 描述 + CTA
+   ======================================== */
+.pet-adopt {
+  position: fixed;
+  inset: 0;
+  z-index: 10030;        /* 高于 panel (10010) */
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pet-adopt.open { pointer-events: auto; }
+.pet-adopt-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.25s ease;
+}
+.pet-adopt.open .pet-adopt-mask {
+  background: rgba(0, 0, 0, 0.45);
+}
+.pet-adopt-card {
+  position: relative;
+  width: calc(100% - 32px);
+  max-width: 480px;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 20px;
+  padding: 20px 20px 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  transform: scale(0.9) translateY(20px);
+  opacity: 0;
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s ease;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.pet-adopt.open .pet-adopt-card {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+.pet-adopt-handle {
+  width: 36px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
+  margin: -8px auto 12px;
+}
+.pet-adopt-title {
+  margin: 0 0 4px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--primary, #6E5CA8);
+  text-align: center;
+}
+.pet-adopt-sub {
+  margin: 0 0 18px;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #666);
+  text-align: center;
+}
+.pet-adopt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.pet-adopt-item {
+  background: var(--glass-bg-heavy, rgba(255, 255, 255, 0.7));
+  border: 1.5px solid var(--glass-border, rgba(255, 255, 255, 0.5));
+  border-radius: 14px;
+  padding: 14px 10px 12px;
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  font: inherit;
+  color: inherit;
+}
+.pet-adopt-item:hover {
+  border-color: var(--primary, #6E5CA8);
+  box-shadow: 0 4px 14px rgba(110, 92, 168, 0.18);
+}
+.pet-adopt-item:active { transform: scale(0.97); }
+.pet-adopt-item[data-current="1"] {
+  border-color: var(--primary, #6E5CA8);
+  background: rgba(110, 92, 168, 0.08);
+  cursor: default;
+}
+.pet-adopt-item[data-current="1"]:hover {
+  box-shadow: 0 4px 14px rgba(110, 92, 168, 0.22);
+}
+.pet-adopt-img-wrap {
+  width: 100%;
+  height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  background: radial-gradient(circle at center, rgba(110, 92, 168, 0.06), transparent 70%);
+  border-radius: 10px;
+}
+.pet-adopt-img {
+  max-width: 92px;
+  max-height: 100px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+}
+.pet-adopt-img.is-static {
+  animation: pet-static-idle 3.6s ease-in-out infinite;
+}
+.pet-adopt-name {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text, #222);
+  margin-bottom: 4px;
+}
+.pet-adopt-desc {
+  font-size: 0.72rem;
+  color: var(--text-secondary, #666);
+  line-height: 1.4;
+  min-height: 36px;
+  margin-bottom: 8px;
+}
+.pet-adopt-cta {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary, #6E5CA8);
+  padding: 6px 0;
+  border-radius: 8px;
+  background: rgba(110, 92, 168, 0.1);
+}
+.pet-adopt-item[data-current="1"] .pet-adopt-cta {
+  background: rgba(110, 92, 168, 0.18);
+  color: var(--primary, #6E5CA8);
+}
+
+/* ---- panel 内"换一只"按钮 ---- */
+.pet-change-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--primary, #6E5CA8);
+  background: rgba(110, 92, 168, 0.1);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  vertical-align: middle;
+  transition: background 0.15s, transform 0.15s;
+}
+.pet-change-btn:hover  { background: rgba(110, 92, 168, 0.18); }
+.pet-change-btn:active { transform: scale(0.94); }
+
 /* ========================================
    Toast（升级 / 提示）
    ======================================== */

@@ -4,6 +4,7 @@
    - 5 个学习事件钩子（学习获得金币）
    - 初始化宠物（首次进入时种默认值）
    - 状态机：normal / hungry / thirsty / sad / critical
+   - 多种宠物类型（领养选择）
    ======================================== */
 
 const Pet = (() => {
@@ -19,8 +20,40 @@ const Pet = (() => {
   ];
   const ITEM_BY_ID = Object.fromEntries(ITEMS.map(it => [it.id, it]));
 
+  // ---- 宠物类型表（用户可在领养对话框中选择） ----
+  // - gifs=null 表示静态图（由 CSS animation 提供 idle 动感）
+  // - preview：领养对话框缩略图；main：panel 顶部/默认展示；gifs：5s 切换的 idle 动画
+  const PET_TYPES = {
+    ameath: {
+      id: 'ameath',
+      name: 'Ameath',
+      desc: '活泼好动的蓝色小猫，热情打招呼',
+      accent: '#6E5CA8',
+      preview: './assets/pet/ameath_main.gif',
+      main:    './assets/pet/ameath_main.gif',
+      gifs: [
+        './assets/pet/ameath_idle1.gif',
+        './assets/pet/ameath_idle2.gif',
+        './assets/pet/ameath_idle3.gif',
+        './assets/pet/ameath_idle4.gif',
+        './assets/pet/ameath_main.gif'
+      ]
+    },
+    chibi: {
+      id: 'chibi',
+      name: '小萌',
+      desc: '温暖抱抱的小家伙，喜欢安静陪伴',
+      accent: '#E07A9F',
+      preview: './assets/pet/chibi.png',
+      main:    './assets/pet/chibi.png',
+      gifs:    null
+    }
+  };
+  const DEFAULT_TYPE = 'ameath';
+
   // ---- 默认初始宠物（首次进入种入） ----
   const DEFAULT_PET = () => ({
+    petType: null,      // null = 待用户领养选择；首次进入弹领养框
     lvl: 1, exp: 0,
     mood: 85, hunger: 85, thirst: 85,
     lastUpdate: Date.now(),
@@ -28,13 +61,12 @@ const Pet = (() => {
   });
 
   // ---- 学习行为 → 金币奖励（同时驱动金币流水） ----
-  // 与用户拍板的"5 个来源全面铺开"一致
   const LEARN_REWARDS = {
-    pomodoro_per_min: 10,    // 番茄钟：每分钟 10 金币
-    vocab_per_word: 2,       // 背单词：每熟练一个 2 金币
-    article_complete: 20,    // 文章读完 20 金币
-    sentence_complete: 15,   // 长难句完成 15 金币
-    ai_chat_per_msg: 5       // AI 问答每次 5 金币
+    pomodoro_per_min: 10,
+    vocab_per_word: 2,
+    article_complete: 20,
+    sentence_complete: 15,
+    ai_chat_per_msg: 5
   };
 
   // ---- 状态机：根据 mood/hunger/thirst 决定宠物表情与提示 ----
@@ -55,11 +87,32 @@ const Pet = (() => {
       pet = DEFAULT_PET();
       await Store.savePet(pet);
     }
+    // 兼容旧 pet 没有 petType 字段 —— 视为已领养 ameath
+    if (pet.petType === undefined) {
+      pet.petType = DEFAULT_TYPE;
+      await Store.savePet(pet);
+    }
     return pet;
   }
 
+  // ---- 领养/切换宠物 ----
+  async function adopt(type) {
+    if (!PET_TYPES[type]) return null;
+    const user = Store.getCurrentUser();
+    if (!user) return null;
+    const pet = await loadPet();
+    pet.petType = type;
+    await Store.savePet(pet);
+    return pet;
+  }
+
+  // ---- 当前宠物的素材 ----
+  function getAssets(pet) {
+    const t = (pet && pet.petType && PET_TYPES[pet.petType]) || PET_TYPES[DEFAULT_TYPE];
+    return t;
+  }
+
   // ---- 道具使用 ----
-  // 返回 { ok, msg, pet } —— ok=false 时提示金币不足等
   async function useItem(itemId) {
     const item = ITEM_BY_ID[itemId];
     if (!item) return { ok: false, msg: '道具不存在' };
@@ -79,7 +132,7 @@ const Pet = (() => {
     return { ok: true, msg: `已使用 ${item.name}`, pet: await Store.getPet(user) };
   }
 
-  // ---- 抚摸（点宠物身体） —— 心情 +5，不扣金币，无道具 ----
+  // ---- 抚摸（点宠物身体） ----
   async function pet() {
     const user = Store.getCurrentUser();
     if (!user) return null;
@@ -90,7 +143,6 @@ const Pet = (() => {
   }
 
   // ---- 学习事件钩子 ----
-  // 其他模块：Pomodoro/Vocabulary/Articles/Sentences/AIAssistant 在相应节点调用
   async function onLearnReward(type, count) {
     if (!count || count <= 0) return 0;
     const per = LEARN_REWARDS[type];
@@ -112,13 +164,16 @@ const Pet = (() => {
       coins,
       expToNext,
       items: ITEMS,
-      learnRewards: LEARN_REWARDS
+      learnRewards: LEARN_REWARDS,
+      assets: getAssets(pet),
+      petTypes: PET_TYPES
     };
   }
 
   return {
     ITEMS, ITEM_BY_ID, LEARN_REWARDS,
-    loadPet, useItem, pet, onLearnReward, snapshot, getState,
+    PET_TYPES, DEFAULT_TYPE,
+    loadPet, adopt, getAssets, useItem, pet, onLearnReward, snapshot, getState,
     DEFAULT_PET
   };
 })();

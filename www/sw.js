@@ -2,7 +2,7 @@
    考研学习助手 - Service Worker
    缓存应用壳，支持离线打开；跨域 API 请求不缓存。
    ======================================== */
-const CACHE = 'kaoyan-app-v4';
+const CACHE = 'kaoyan-app-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -27,7 +27,8 @@ const ASSETS = [
   './js/pet-ui.js',
   './js/app.js',
   './assets/icons/icon-192.png',
-  './assets/icons/icon-512.png'
+  './assets/icons/icon-512.png',
+  './assets/pet/chibi.png'
 ];
 
 // 安装：预缓存应用壳

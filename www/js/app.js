@@ -62,10 +62,6 @@ const app = {
       targetPage.classList.add('active');
     }
 
-    // 同步 body 的页面主题（铺满整页背景，让外侧不再出现蓝天兜底）
-    const themed = { home: 'home', pomodoro: 'pomodoro' };
-    document.body.dataset.theme = themed[page] || 'default';
-
     this.currentPage = page;
 
     // 页面特定初始化

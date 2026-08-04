@@ -154,38 +154,6 @@ body {
 }
 .content-section.active { display: block; }
 
-/* 页面主题背景（v3 修正版）：body 铺满整页，不让蓝天从外侧冒出来 */
-/* 默认（default）：仍走 .content-section 透出 body 蓝天兜底 */
-.content-section#page-home,
-.content-section#page-pomodoro {
-  background: transparent;
-}
-
-/* 主题背景：实际渲染在 body 上，通过 JS 切页时给 body 加 data-theme 来切换；
-   在 home / pomodoro 时覆盖蓝天背景，整页铺满渐变。*/
-body[data-theme="home"] {
-  background:
-    /* 右上角一团暖光晕：清晨阳光感 */
-    radial-gradient(60% 50% at 88% -10%, rgba(255, 232, 188, 0.85) 0%, rgba(255, 232, 188, 0) 65%),
-    /* 左下角柔光：托住卡片 */
-    radial-gradient(70% 60% at 10% 110%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%),
-    /* 主体色：从暖米铺到暖沙 */
-    linear-gradient(165deg, #FAF0DC 0%, #F1E1BF 55%, #E8CFA1 100%);
-  background-attachment: fixed;
-  background-size: cover;
-}
-body[data-theme="pomodoro"] {
-  background:
-    /* 中部聚光圆：专注暖灯感 */
-    radial-gradient(50% 40% at 50% 38%, rgba(255, 226, 170, 0.7) 0%, rgba(255, 226, 170, 0) 70%),
-    /* 左下角柔光 */
-    radial-gradient(60% 50% at 5% 110%, rgba(255, 244, 218, 0.55) 0%, rgba(255, 244, 218, 0) 60%),
-    /* 主体色：从暖木浅到暖木深 */
-    linear-gradient(160deg, #F0DDB3 0%, #E2C58A 55%, #C9A66B 100%);
-  background-attachment: fixed;
-  background-size: cover;
-}
-
 /* 头部导航 - 毛玻璃（轻量融入） */
 #app-header {
   position: fixed;

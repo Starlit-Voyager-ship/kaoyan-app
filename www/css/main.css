@@ -664,7 +664,7 @@ h3 svg, h4 svg { vertical-align: middle; }
 /* 桌面端/宽屏适配 */
 @media (min-width: 769px) {
   :root {
-    --max-content: 520px;
+    --max-content: 960px;
     --tabbar-height: 60px;
   }
   body {
@@ -672,18 +672,21 @@ h3 svg, h4 svg { vertical-align: middle; }
     background-position: center center;
   }
   .content-section {
-    padding: 28px 32px;
+    padding: 28px 36px;
     padding-bottom: calc(32px + var(--tabbar-height) + 24px);
   }
   #tabbar {
-    max-width: calc(var(--max-content) + 64px);
+    max-width: var(--max-content);
     left: 50%;
     transform: translateX(-50%);
-    border-radius: 20px 20px 0 0;
+    border-radius: 18px 18px 0 0;
     bottom: 0;
   }
   .home-quick {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(7, 1fr);
+  }
+  .home-stat-row {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 

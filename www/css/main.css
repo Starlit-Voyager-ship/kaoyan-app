@@ -369,34 +369,43 @@ h3 svg, h4 svg { vertical-align: middle; }
 .tab-item.tab-center {
   flex: 0 0 auto;
   justify-content: flex-end;
-  padding-bottom: 5px;
+  padding-bottom: 2px;
+  padding-top: 4px;
 }
 .tab-item.tab-center::before { display: none; }
 .tab-center-circle {
-  width: 56px;
-  height: 56px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
-  background: var(--primary);
+  background: linear-gradient(135deg, rgba(110, 168, 220, 0.55), rgba(110, 168, 220, 0.32));
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: -22px;
-  box-shadow: 0 4px 14px rgba(110, 92, 168, 0.38);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  margin-top: -16px;
+  margin-bottom: 4px;
+  box-shadow: 0 4px 14px rgba(110, 168, 220, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
 }
 .tab-center .tab-ico {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   color: #fff;
+  filter: drop-shadow(0 1px 1px rgba(60, 95, 140, 0.35));
 }
 .tab-center .tab-label {
-  margin-top: 2px;
+  margin-top: 0;
   color: var(--text-light);
+  position: relative;
+  z-index: 1;
 }
 .tab-item.tab-center.active .tab-center-circle {
   transform: scale(1.06);
-  box-shadow: 0 6px 18px rgba(110, 92, 168, 0.45);
+  background: linear-gradient(135deg, rgba(110, 168, 220, 0.7), rgba(110, 168, 220, 0.45));
+  box-shadow: 0 6px 18px rgba(110, 168, 220, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 .tab-item.tab-center.active .tab-label { color: var(--primary); font-weight: 600; }
 

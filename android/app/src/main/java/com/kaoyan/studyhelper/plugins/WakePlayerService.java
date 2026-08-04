@@ -46,6 +46,15 @@ public class WakePlayerService extends Service {
     private Vibrator vibrator;
     private NotificationManager nm;
 
+    // 当前运行实例引用：stopAndNotify 可直接停掉正在播放的铃声/震动，最可靠
+    private static WakePlayerService sInstance;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        sInstance = this;
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String message = intent != null ? intent.getStringExtra("message") : null;
@@ -54,6 +63,7 @@ public class WakePlayerService extends Service {
         boolean vibrate = intent == null || intent.getBooleanExtra("vibrate", true);
         sFromUser = intent != null ? intent.getStringExtra("fromUser") : null;
         sToUser = intent != null ? intent.getStringExtra("toUser") : null;
+        sInstance = this;
 
         nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         ensureChannel();
@@ -134,9 +144,34 @@ public class WakePlayerService extends Service {
      * 停止播放 + 向发送方写云端回执（供发送方提示"对方已关闭闹钟"）。
      * 可由 WakeAlarmActivity 的停止按钮、以及 WakeStopReceiver（通知栏按钮）调用。
      */
+    /**
+     * 停止播放 + 向发送方写云端回执（供发送方提示"对方已关闭闹钟"）。
+     * 可由 WakeAlarmActivity 的停止按钮、以及 WakeStopReceiver（通知栏按钮）调用。
+     *
+     * 健壮性修复：先直接停掉当前实例的铃声/震动（不依赖 onDestroy 时机），
+     * 再 stopService，确保即使系统延迟销毁服务，响铃也会立刻止住。
+     */
     public static void stopAndNotify(Context ctx) {
+        // 直接停掉正在播放的铃声与震动（最可靠，避免 onDestroy 未即时触发）
+        if (sInstance != null) {
+            try { sInstance.stopSound(); } catch (Exception ignore) {}
+        }
         try { ctx.stopService(new Intent(ctx, WakePlayerService.class)); } catch (Exception ignore) {}
+        sInstance = null;
         postClosed(ctx);
+    }
+
+    /** 立即停止铃声 + 震动 + 通知（无条件，不依赖 isPlaying 判断，避免循环铃声 isPlaying 误报导致停不掉） */
+    private void stopSound() {
+        if (ringtone != null) {
+            try { ringtone.stop(); } catch (Exception ignore) {}
+        }
+        if (vibrator != null) {
+            try { vibrator.cancel(); } catch (Exception ignore) {}
+        }
+        if (nm != null) {
+            try { nm.cancel(NOTIFY_ID); } catch (Exception ignore) {}
+        }
     }
 
     // 写一条 WakeMsg{type:'closed'} 给发送方（toUser=发送方，fromUser=接收方自己）
@@ -186,9 +221,8 @@ public class WakePlayerService extends Service {
 
     @Override
     public void onDestroy() {
-        if (ringtone != null && ringtone.isPlaying()) ringtone.stop();
-        if (vibrator != null) vibrator.cancel();
-        if (nm != null) nm.cancel(NOTIFY_ID);
+        stopSound();
+        sInstance = null;
         super.onDestroy();
     }
 

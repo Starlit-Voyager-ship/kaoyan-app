@@ -168,6 +168,10 @@ public class WakeGuardService extends Service {
                 long ts = m.optLong("ts", 0);
                 if (ts > maxTs) maxTs = ts;
                 String from = m.optString("fromUser", "");
+                String type = m.optString("type", "");
+                // 关闭回执（type='closed'）：仅推进游标，不触发响铃。
+                // 叫醒端只需文字提示（"对方已关闭闹钟"由前端 JS 弹），绝不在此端响铃。
+                if ("closed".equals(type)) continue;
                 // 有效性过滤：来自非空、且非自己、且确实比游标新；排除脏数据 / 自环
                 if (ts > lastTs && ts > latestValidTs &&
                         from != null && !from.isEmpty() && !from.equals(username)) {

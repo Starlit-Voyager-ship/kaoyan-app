@@ -562,8 +562,8 @@ const AIAssistant = {
   async callQwenEnglishAnalyze(settings, text) {
     const messages = [
       { role: 'system', content: '你是考研英语二阅读老师。针对用户提供的英语文章（可能包含阅读理解题目），请输出严格 JSON：' +
-        '{"summary":"用中文概括文章主旨与段落结构（2-4句）","questions":[{"no":"题号，如 21","question":"题干原文","answer":"正确选项及答案内容","explanation":"解析：为何选它、各干扰项错在哪"}]}。' +
-        '若文章不含明确题目，questions 返回空数组 []。只返回 JSON，不要任何额外文字或解释。' },
+        '{"summary":"用中文概括文章主旨与段落结构（2-4句）","questions":[{"no":"题号，如 21","question":"题干原文（保持完整）","answer":"正确选项及答案内容","explanation":"解析：为何选它、各干扰项错在哪"}]}。' +
+        '请保证 questions 按文章出现顺序排列，题干保持完整。若文章不含明确题目，questions 返回空数组 []。只返回 JSON，不要任何额外文字或解释。' },
       { role: 'user', content: text }
     ];
     const raw = await this.callQwenChat(settings, messages, '千问英语解析');

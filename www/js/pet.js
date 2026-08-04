@@ -62,11 +62,11 @@ const Pet = (() => {
 
   // ---- 学习行为 → 金币奖励（同时驱动金币流水） ----
   const LEARN_REWARDS = {
-    pomodoro_per_min: 10,
-    vocab_per_word: 2,
-    article_complete: 20,
-    sentence_complete: 15,
-    ai_chat_per_msg: 5
+    pomodoro_per_min: { source: 'pomodoro', per: 10, name: '专注' },
+    vocab_per_word:    { source: 'vocab',    per: 2,  name: '单词' },
+    article_complete:  { source: 'article',  per: 20, name: '文章阅读' },
+    sentence_complete: { source: 'sentence', per: 15, name: '长难句' },
+    ai_chat_per_msg:   { source: 'ai_chat',  per: 5,  name: 'AI对话' }
   };
 
   // ---- 状态机：根据 mood/hunger/thirst 决定宠物表情与提示 ----
@@ -120,6 +120,7 @@ const Pet = (() => {
     if (!user) return { ok: false, msg: '请先登录' };
     const remaining = await Store.spendCoins(user, item.price);
     if (remaining < 0) return { ok: false, msg: '金币不足' };
+    await Store.addCoinEntry('item', -item.price, item.name);
 
     const pet = await loadPet();
     pet.hunger = Math.min(100, (pet.hunger || 0) + (item.hunger || 0));
@@ -143,12 +144,18 @@ const Pet = (() => {
   }
 
   // ---- 学习事件钩子 ----
-  async function onLearnReward(type, count) {
+  // - kind: 'pomodoro_per_min' | 'vocab_per_word' | 'article_complete' | 'sentence_complete' | 'ai_chat_per_msg'
+  // - count: 真实数量（如分钟数、词数），写流水时按 count × per 计
+  // - extra: 可选 { unit: '分钟'|'词', note } 用于显示在流水上
+  async function onLearnReward(kind, count, extra) {
     if (!count || count <= 0) return 0;
-    const per = LEARN_REWARDS[type];
-    if (!per) return 0;
-    const delta = per * count;
-    return await Store.addCoins(null, delta);
+    const cfg = LEARN_REWARDS[kind];
+    if (!cfg) return 0;
+    const delta = cfg.per * count;
+    const next = await Store.addCoins(null, delta);
+    const note = (extra && extra.note) || (cfg.name + (count > 1 ? ` × ${count}` : ''));
+    await Store.addCoinEntry(cfg.source, delta, note);
+    return next;
   }
 
   // ---- UI 状态聚合（页面渲染用） ----
@@ -157,11 +164,15 @@ const Pet = (() => {
     if (!user) return null;
     const pet = await loadPet();
     const coins = await Store.getCoins(user);
+    const coinLog = await Store.getCoinLog(user);
     const expToNext = Store.expToNext(pet.lvl);
     return {
       pet,
       state: getState(pet),
       coins,
+      earnedToday: (coinLog && coinLog.earnedToday) || 0,
+      spentToday:  (coinLog && coinLog.spentToday) || 0,
+      entries:     (coinLog && coinLog.entries) || [],
       expToNext,
       items: ITEMS,
       learnRewards: LEARN_REWARDS,

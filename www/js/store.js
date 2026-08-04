@@ -303,6 +303,7 @@ const Store = {
     const cur = await this.getCoins(user);
     const next = Math.max(0, cur + delta);
     await this.put('coins', { id: 'coins_' + user, balance: next });
+    // 不在这里自动写流水，由上层 Pet.onLearnReward 写更精确的 note
     return next;
   },
 
@@ -315,7 +316,74 @@ const Store = {
     if (cur < amount) return -1;
     const next = cur - amount;
     await this.put('coins', { id: 'coins_' + user, balance: next });
+    // 不自动写流水（useItem 会写 item 类型流水）
     return next;
+  },
+
+  // ============================================================
+  // 金币流水（coin_log_<user>，单条记录）
+  // - date = 'YYYY-MM-DD'；每次 addCoins/spendCoins 当 date 与今日不符时自动重置 entries
+  // - entries: [{ ts, kind: 'earn'|'spend', source, amount, note }]
+  //   source: 'pomodoro'|'vocab'|'article'|'sentence'|'ai_chat'|'item'|'adopt'|'other'
+  // ============================================================
+  async _ensureCoinLog() {
+    const user = this.getCurrentUser();
+    if (!user) return null;
+    const today = Utils.today();
+    let rec = await this.get('coin_log', 'coin_log_' + user);
+    if (!rec) {
+      rec = { id: 'coin_log_' + user, date: today, entries: [], earnedToday: 0, spentToday: 0 };
+      await this.put('coin_log', rec);
+      return rec;
+    }
+    if (rec.date !== today) {
+      rec = { id: 'coin_log_' + user, date: today, entries: [], earnedToday: 0, spentToday: 0 };
+      await this.put('coin_log', rec);
+    }
+    return rec;
+  },
+  async addCoinEntry(source, amount, note) {
+    if (!amount || !source) return;
+    const user = this.getCurrentUser();
+    if (!user) return;
+    const rec = await this._ensureCoinLog();
+    if (!rec) return;
+    const isEarn = amount > 0;
+    rec.entries = rec.entries || [];
+    rec.entries.push({
+      ts: Date.now(),
+      kind: isEarn ? 'earn' : 'spend',
+      source,
+      amount: Math.abs(amount),
+      note: note || ''
+    });
+    // 限定最近 200 条，避免云端 40KB 限制
+    if (rec.entries.length > 200) rec.entries = rec.entries.slice(-200);
+    if (isEarn) rec.earnedToday = (rec.earnedToday || 0) + Math.abs(amount);
+    else rec.spentToday = (rec.spentToday || 0) + Math.abs(amount);
+    await this.put('coin_log', rec);
+    return rec;
+  },
+  async getCoinLog(username) {
+    const user = username || this.getCurrentUser();
+    if (!user) return null;
+    const rec = await this._ensureCoinLog();
+    return rec;
+  },
+  async getCoinEarnedToday(username) {
+    const log = await this.getCoinLog(username);
+    return (log && log.earnedToday) || 0;
+  },
+  // 按 source 聚合当日收入（用于展示明细）
+  async getCoinEarnBreakdown(username) {
+    const log = await this.getCoinLog(username);
+    if (!log || !log.entries) return [];
+    const map = {};
+    for (const e of log.entries) {
+      if (e.kind !== 'earn') continue;
+      map[e.source] = (map[e.source] || 0) + e.amount;
+    }
+    return Object.entries(map).map(([source, amount]) => ({ source, amount }));
   },
 
   // ============================================================

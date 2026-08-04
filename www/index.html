@@ -118,6 +118,31 @@
           <div class="hero-compare" id="home-focus-compare">开启今天的专注吧</div>
         </div>
 
+        <!-- 宠物小卡：等级 + 经验 + 今日金币（点击打开宠物面板） -->
+        <div class="home-pet-card" id="home-pet-card" onclick="PetUI.openPanel()">
+          <div class="home-pet-pet" id="home-pet-portrait"></div>
+          <div class="home-pet-info">
+            <div class="home-pet-line1">
+              <span class="home-pet-lvl" id="home-pet-lvl">Lv.1</span>
+              <span class="home-pet-state" id="home-pet-state">开心</span>
+            </div>
+            <div class="home-pet-exp-row">
+              <div class="home-pet-exp-track"><div class="home-pet-exp-fill" id="home-pet-exp-fill" style="width:0%"></div></div>
+              <span class="home-pet-exp-text" id="home-pet-exp-text">0/80</span>
+            </div>
+            <div class="home-pet-line3">
+              <span class="home-pet-coin-label">今日获得</span>
+              <span class="home-pet-coin-val">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="#E5BE6A"><circle cx="12" cy="12" r="9"/><text x="12" y="16" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">¥</text></svg>
+                <span id="home-pet-coin-today">0</span>
+              </span>
+              <span class="home-pet-divider">·</span>
+              <span class="home-pet-coin-label">余额</span>
+              <span class="home-pet-coin-val-sm" id="home-pet-coin-total">0</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 次级统计：3 等分卡 -->
         <div class="home-stat-row">
           <div class="home-stat" onclick="app.navigate('vocab')">

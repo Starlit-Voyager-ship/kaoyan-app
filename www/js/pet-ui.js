@@ -281,6 +281,7 @@ const PetUI = (() => {
         ${_bar('thirst', '口渴', pet.thirst)}
         ${_bar('exp',    '经验', pct)}
       </div>
+      ${_renderCoinToday(snap)}
       <div class="pet-actions">
         ${actions.map(b => `
           <button class="pet-action-btn" data-key="${b.key}">
@@ -324,6 +325,68 @@ const PetUI = (() => {
       </div>
     `;
   }
+  const SOURCE_LABELS = {
+    pomodoro: '专注',
+    vocab:    '单词',
+    article:  '文章',
+    sentence: '长难句',
+    ai_chat:  'AI对话',
+    item:     '道具',
+    adopt:    '领养',
+    other:    '其他'
+  };
+  function _sourceLabel(src) {
+    return SOURCE_LABELS[src] || src;
+  }
+  function _renderCoinToday(snap) {
+    return `
+      <div class="pet-coin-today-card">
+        <div class="pet-coin-today-row">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="#E5BE6A"><circle cx="12" cy="12" r="9"/><text x="12" y="16" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">¥</text></svg>
+          <span class="pet-coin-today-lbl">今日获得</span>
+          <span class="pet-coin-today-val" id="pet-coin-today-val">${snap.earnedToday || 0}</span>
+          <span class="pet-coin-today-sep">·</span>
+          <span class="pet-coin-today-lbl">已支出</span>
+          <span class="pet-coin-today-val-sm" id="pet-coin-spent-val">${snap.spentToday || 0}</span>
+        </div>
+        <button class="pet-coin-detail-btn" id="pet-coin-detail-btn">
+          <span>查看今日明细</span>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <div id="pet-coin-detail-host"></div>
+      </div>
+    `;
+  }
+  function _renderCoinDetail(snap) {
+    const entries = (snap.entries || []);
+    if (!entries.length) {
+      return `<div class="pet-coin-empty">今日还没有金币流水，去学习赚金币吧～</div>`;
+    }
+    return `
+      <div class="pet-coin-detail">
+        ${entries.slice().reverse().map(e => {
+          const t = new Date(e.ts);
+          const hh = String(t.getHours()).padStart(2, '0');
+          const mm = String(t.getMinutes()).padStart(2, '0');
+          const sign = e.kind === 'earn' ? '+' : '-';
+          const cls  = e.kind === 'earn' ? 'earn' : 'spend';
+          const srcLbl = _sourceLabel(e.source);
+          return `
+            <div class="pet-coin-row ${cls}">
+              <div class="pet-coin-row-meta">
+                <span class="src">${_esc(srcLbl)}</span>
+                <span class="note">${_esc(e.note || '')}</span>
+              </div>
+              <div class="pet-coin-row-right">
+                <span class="amt">${sign}${e.amount}</span>
+                <span class="time">${hh}:${mm}</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
   function _bindPanelActions() {
     _elPanelBody.querySelectorAll('.pet-action-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -349,6 +412,24 @@ const PetUI = (() => {
         } else {
           shopHost.innerHTML = '';
           shopBtn.querySelector('span').textContent = '道具商店';
+        }
+      });
+    }
+    // 金币明细按钮（可展开）
+    const detailBtn = _elPanelBody.querySelector('#pet-coin-detail-btn');
+    const detailHost = _elPanelBody.querySelector('#pet-coin-detail-host');
+    if (detailBtn && detailHost) {
+      let detailOpen = false;
+      detailBtn.addEventListener('click', async () => {
+        detailOpen = !detailOpen;
+        if (detailOpen) {
+          const snap = await Pet.snapshot();
+          const coinSnap = await Store.getCoinLog();
+          detailHost.innerHTML = _renderCoinDetail(coinSnap || { entries: [] });
+          detailBtn.classList.add('open');
+        } else {
+          detailHost.innerHTML = '';
+          detailBtn.classList.remove('open');
         }
       });
     }
@@ -395,6 +476,7 @@ const PetUI = (() => {
         _elPanelBody.innerHTML = _renderPanelContent(snap);
         _bindPanelActions();
         _updateMoodBubble(snap);
+        updateHomeCard();
       }
       if (r.pet && r.pet.exp === 0 && r.pet.lvl > 1) {
         _showToast('升级了！Lv.' + r.pet.lvl);
@@ -418,9 +500,14 @@ const PetUI = (() => {
     _bindPanelActions();
     _elPanel.classList.add('open');
     _updateMoodBubble(snap);
+    updateHomeCard();
   }
   function closePanel() {
-    if (_elPanel) _elPanel.classList.remove('open');
+    if (!_elPanel) return;
+    _elPanel.classList.remove('open');
+    // 重置 sheet 内联 transform（下滑手势未结束也会被重置）
+    const sheet = _elPanel.querySelector('.pet-panel-sheet');
+    if (sheet) sheet.style.transform = '';
   }
 
   // ---- 领养选择对话框 ----
@@ -487,7 +574,7 @@ const PetUI = (() => {
         <div class="pet-panel-handle"></div>
         <div class="pet-panel-title">
           <span>宠物小窝</span>
-          <button class="pet-panel-close" aria-label="关闭">
+          <button class="pet-panel-close" aria-label="关闭" type="button">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M6 18L18 6"/></svg>
           </button>
         </div>
@@ -499,10 +586,16 @@ const PetUI = (() => {
     const closeBtn = _elPanel.querySelector('.pet-panel-close');
     const mask = _elPanel.querySelector('.pet-panel-mask');
     const sheet = _elPanel.querySelector('.pet-panel-sheet');
-    // 关闭按钮：click + touchend 双保险
-    closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
-    closeBtn.addEventListener('touchend', (e) => { e.stopPropagation(); e.preventDefault(); closePanel(); });
+    // 关闭按钮：pointerdown + click + touchend 三保险（避免按钮被任何外层吞事件）
+    const fireClose = (e) => { if (e) { e.stopPropagation(); e.preventDefault(); } closePanel(); };
+    ['pointerdown', 'mousedown', 'click', 'touchend'].forEach(ev => {
+      closeBtn.addEventListener(ev, fireClose);
+    });
     mask.addEventListener('click', closePanel);
+    // 点击 sheet 之外的区域也能关（仅当事件目标不是 sheet 自身）——双保险
+    _elPanel.addEventListener('click', (e) => {
+      if (!sheet.contains(e.target)) closePanel();
+    });
     // 下滑手势关闭（仅 sheet 顶部 90px 区域触发）
     let dStartY = 0, dStartX = 0, dDelta = 0, dDragging = false;
     sheet.addEventListener('touchstart', (e) => {
@@ -571,6 +664,8 @@ const PetUI = (() => {
     if (_pet && !_pet.petType) {
       setTimeout(() => _showAdoptDialog(), 300);
     }
+    // 同步主页小卡
+    updateHomeCard();
   }
 
   // ---- 切换宠物类型后，更新图片 src 与 CSS class ----
@@ -586,12 +681,43 @@ const PetUI = (() => {
     }
   }
 
+  // ---- 主页小卡 ----
+  async function updateHomeCard() {
+    const card = document.getElementById('home-pet-card');
+    if (!card) return;
+    if (!Store.getCurrentUser()) { card.style.display = 'none'; return; }
+    card.style.display = 'flex';
+    const snap = await Pet.snapshot();
+    if (!snap) return;
+    const { pet, state, coins, expToNext } = snap;
+    const pct = Math.min(100, Math.round((pet.exp / expToNext) * 100));
+    const lvlEl  = document.getElementById('home-pet-lvl');
+    const stEl   = document.getElementById('home-pet-state');
+    const fillEl = document.getElementById('home-pet-exp-fill');
+    const txtEl  = document.getElementById('home-pet-exp-text');
+    const coinEl = document.getElementById('home-pet-coin-today');
+    const totEl  = document.getElementById('home-pet-coin-total');
+    const portEl = document.getElementById('home-pet-portrait');
+    if (lvlEl) lvlEl.textContent = 'Lv.' + pet.lvl;
+    if (stEl)  { stEl.textContent = state.label; stEl.className = 'home-pet-state ' + state.key; }
+    if (fillEl) fillEl.style.width = pct + '%';
+    if (txtEl)  txtEl.textContent = pet.exp + '/' + expToNext;
+    const earned = await Store.getCoinEarnedToday();
+    if (coinEl) coinEl.textContent = earned;
+    if (totEl)  totEl.textContent = coins;
+    if (portEl) {
+      const assets = snap.assets || {};
+      portEl.innerHTML = `<img src="${assets.main || DEFAULT_GIFS[0]}" alt="宠物">`;
+    }
+  }
+
   return {
     mount,
     openPanel,
     closePanel,
     showAdoptDialog: _showAdoptDialog,
-    changeAssets: _applyAssetsToImg
+    changeAssets: _applyAssetsToImg,
+    updateHomeCard
   };
 })();
 

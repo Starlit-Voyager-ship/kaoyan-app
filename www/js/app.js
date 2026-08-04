@@ -75,6 +75,7 @@ const app = {
     switch (page) {
       case 'home':
         this.updateHomeStats();
+        if (typeof PetUI !== 'undefined' && PetUI.updateHomeCard) PetUI.updateHomeCard();
         break;
       case 'mine':
         this.renderMine();
@@ -134,6 +135,7 @@ const app = {
     FriendWake.init();
 
     this.updateHomeStats();
+    if (typeof PetUI !== 'undefined' && PetUI.updateHomeCard) PetUI.updateHomeCard();
   },
 
   async updateHomeStats() {

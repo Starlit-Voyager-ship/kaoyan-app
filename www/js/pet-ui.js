@@ -721,4 +721,9 @@ const PetUI = (() => {
   };
 })();
 
-if (typeof window !== 'undefined') window.PetUI = PetUI;
+if (typeof window !== 'undefined') {
+  window.PetUI = PetUI;
+  // 版本标记 —— 用户打开控制台可见，方便确认拿到的是哪个版本
+  window.__PET_BUILD__ = '66ae6af-panel-center';
+  console.log('[PetUI] build:', window.__PET_BUILD__);
+}

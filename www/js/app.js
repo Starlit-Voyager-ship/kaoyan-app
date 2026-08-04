@@ -14,6 +14,9 @@ const app = {
     // 初始化认证系统
     Auth.init();
 
+    // 挂载桌面宠物（在所有内容层之上，可拖拽、漫游）
+    PetUI.mount();
+
     // 绑定全局导航
     this.bindGlobalEvents();
 
@@ -109,7 +112,7 @@ const app = {
         FriendWake.loadBinding();
         break;
       case 'pet':
-        PetUI.render();
+        PetUI.openPanel();
         break;
       case 'settings':
         this.loadSettingsUI();

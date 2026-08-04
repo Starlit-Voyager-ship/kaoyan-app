@@ -1,18 +1,14 @@
 /* ========================================
-   宠物小窝 - UI 渲染层
-   - 顶部状态卡：心情/饱食/口渴 + lv + 金币余额
-   - 中部小窝：宠物 GIF + 互动反馈（点击抚摸）
-   - 底部动作：喂食/饮水/玩耍/抚摸 + 道具商店入口
-   - 道具商店浮层：6 样道具卡
-   - 衰减 tick（每 30 秒刷新一次状态条，5 分钟真正减属性）
+   桌面宠物 + 浮层面板
+   - 宠物：fixed position 永远在 body 顶层
+   - 可拖拽、可漫游、点击开 panel
+   - 头顶状态气泡（饿/渴/伤心/严重）
+   - 面板：modal，移动端底部 sheet / 桌面居中
+   - 取消"宠物小窝"页面：所有页面共用全局蓝天背景
    ======================================== */
 
 const PetUI = (() => {
-  const SHELL_ID = 'pet-app';
-  let _decayTimer = null;
-  let _idleTimer = null;
-  let _currentGifIdx = 0;
-  // GIF 资源（assets/pet/ 下）—— 移动资源后用 ./assets/pet/...
+  // ---- 资源 ----
   const PET_GIFS = [
     './assets/pet/ameath_idle1.gif',
     './assets/pet/ameath_idle2.gif',
@@ -20,17 +16,44 @@ const PetUI = (() => {
     './assets/pet/ameath_idle4.gif',
     './assets/pet/ameath_main.gif'
   ];
+  const PET_SIZE = 96;        // px (mobile)
+  const POS_KEY = 'pet_pos_v1';
+  const GIF_INTERVAL = 5000;
+  const WANDER_MIN = 9000;
+  const WANDER_MAX = 16000;
+  const WANDER_STEP_MIN = 30;
+  const WANDER_STEP_MAX = 80;
+  const DRAG_QUIET_MS = 5000;     // 用户拖动/点击后 N 毫秒不漫游
+  const Z_PET = 9998;
+  const Z_PANEL = 10010;
+  const BOTTOM_RESERVED = 96;     // 底部 tab 区域，让宠物不挡
 
+  // ---- state ----
+  let _elPet = null, _elImg = null, _elBubble = null;
+  let _elPanel = null, _elPanelBody = null;
+  let _gifIdx = 0;
+  let _gifTimer = null, _wanderTimer = null, _decayTimer = null, _moodTimer = null;
+  let _x = 0, _y = 0;
+  let _dragging = false;
+  let _dragMoved = false;
+  let _pressX = 0, _pressY = 0, _startX = 0, _startY = 0;
+  let _lastInteract = 0;
+  let _mounted = false;
+
+  // ---- DOM helpers ----
   function _el(html) {
     const t = document.createElement('template');
     t.innerHTML = html.trim();
     return t.content.firstChild;
   }
-
   function _esc(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
-
+  function _showToast(msg) {
+    const t = _el(`<div class="pet-toast">${_esc(msg)}</div>`);
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 1500);
+  }
   function _bar(key, label, value) {
     return `<div class="stat-bar">
       <span class="lbl">${label}</span>
@@ -38,9 +61,7 @@ const PetUI = (() => {
       <span class="num">${Math.round(value)}</span>
     </div>`;
   }
-
   function _particleIcon(key) {
-    // 改为纯色 SVG（避免 emoji），按 key 给定颜色与形状
     const map = {
       feed:  { color: '#E0914E', shape: 'circle' },
       water: { color: '#4F9CD0', shape: 'drop' },
@@ -58,39 +79,184 @@ const PetUI = (() => {
     else if (cfg.shape === 'heart') path = '<path d="M16 28s-11-7-11-16a6 6 0 0 1 11-3.7A6 6 0 0 1 27 12c0 9-11 16-11 16z"/>';
     return `<svg viewBox="0 0 32 32" width="32" height="32" style="fill:${cfg.color};stroke:#fff;stroke-width:1.5;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.15))">${path}</svg>`;
   }
-
-  function _spawnParticle(stage, key) {
+  function _spawnParticleNearPet(key) {
+    if (!_elPet) return;
     const p = _el(`<div class="pet-particle">${_particleIcon(key)}</div>`);
-    const rect = stage.getBoundingClientRect();
-    const x = rect.width / 2 + (Math.random() * 60 - 30);
-    p.style.left = x + 'px';
-    p.style.bottom = '90px';
-    stage.appendChild(p);
+    const rect = _elPet.getBoundingClientRect();
+    p.style.left = (rect.width / 2 - 16 + (Math.random() * 60 - 30)) + 'px';
+    p.style.top = '-20px';
+    _elPet.appendChild(p);
     setTimeout(() => p.remove(), 1300);
   }
 
-  function _showToast(msg) {
-    const t = _el(`<div class="pet-toast">${_esc(msg)}</div>`);
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 1500);
+  // ---- position ----
+  function _loadPos() {
+    try {
+      const raw = localStorage.getItem(POS_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (typeof p.x === 'number' && typeof p.y === 'number') return p;
+      }
+    } catch (e) {}
+    return null;
+  }
+  function _savePos() {
+    try { localStorage.setItem(POS_KEY, JSON.stringify({ x: _x, y: _y })); } catch (e) {}
+  }
+  function _applyPos() {
+    if (!_elPet) return;
+    const w = window.innerWidth, h = window.innerHeight;
+    const size = _elPet.offsetWidth || PET_SIZE;
+    // 边界：左右各留 8px，底部让出底部 tab + 一点余量
+    _x = Math.max(8, Math.min(w - size - 8, _x));
+    _y = Math.max(8, Math.min(h - size - BOTTOM_RESERVED, _y));
+    _elPet.style.left = _x + 'px';
+    _elPet.style.top = _y + 'px';
+  }
+  function _defaultPos() {
+    const w = window.innerWidth, h = window.innerHeight;
+    return { x: w - PET_SIZE - 20, y: h - PET_SIZE - BOTTOM_RESERVED - 20 };
   }
 
-  // 切换 GIF（待机随机 / 互动切换为 main.gif）
-  function _nextGif(forceMain) {
-    const img = document.getElementById('pet-stage-img');
-    if (!img) return;
+  // ---- GIF cycle ----
+  function _setGif(forceMain) {
+    if (!_elImg) return;
     if (forceMain) {
-      img.src = PET_GIFS[4] + '?t=' + Date.now();
+      _elImg.src = PET_GIFS[4] + '?t=' + Date.now();
       return;
     }
-    _currentGifIdx = (_currentGifIdx + 1 + Math.floor(Math.random() * 3)) % 4;
-    img.src = PET_GIFS[_currentGifIdx] + '?t=' + Date.now();
+    _gifIdx = (_gifIdx + 1 + Math.floor(Math.random() * 3)) % 4;
+    _elImg.src = PET_GIFS[_gifIdx] + '?t=' + Date.now();
+  }
+  function _startGifTimer() {
+    if (_gifTimer) clearInterval(_gifTimer);
+    _gifTimer = setInterval(() => _setGif(false), GIF_INTERVAL);
   }
 
-  function _renderStatsCard(snap) {
+  // ---- wander ----
+  function _scheduleWander() {
+    if (_wanderTimer) clearTimeout(_wanderTimer);
+    const delay = WANDER_MIN + Math.random() * (WANDER_MAX - WANDER_MIN);
+    _wanderTimer = setTimeout(() => {
+      if (Date.now() - _lastInteract < DRAG_QUIET_MS) {
+        _scheduleWander();
+        return;
+      }
+      _wander();
+      _scheduleWander();
+    }, delay);
+  }
+  function _wander() {
+    if (!_elPet || _dragging) return;
+    const step = WANDER_STEP_MIN + Math.random() * (WANDER_STEP_MAX - WANDER_STEP_MIN);
+    const angle = Math.random() * Math.PI * 2;
+    _x += Math.cos(angle) * step;
+    _y += Math.sin(angle) * step;
+    // 移动动画
+    _elPet.style.transition = 'left 4s ease, top 4s ease';
+    _applyPos();
+    _savePos();
+    // 动画结束后清掉 transition，避免影响拖拽手感
+    setTimeout(() => {
+      if (_elPet) _elPet.style.transition = '';
+    }, 4100);
+  }
+
+  // ---- mood bubble ----
+  function _updateMoodBubble(snap) {
+    if (!_elBubble || !snap) return;
+    const { pet, state } = snap;
+    let icon = null;
+    if (state.key === 'critical') {
+      icon = { color: '#E05050', text: '!' };
+    } else if (pet.thirst < 40) {
+      icon = { color: '#4F9CD0', text: '渴' };
+    } else if (pet.hunger < 40) {
+      icon = { color: '#E0914E', text: '饿' };
+    } else if (pet.mood < 40) {
+      icon = { color: '#9CA3AF', text: '…' };
+    }
+    if (icon) {
+      _elBubble.style.display = 'flex';
+      _elBubble.style.background = icon.color;
+      _elBubble.textContent = icon.text;
+    } else {
+      _elBubble.style.display = 'none';
+    }
+  }
+  function _startMoodTimer() {
+    if (_moodTimer) clearInterval(_moodTimer);
+    _moodTimer = setInterval(async () => {
+      try {
+        const snap = await Pet.snapshot();
+        _updateMoodBubble(snap);
+      } catch (e) {}
+    }, 10 * 1000);
+    // 立即跑一次
+    Pet.snapshot().then(_updateMoodBubble).catch(() => {});
+  }
+
+  // ---- drag (touch + mouse) ----
+  function _bindDrag() {
+    if (!_elPet) return;
+    const onDown = (e) => {
+      const pt = e.touches ? e.touches[0] : e;
+      _dragging = true;
+      _dragMoved = false;
+      _pressX = pt.clientX;
+      _pressY = pt.clientY;
+      _startX = _x;
+      _startY = _y;
+      _elPet.style.transition = 'none';
+      _elPet.style.cursor = 'grabbing';
+      _lastInteract = Date.now();
+      if (e.cancelable) e.preventDefault();
+    };
+    const onMove = (e) => {
+      if (!_dragging) return;
+      const pt = e.touches ? e.touches[0] : e;
+      const dx = pt.clientX - _pressX;
+      const dy = pt.clientY - _pressY;
+      if (!_dragMoved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) _dragMoved = true;
+      if (_dragMoved) {
+        _x = _startX + dx;
+        _y = _startY + dy;
+        _applyPos();
+      }
+      if (e.cancelable) e.preventDefault();
+    };
+    const onUp = () => {
+      if (!_dragging) return;
+      _dragging = false;
+      _elPet.style.cursor = 'grab';
+      _savePos();
+      if (!_dragMoved) {
+        // 轻点：开 panel
+        openPanel();
+      } else {
+        _lastInteract = Date.now();
+      }
+    };
+    _elPet.addEventListener('mousedown', onDown);
+    _elPet.addEventListener('touchstart', onDown, { passive: false });
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchend', onUp);
+    window.addEventListener('resize', _applyPos);
+  }
+
+  // ---- panel ----
+  function _renderPanelContent(snap) {
     const { pet, state, coins, expToNext } = snap;
     const pct = (pet.exp / expToNext) * 100;
     const tagCls = state.key;
+    const actions = [
+      { key: 'feed',  label: '喂食', icon: '<path d="M5 12c-1-3 1-5 4-5s5 1 6 4 0 5-3 6-6-1-7-5z"/>' },
+      { key: 'water', label: '饮水', icon: '<path d="M12 4c2 3 4 6 4 9a4 4 0 1 1-8 0c0-3 2-6 4-9z"/>' },
+      { key: 'play',  label: '玩耍', icon: '<circle cx="12" cy="12" r="3.5"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/>' },
+      { key: 'pet',   label: '抚摸', icon: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.7A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>' }
+    ];
     return `
       <div class="pet-stats">
         <div class="pet-stats-head">
@@ -108,30 +274,8 @@ const PetUI = (() => {
         ${_bar('thirst', '口渴', pet.thirst)}
         ${_bar('exp',    '经验', pct)}
       </div>
-    `;
-  }
-
-  function _renderStage(snap) {
-    return `
-      <div class="pet-stage" id="pet-stage">
-        <img class="pet-stage-img" id="pet-stage-img"
-             src="${PET_GIFS[4]}"
-             alt="宠物 Ameath"
-             draggable="false">
-      </div>
-    `;
-  }
-
-  function _renderActions() {
-    const buttons = [
-      { key: 'feed',  label: '喂食', icon: '<path d="M5 12c-1-3 1-5 4-5s5 1 6 4 0 5-3 6-6-1-7-5z"/>' },
-      { key: 'water', label: '饮水', icon: '<path d="M12 4c2 3 4 6 4 9a4 4 0 1 1-8 0c0-3 2-6 4-9z"/>' },
-      { key: 'play',  label: '玩耍', icon: '<circle cx="12" cy="12" r="3.5"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/>' },
-      { key: 'pet',   label: '抚摸', icon: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.7A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>' }
-    ];
-    return `
       <div class="pet-actions">
-        ${buttons.map(b => `
+        ${actions.map(b => `
           <button class="pet-action-btn" data-key="${b.key}">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${b.icon}</svg>
             <span>${b.label}</span>
@@ -145,9 +289,9 @@ const PetUI = (() => {
         </svg>
         <span>道具商店</span>
       </button>
+      <div id="pet-shop-host"></div>
     `;
   }
-
   function _renderShop(snap) {
     return `
       <div class="pet-shop">
@@ -173,78 +317,17 @@ const PetUI = (() => {
       </div>
     `;
   }
-
-  async function render(showShop) {
-    const root = document.getElementById(SHELL_ID);
-    if (!root) return;
-    if (!Store.getCurrentUser()) {
-      root.innerHTML = '<p class="test-placeholder">请先登录后开启宠物小窝</p>';
-      return;
-    }
-
-    const snap = await Pet.snapshot();
-    if (!snap) {
-      root.innerHTML = '<p class="test-placeholder">加载失败</p>';
-      return;
-    }
-
-    const shell = _el(`<div class="pet-shell">${_renderStatsCard(snap)}${_renderStage(snap)}${_renderActions()}<div id="pet-shop-host"></div></div>`);
-    root.innerHTML = '';
-    root.appendChild(shell);
-
-    _bindActions(snap);
-    _startDecayTimer();
-    _startIdleTimer();
-  }
-
-  function _bindActions(snap) {
-    const stage = document.getElementById('pet-stage');
-    const img = document.getElementById('pet-stage-img');
-
-    // 抚摸（点宠物身体）
-    if (img) img.addEventListener('click', async () => {
-      img.classList.remove('bounce', 'shake');
-      void img.offsetWidth; // 重启动画
-      img.classList.add('bounce');
-      _spawnParticle(stage, 'pet');
-      _nextGif(true);
-      const pet = await Pet.pet();
-      if (pet && pet.mood >= 100) _showToast('心情满了！');
-      setTimeout(() => _nextGif(false), 1400);
-    });
-
-    // 4 个动作按钮
-    document.querySelectorAll('#page-pet .pet-action-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
+  function _bindPanelActions() {
+    _elPanelBody.querySelectorAll('.pet-action-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
         const key = btn.dataset.key;
-        if (key === 'pet') {
-          img.click(); // 复用抚摸
-          return;
-        }
-        // 喂食 / 饮水 / 玩耍 → 默认道具 + 动效
+        if (key === 'pet') { _actPet(); return; }
         const map = { feed: 'food_pack', water: 'water_pack', play: 'toy' };
-        const itemId = map[key];
-        img.classList.remove('bounce', 'shake');
-        void img.offsetWidth;
-        img.classList.add(key === 'play' ? 'shake' : 'bounce');
-        _spawnParticle(stage, key);
-        _nextGif(true);
-        const r = await Pet.useItem(itemId);
-        if (!r.ok) _showToast(r.msg);
-        else _showToast(r.msg);
-        setTimeout(async () => {
-          _nextGif(false);
-          await render(false); // 局部重建，更新金币和状态条
-          if (r.pet && r.pet.exp === 0 && r.pet.lvl > 1) {
-            _showToast('升级了！Lv.' + r.pet.lvl);
-          }
-        }, 1200);
+        _actUseItem(map[key], key);
       });
     });
-
-    // 道具商店入口
-    const shopBtn = document.getElementById('pet-shop-open');
-    const shopHost = document.getElementById('pet-shop-host');
+    const shopBtn = _elPanelBody.querySelector('#pet-shop-open');
+    const shopHost = _elPanelBody.querySelector('#pet-shop-host');
     if (shopBtn && shopHost) {
       let open = false;
       shopBtn.addEventListener('click', async () => {
@@ -261,61 +344,124 @@ const PetUI = (() => {
       });
     }
   }
-
   function _bindShopItems() {
-    document.querySelectorAll('#page-pet .pet-shop-item').forEach(btn => {
-      btn.addEventListener('click', async () => {
+    _elPanelBody.querySelectorAll('.pet-shop-item').forEach(btn => {
+      btn.addEventListener('click', () => {
         if (btn.disabled) return;
-        const itemId = btn.dataset.item;
-        const stage = document.getElementById('pet-stage');
-        const img = document.getElementById('pet-stage-img');
-        const r = await Pet.useItem(itemId);
-        if (!r.ok) { _showToast(r.msg); return; }
-        _showToast(r.msg);
-        // 动效
-        const particleKey = { food_pack: 'feed', water_pack: 'water', toy: 'play',
-          feast: 'feast', happy_pill: 'happy', exp_drug: 'exp' }[itemId] || 'pet';
-        _spawnParticle(stage, particleKey);
-        img.classList.remove('bounce', 'shake');
-        void img.offsetWidth;
-        img.classList.add(particleKey === 'play' ? 'shake' : 'bounce');
-        _nextGif(true);
-        setTimeout(async () => {
-          _nextGif(false);
-          // 重新打开商店（刷新金币显示）
-          const shopBtn = document.getElementById('pet-shop-open');
-          const shopHost = document.getElementById('pet-shop-host');
-          if (shopBtn && shopHost && shopHost.innerHTML !== '') {
-            const s = await Pet.snapshot();
-            shopHost.innerHTML = _renderShop(s);
-            _bindShopItems();
-          }
-          await render(false);
-        }, 1200);
+        _actUseItem(btn.dataset.item, null);
       });
     });
   }
-
-  function _startDecayTimer() {
-    if (_decayTimer) clearInterval(_decayTimer);
-    // 每 30 秒重渲染一次，让衰减可视化
-    _decayTimer = setInterval(async () => {
-      const shell = document.querySelector('#page-pet .pet-shell');
-      if (!shell) return;
-      await render(false);
-    }, 30 * 1000);
+  async function _actPet() {
+    if (!_elImg) return;
+    _elImg.classList.remove('bounce', 'shake');
+    void _elImg.offsetWidth;
+    _elImg.classList.add('bounce');
+    _spawnParticleNearPet('pet');
+    _setGif(true);
+    const pet = await Pet.pet();
+    if (pet && pet.mood >= 100) _showToast('心情满了！');
+    setTimeout(() => _setGif(false), 1400);
+  }
+  async function _actUseItem(itemId, actionKey) {
+    if (!_elImg) return;
+    _elImg.classList.remove('bounce', 'shake');
+    void _elImg.offsetWidth;
+    const isPlay = itemId === 'toy' || actionKey === 'play';
+    _elImg.classList.add(isPlay ? 'shake' : 'bounce');
+    if (actionKey) _spawnParticleNearPet(actionKey);
+    else {
+      const particleKey = { food_pack: 'feed', water_pack: 'water', toy: 'play',
+        feast: 'feast', happy_pill: 'happy', exp_drug: 'exp' }[itemId] || 'pet';
+      _spawnParticleNearPet(particleKey);
+    }
+    _setGif(true);
+    const r = await Pet.useItem(itemId);
+    if (!r.ok) _showToast(r.msg);
+    else _showToast(r.msg);
+    setTimeout(async () => {
+      _setGif(false);
+      const snap = await Pet.snapshot();
+      if (snap) {
+        _elPanelBody.innerHTML = _renderPanelContent(snap);
+        _bindPanelActions();
+        _updateMoodBubble(snap);
+      }
+      if (r.pet && r.pet.exp === 0 && r.pet.lvl > 1) {
+        _showToast('升级了！Lv.' + r.pet.lvl);
+      }
+    }, 1200);
+  }
+  async function openPanel() {
+    if (!_elPanel) _buildPanel();
+    if (!Store.getCurrentUser()) {
+      _showToast('请先登录后开启宠物小窝');
+      return;
+    }
+    const snap = await Pet.snapshot();
+    if (!snap) { _showToast('加载失败'); return; }
+    _elPanelBody.innerHTML = _renderPanelContent(snap);
+    _bindPanelActions();
+    _elPanel.classList.add('open');
+    _updateMoodBubble(snap);
+  }
+  function closePanel() {
+    if (_elPanel) _elPanel.classList.remove('open');
+  }
+  function _buildPanel() {
+    _elPanel = _el(`<div class="pet-panel" id="pet-panel">
+      <div class="pet-panel-mask"></div>
+      <div class="pet-panel-sheet">
+        <div class="pet-panel-handle"></div>
+        <div class="pet-panel-title">
+          <span>宠物小窝</span>
+          <button class="pet-panel-close" aria-label="关闭">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M6 18L18 6"/></svg>
+          </button>
+        </div>
+        <div class="pet-panel-body" id="pet-panel-body"></div>
+      </div>
+    </div>`);
+    document.body.appendChild(_elPanel);
+    _elPanelBody = _elPanel.querySelector('#pet-panel-body');
+    _elPanel.querySelector('.pet-panel-mask').addEventListener('click', closePanel);
+    _elPanel.querySelector('.pet-panel-close').addEventListener('click', closePanel);
   }
 
-  function _startIdleTimer() {
-    if (_idleTimer) clearInterval(_idleTimer);
-    _idleTimer = setInterval(() => {
-      const img = document.getElementById('pet-stage-img');
-      if (!img) return;
-      _nextGif(false);
-    }, 4 * 1000);
+  // ---- mount ----
+  function mount() {
+    if (_mounted) return;
+    _elPet = _el(`<div class="desktop-pet" id="desktop-pet">
+      <div class="pet-mood-bubble" id="pet-mood-bubble"></div>
+      <img class="desktop-pet-img" id="desktop-pet-img" src="${PET_GIFS[4]}" alt="宠物" draggable="false">
+    </div>`);
+    document.body.appendChild(_elPet);
+    _elImg = _elPet.querySelector('#desktop-pet-img');
+    _elBubble = _elPet.querySelector('#pet-mood-bubble');
+    _elPet.style.zIndex = Z_PET;
+    _elPet.style.cursor = 'grab';
+
+    const saved = _loadPos();
+    if (saved) {
+      _x = saved.x; _y = saved.y;
+    } else {
+      const p = _defaultPos();
+      _x = p.x; _y = p.y;
+    }
+    _applyPos();
+
+    _bindDrag();
+    _startGifTimer();
+    _scheduleWander();
+    _startMoodTimer();
+    _mounted = true;
   }
 
-  return { render };
+  return {
+    mount,
+    openPanel,
+    closePanel
+  };
 })();
 
 if (typeof window !== 'undefined') window.PetUI = PetUI;

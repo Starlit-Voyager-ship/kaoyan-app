@@ -188,7 +188,7 @@
             <svg class="ico" viewBox="0 0 24 24" style="width:24px;height:24px"><path d="M18 8.5a6 6 0 1 0-12 0c0 6.5-2.5 8.5-2.5 8.5h17S20.5 15 18 8.5z"/><path d="M13.5 21a2 2 0 0 1-3 0"/></svg>
             <span>好友叫醒</span>
           </button>
-          <button class="home-quick-item" onclick="app.navigate('pet')">
+          <button class="home-quick-item" onclick="PetUI.openPanel()">
             <svg class="ico" viewBox="0 0 24 24" style="width:24px;height:24px"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 11v9h12v-9"/><path d="M9.5 20v-4h5v4"/></svg>
             <span>宠物小窝</span>
           </button>
@@ -715,11 +715,6 @@
         </div>
       </section>
 
-      <section id="page-pet" class="content-section">
-        <div id="pet-app"><p class="test-placeholder">加载中…</p></div>
-      </section>
-
-      <!-- 我的（个人中心聚合页） -->
       <section id="page-mine" class="content-section">
         <div class="mine-container">
           <div class="mine-profile">

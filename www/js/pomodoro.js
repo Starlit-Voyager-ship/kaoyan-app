@@ -8,13 +8,16 @@ const Pomodoro = {
   isRunning: false,
   currentTodo: null,
   todos: [],
+  tasks: [],
   statsRange: 'day',
 
   init() {
     this.bindEvents();
     this.loadTodos();
+    this.loadTasks();
     this.loadTodayStats();
     this.renderTodos();
+    this.renderTasks();
     this.updateStatsView();
   },
 
@@ -31,6 +34,15 @@ const Pomodoro = {
     document.getElementById('pomo-todo-overlay').addEventListener('click', () => this.closeTodoModal());
     document.getElementById('pomo-todo-name').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.saveTodo();
+    });
+
+    // 待办（每日清单 + 跨天顺延）
+    document.getElementById('pomo-add-task').addEventListener('click', () => this.openTaskModal());
+    document.getElementById('pomo-task-save').addEventListener('click', () => this.saveTask());
+    document.getElementById('pomo-task-cancel').addEventListener('click', () => this.closeTaskModal());
+    document.getElementById('pomo-task-overlay').addEventListener('click', () => this.closeTaskModal());
+    document.getElementById('pomo-task-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.saveTask();
     });
 
     // 计时器
@@ -55,6 +67,7 @@ const Pomodoro = {
     document.querySelectorAll('.pomo-panel').forEach(p => {
       p.classList.toggle('active', p.id === 'pomo-' + name + '-panel');
     });
+    if (name === 'tasks') { this.autoCarryOverTasks(); this.renderTasks(); }
     if (name === 'stats') this.updateStatsView();
   },
 
@@ -142,6 +155,151 @@ const Pomodoro = {
     this.todos = this.todos.filter(t => t.id !== id);
     this.saveTodos();
     this.renderTodos();
+  },
+
+  /* ---------- 待办（每日清单 + 跨天顺延） ---------- */
+  loadTasks() {
+    const user = Store.getCurrentUser();
+    const key = `pomo_tasks_${user || 'guest'}`;
+    try {
+      this.tasks = JSON.parse(localStorage.getItem(key)) || [];
+    } catch (e) {
+      this.tasks = [];
+    }
+    this.autoCarryOverTasks();
+  },
+
+  saveTasks() {
+    const user = Store.getCurrentUser();
+    const key = `pomo_tasks_${user || 'guest'}`;
+    localStorage.setItem(key, JSON.stringify(this.tasks));
+  },
+
+  autoCarryOverTasks() {
+    const today = Utils.today();
+    let changed = false;
+    this.tasks.forEach(t => {
+      if (!t.completed && t.date && t.date < today) {
+        t.date = today;
+        t.carryOver = (t.carryOver || 0) + 1;
+        changed = true;
+      }
+    });
+    if (changed) this.saveTasks();
+  },
+
+  renderTasks() {
+    const list = document.getElementById('pomo-task-list');
+    const empty = document.getElementById('pomo-task-empty');
+    const summary = document.getElementById('pomo-task-summary');
+    if (!list) return;
+    const today = Utils.today();
+
+    const todo = this.tasks.filter(t => t.date === today && !t.completed);
+    const done = this.tasks.filter(t => t.date === today && t.completed);
+
+    list.innerHTML = '';
+    if (todo.length === 0 && done.length === 0) {
+      empty.style.display = 'block';
+      summary.textContent = '';
+      return;
+    }
+    empty.style.display = 'none';
+
+    const all = [...todo, ...done];
+    all.forEach(t => {
+      const isDone = !!t.completed;
+      const carry = (t.carryOver && t.carryOver > 0)
+        ? `<span class="pomo-task-carry">顺延 ${t.carryOver} 次</span>` : '';
+      const checkSvg = isDone
+        ? '<svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>'
+        : '';
+      const card = document.createElement('div');
+      card.className = 'pomo-task-card' + (isDone ? ' pomo-task-card--done' : '');
+      card.dataset.id = t.id;
+      card.innerHTML = `
+        <button class="pomo-task-check${isDone ? ' pomo-task-check--done' : ''}" data-id="${t.id}" aria-label="${isDone ? '取消完成' : '完成'}">${checkSvg}</button>
+        <div class="pomo-task-info">
+          <div class="pomo-task-title">${this.escapeHtml(t.title)}</div>
+          ${carry}
+        </div>
+        <button class="pomo-task-del" data-id="${t.id}" aria-label="删除">
+          <svg class="ico" viewBox="0 0 24 24" style="width:15px;height:15px" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>`;
+      list.appendChild(card);
+    });
+
+    list.querySelectorAll('.pomo-task-check').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleTaskComplete(btn.dataset.id);
+      });
+    });
+    list.querySelectorAll('.pomo-task-del').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        if (typeof confirmDeleteItem === 'function') {
+          confirmDeleteItem('删除待办', '确定删除这条待办吗？', () => this.deleteTask(id));
+        } else if (confirm('确定删除这条待办吗？')) {
+          this.deleteTask(id);
+        }
+      });
+    });
+
+    const overdue = this.tasks.filter(t => !t.completed && t.date && t.date < today).length;
+    summary.textContent = `今日 ${todo.length + done.length} 项 · 待完成 ${todo.length} · 已完成 ${done.length}${overdue > 0 ? ' · 待顺延 ' + overdue : ''}`;
+  },
+
+  openTaskModal() {
+    const m = document.getElementById('pomo-task-modal');
+    if (!m) return;
+    m.style.display = 'block';
+    const input = document.getElementById('pomo-task-input');
+    input.value = '';
+    input.focus();
+  },
+
+  closeTaskModal() {
+    const m = document.getElementById('pomo-task-modal');
+    if (m) m.style.display = 'none';
+  },
+
+  saveTask() {
+    const input = document.getElementById('pomo-task-input');
+    const title = (input.value || '').trim();
+    if (!title) return;
+    this.addTask(title);
+    this.closeTaskModal();
+  },
+
+  addTask(title) {
+    this.tasks.push({
+      id: Utils.uid(),
+      title,
+      date: Utils.today(),
+      completed: false,
+      completedAt: null,
+      carryOver: 0,
+      createdAt: new Date().toISOString()
+    });
+    this.saveTasks();
+    this.renderTasks();
+  },
+
+  toggleTaskComplete(id) {
+    const t = this.tasks.find(x => x.id === id);
+    if (!t) return;
+    t.completed = !t.completed;
+    t.completedAt = t.completed ? new Date().toISOString() : null;
+    this.saveTasks();
+    this.renderTasks();
+  },
+
+  deleteTask(id) {
+    this.tasks = this.tasks.filter(t => t.id !== id);
+    this.saveTasks();
+    this.renderTasks();
   },
 
   /* ---------- 计时 ---------- */

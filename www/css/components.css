@@ -109,15 +109,15 @@
 .home-stat-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--s-3);
-  margin-bottom: var(--s-4);
+  gap: 8px;
+  margin-bottom: 10px;
 }
 .home-stat {
   background: var(--glass-bg-heavy);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius-lg);
-  padding: var(--s-4) var(--s-2);
+  padding: 10px 6px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -131,7 +131,7 @@
 .home-stat:active { transform: translateY(-1px); box-shadow: var(--shadow-card-hover); }
 .home-stat .ico { color: var(--primary); }
 .home-stat-value {
-  font-size: var(--t-h2);
+  font-size: 14px;
   font-weight: 700;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -146,7 +146,7 @@
   font-size: var(--t-h2);
   font-weight: 600;
   color: var(--text);
-  margin: var(--s-8) 0 var(--s-4);
+  margin: var(--s-5) 0 var(--s-3);
   letter-spacing: 0.02em;
 }
 
@@ -223,8 +223,8 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 2px;
-  margin-bottom: var(--s-6);
-  padding: 14px 10px;
+  margin-bottom: var(--s-4);
+  padding: 10px 8px;
   border-radius: var(--radius-lg, 18px);
   background: var(--glass-bg-heavy, rgba(255,255,255,0.48));
   backdrop-filter: var(--glass-blur, blur(14px));
@@ -237,7 +237,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--s-2);
-  padding: 14px 6px;
+  padding: 8px 4px;
   border-radius: var(--radius-md, 12px);
   border: none;
   background: transparent;
@@ -339,8 +339,8 @@
 /* —— 倒计时 Hero（全宽白玻璃 · 2026-08-04b 视觉降阶） —— */
 .home-countdown-hero {
   position: relative;
-  margin: 0 0 var(--s-3);
-  padding: 22px 20px 18px;
+  margin: 0 0 10px;
+  padding: 14px 18px 12px;
   border-radius: 18px;
   background: var(--glass-bg-heavy);
   backdrop-filter: var(--glass-blur);
@@ -377,10 +377,10 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin: 2px 0 14px;
+  margin: 0 0 10px;
 }
 .home-cd-num {
-  font-size: 48px;
+  font-size: 36px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -388,13 +388,13 @@
   color: var(--primary-dark);
 }
 .home-cd-unit {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-tertiary);
 }
 .home-cd-bar {
   position: relative;
-  height: 6px;
+  height: 5px;
   border-radius: 3px;
   background: var(--primary-bg);
   overflow: hidden;
@@ -408,7 +408,7 @@
 }
 .home-cd-sub {
   position: relative;
-  margin-top: 8px;
+  margin-top: 6px;
   font-size: 12px;
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
@@ -424,8 +424,8 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 16px;
-  margin: 0 0 var(--s-3);
+  padding: 10px 14px;
+  margin: 0 0 10px;
   background: var(--glass-bg-heavy);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -439,8 +439,8 @@
 .home-pet-card:active { transform: scale(0.99); }
 .home-pet-card:hover  { box-shadow: var(--glass-shadow-hover); }
 .home-pet-portrait {
-  width: 64px; height: 64px;
-  border-radius: 14px;
+  width: 52px; height: 52px;
+  border-radius: 12px;
   background: var(--primary-bg);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
@@ -455,7 +455,7 @@
   position: relative;
 }
 .home-pet-lvl {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--primary-dark);
   font-variant-numeric: tabular-nums;
@@ -481,7 +481,7 @@
   height: 5px;
   border-radius: 3px;
   background: var(--primary-bg);
-  margin: 10px 0 6px;
+  margin: 6px 0 4px;
   overflow: hidden;
 }
 .home-pet-exp-fill {
@@ -524,8 +524,8 @@
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg, 16px);
-  padding: 16px 18px;
-  margin-bottom: var(--s-4);
+  padding: 11px 14px;
+  margin-bottom: 10px;
   cursor: pointer;
   box-shadow: var(--glass-shadow);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -540,11 +540,11 @@
 }
 .home-focus-label .ico { color: var(--primary); }
 .home-focus-val {
-  font-size: 24px; font-weight: 800; color: var(--text-primary);
+  font-size: 19px; font-weight: 800; color: var(--text-primary);
   font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
 }
 .home-focus-bar {
-  height: 6px; border-radius: 3px; margin: 10px 0 6px;
+  height: 5px; border-radius: 3px; margin: 6px 0 4px;
   background: var(--border-light); overflow: hidden;
 }
 .home-focus-bar-fill {
@@ -653,8 +653,8 @@
 /* —— 每日一句（白玻璃 · 文案卡） —— */
 .home-daily-quote {
   position: relative;
-  margin: var(--s-6, 24px) 0 var(--s-4, 16px);
-  padding: 18px 20px 20px;
+  margin: var(--s-4, 16px) 0 var(--s-3, 12px);
+  padding: 12px 16px 14px;
   border-radius: var(--radius-lg, 18px);
   background: var(--glass-bg-heavy, rgba(255,255,255,0.48));
   backdrop-filter: var(--glass-blur, blur(14px));
@@ -688,7 +688,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 10px;
+  padding: 2px 8px;
   border-radius: 999px;
   background: rgba(74, 144, 184, 0.10);
   color: var(--primary-dark, #2E6680);
@@ -718,13 +718,13 @@
 }
 .dq-text {
   position: relative;
-  font-size: 17px;
-  line-height: 1.7;
+  font-size: 15px;
+  line-height: 1.6;
   font-weight: 500;
   color: var(--text, #1E3A50);
   letter-spacing: 0.01em;
-  margin: 4px 0 8px;
-  min-height: 30px;
+  margin: 2px 0 6px;
+  min-height: 24px;
 }
 .dq-auth {
   position: relative;

@@ -46,9 +46,9 @@
       document.close();
     }
   </script>
-  <link rel="stylesheet" href="css/main.css?v=20260804h">
-  <link rel="stylesheet" href="css/components.css?v=20260804c">
-  <link rel="stylesheet" href="css/modules.css?v=20260804n">
+  <link rel="stylesheet" href="css/main.css?v=20260804i">
+  <link rel="stylesheet" href="css/components.css?v=20260804d">
+  <link rel="stylesheet" href="css/modules.css?v=20260804o">
   <link rel="stylesheet" href="css/pet.css?v=20260804a">
   <!-- KaTeX：渲染 AI 模型返回的 LaTeX 数学公式 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
@@ -237,20 +237,34 @@
       <section id="page-pomodoro" class="content-section">
         <div class="pomodoro-container">
           <div class="pomo-tabs">
-            <button class="pomo-tab active" data-pomo-tab="todo">待办</button>
+            <button class="pomo-tab active" data-pomo-tab="todo">专注</button>
+            <button class="pomo-tab" data-pomo-tab="tasks">待办</button>
             <button class="pomo-tab" data-pomo-tab="stats">统计</button>
           </div>
 
           <!-- 待办列表 -->
           <div id="pomo-todo-panel" class="pomo-panel active">
             <div class="pomo-header">
-              <h3>待办</h3>
+              <h3>专注</h3>
               <button class="btn-sm btn-primary" id="pomo-add-todo">+ 添加</button>
             </div>
             <div class="pomo-todo-list" id="pomo-todo-list"></div>
             <div class="pomo-todo-empty" id="pomo-todo-empty" style="display:none">
-              <p>暂无待办，点击右上角添加</p>
+              <p>暂无专注项，点击右上角添加</p>
             </div>
+          </div>
+
+          <!-- 待办（每日清单 + 跨天顺延） -->
+          <div id="pomo-tasks-panel" class="pomo-panel">
+            <div class="pomo-header">
+              <h3>待办</h3>
+              <button class="btn-sm btn-primary" id="pomo-add-task">+ 新建</button>
+            </div>
+            <div class="pomo-task-list" id="pomo-task-list"></div>
+            <div class="pomo-task-empty" id="pomo-task-empty" style="display:none">
+              <p>暂无待办，点击右上角新建</p>
+            </div>
+            <div class="pomo-task-summary" id="pomo-task-summary"></div>
           </div>
 
           <!-- 计时中（正向计时） -->
@@ -342,15 +356,28 @@
           </div>
         </div>
 
-        <!-- 添加待办弹窗 -->
+        <!-- 添加专注弹窗 -->
         <div class="modal" id="pomo-todo-modal" style="display:none">
           <div class="modal-overlay" id="pomo-todo-overlay"></div>
           <div class="modal-content">
-            <h3>添加待办</h3>
+            <h3>添加专注项</h3>
             <input type="text" id="pomo-todo-name" placeholder="例如：背单词、数学真题...">
             <div class="modal-actions">
               <button class="btn-outline" id="pomo-todo-cancel">取消</button>
               <button class="btn-primary" id="pomo-todo-save">保存</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 新建待办弹窗 -->
+        <div class="modal" id="pomo-task-modal" style="display:none">
+          <div class="modal-overlay" id="pomo-task-overlay"></div>
+          <div class="modal-content">
+            <h3>新建待办</h3>
+            <input type="text" id="pomo-task-input" placeholder="例如：背单词 30min">
+            <div class="modal-actions">
+              <button class="btn-outline" id="pomo-task-cancel">取消</button>
+              <button class="btn-primary" id="pomo-task-save">保存</button>
             </div>
           </div>
         </div>
@@ -870,7 +897,7 @@
   <script src="js/countdown.js?v=20260804b"></script>
   <script src="js/daily-quote.js?v=20260804c"></script>
   <script src="js/auth.js?v=20260804a"></script>
-  <script src="js/pomodoro.js?v=20260804d"></script>
+  <script src="js/pomodoro.js?v=20260804e"></script>
   <!-- KaTeX：公式渲染 -->
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>

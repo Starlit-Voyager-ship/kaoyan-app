@@ -143,8 +143,8 @@ body {
 
 .content-section {
   display: none;
-  padding: 20px;
-  padding-bottom: calc(20px + var(--tabbar-height) + env(safe-area-inset-bottom) + 12px);
+  padding: 12px;
+  padding-bottom: calc(12px + var(--tabbar-height) + env(safe-area-inset-bottom) + 12px);
   max-width: var(--max-content);
   margin: 0 auto;
   width: 100%;

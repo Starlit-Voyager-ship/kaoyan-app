@@ -23,18 +23,31 @@ const Store = {
 
   _initLocal() {
     return new Promise((resolve) => {
-      const req = indexedDB.open(this.dbName, 2); // 版本号升级以添加 users 表
-      req.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains('cache')) {
-          db.createObjectStore('cache', { keyPath: 'cid' });
-        }
-        if (!db.objectStoreNames.contains('users')) {
-          db.createObjectStore('users', { keyPath: 'id' });
-        }
-      };
-      req.onsuccess = (e) => { this.db = e.target.result; resolve(); };
-      req.onerror = () => resolve(); // 即使本地库失败也不阻塞
+      // 环境兜底：老旧 WebView / 隐私模式 / file:// 直接打开时可能无 IndexedDB。
+      // 此时降级为"仅云端"，不阻塞启动；cache 系列方法已对 db=null 安全返回。
+      if (typeof indexedDB === 'undefined' || !indexedDB) {
+        this.db = null;
+        console.warn('[Store] 当前环境不支持 IndexedDB，本地缓存降级为云端优先');
+        return resolve();
+      }
+      try {
+        const req = indexedDB.open(this.dbName, 2); // 版本号升级以添加 users 表
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('cache')) {
+            db.createObjectStore('cache', { keyPath: 'cid' });
+          }
+          if (!db.objectStoreNames.contains('users')) {
+            db.createObjectStore('users', { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = (e) => { this.db = e.target.result; resolve(); };
+        req.onerror = () => { this.db = null; resolve(); }; // 本地库失败不阻塞
+      } catch (e) {
+        this.db = null;
+        console.warn('[Store] IndexedDB 初始化异常，降级为云端优先', e);
+        resolve();
+      }
     });
   },
 

@@ -241,10 +241,10 @@ const Reports = {
         </div>
       </div>
 
-      <div class="report-stat-row"><span class="label">${ICONS.book} 新背单词</span><span class="value">${data.todayWords} 个</span></div>
-      <div class="report-stat-row"><span class="label">${ICONS.warn} 错词复习</span><span class="value">${data.wrongWords} 个</span></div>
-      <div class="report-stat-row"><span class="label">${ICONS.math} 数学录题</span><span class="value">${data.todayMath} 道</span></div>
-      <div class="report-stat-row"><span class="label">${ICONS.ai} AI 咨询</span><span class="value">${data.todayChats} 次</span></div>
+      <div class="report-stat-row"><span class="label">新背单词</span><span class="value">${data.todayWords} 个</span></div>
+      <div class="report-stat-row"><span class="label">错词复习</span><span class="value">${data.wrongWords} 个</span></div>
+      <div class="report-stat-row"><span class="label">数学录题</span><span class="value">${data.todayMath} 道</span></div>
+      <div class="report-stat-row"><span class="label">AI 咨询</span><span class="value">${data.todayChats} 次</span></div>
 
       <h4><svg class="ico" viewBox="0 0 24 24"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-11"/></svg> 近 7 天专注时长（含今日）</h4>
       <div class="report-mini-chart">

@@ -225,7 +225,30 @@ const AIAssistant = {
       merged.errorHint = hints.join('；');
       const v = merged;
 
-      const topic = topicInput || v.topic || '其他';
+      // —— 归属书籍 / 年份 ——
+      const bookEl = document.getElementById('upload-book');
+      const book = bookEl ? bookEl.value : '';
+      let bookName = '', category = '', knowledgePoint = '', year = '', bkType = '';
+      if (book) {
+        const bk = (typeof MATH_BOOKS !== 'undefined') ? MATH_BOOKS.find(b => b.id === book) : null;
+        if (bk) {
+          bookName = bk.name; bkType = bk.type;
+          if (bk.type === 'year') {
+            year = (document.getElementById('upload-year') || {}).value || '';
+            category = '历年真题';
+          } else {
+            knowledgePoint = topicInput || v.topic || '其他';
+            category = (typeof categoryOfKp === 'function') ? categoryOfKp(knowledgePoint) : '高等数学';
+          }
+        }
+      }
+
+      // 兼容旧逻辑：topic 用于薄弱点/报表聚合
+      let topic;
+      if (!book) topic = topicInput || v.topic || '其他';
+      else if (bkType === 'year') topic = year ? `历年真题·${year}` : '历年真题';
+      else topic = knowledgePoint;
+
       const errorReason = errorInput || v.errorHint || '';
       const user = Store.getCurrentUser();
 
@@ -250,6 +273,11 @@ const AIAssistant = {
           username: user,
           source,
           topic,
+          book,
+          bookName,
+          category,
+          knowledgePoint,
+          year,
           errorReason,
           ocrText,
           imageData,
@@ -344,6 +372,7 @@ const AIAssistant = {
       mask.style.display = 'flex';
       this._uploadState = 'input';
       this.populateTopicOptions();
+      this.populateBookOptions();
       const s = document.getElementById('upload-source'); if (s) s.value = '';
       const er = document.getElementById('upload-error'); if (er) er.value = '';
       const r = document.getElementById('upload-result'); if (r) r.innerHTML = '';
@@ -399,6 +428,43 @@ const AIAssistant = {
       const o = document.createElement('option');
       o.value = t; o.textContent = t;
       sel.appendChild(o);
+    });
+  },
+
+  populateBookOptions() {
+    const sel = document.getElementById('upload-book');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">（未归档）</option>';
+    const books = (typeof MATH_BOOKS !== 'undefined') ? MATH_BOOKS : [];
+    books.forEach(b => {
+      const o = document.createElement('option');
+      o.value = b.id; o.textContent = b.name;
+      sel.appendChild(o);
+    });
+    const ys = document.getElementById('upload-year');
+    if (ys) {
+      ys.innerHTML = '<option value="">选择年份</option>';
+      const years = (typeof MATH_YEARS !== 'undefined') ? MATH_YEARS : [];
+      years.forEach(y => {
+        const o = document.createElement('option');
+        o.value = y; o.textContent = y + ' 年';
+        ys.appendChild(o);
+      });
+    }
+    this._wireUploadBookToggle();
+  },
+
+  _wireUploadBookToggle() {
+    const bookSel = document.getElementById('upload-book');
+    if (!bookSel || bookSel._wired) return;
+    bookSel._wired = true;
+    bookSel.addEventListener('change', () => {
+      const bk = (typeof MATH_BOOKS !== 'undefined') ? MATH_BOOKS.find(b => b.id === bookSel.value) : null;
+      const isYear = !!(bk && bk.type === 'year');
+      const yearWrap = document.getElementById('upload-year-wrap');
+      const topicWrap = document.getElementById('upload-topic-wrap');
+      if (yearWrap) yearWrap.style.display = isYear ? '' : 'none';
+      if (topicWrap) topicWrap.style.display = isYear ? 'none' : '';
     });
   },
 

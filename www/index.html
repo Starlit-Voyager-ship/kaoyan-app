@@ -420,10 +420,16 @@
                 继续添加图片（可多选）
               </button>
               <div class="upload-modal-fields">
+                <label>归属书籍
+                  <select id="upload-book"><option value="">（未归档）</option></select>
+                </label>
+                <label id="upload-year-wrap" style="display:none">年份
+                  <select id="upload-year"></select>
+                </label>
                 <label>题目来源（如：2007年 Text 1 / 真题 / 基础660）
                   <input type="text" id="upload-source" placeholder="如：2007年 Text 1 / 真题 / 基础660">
                 </label>
-                <label>知识点（可留空，由 AI 自动识别）
+                <label id="upload-topic-wrap">知识点（可留空，由 AI 自动识别）
                   <select id="upload-topic"><option value="">（自动识别）</option></select>
                 </label>
                 <label>错因（可选）
@@ -633,22 +639,9 @@
         <div class="math-bank-container">
           <div class="bank-toolbar">
             <button class="btn-primary btn-sm" id="math-add-btn">+ AI录入题目</button>
-            <div class="bank-filters">
-              <select id="math-source-filter" class="filter-select">
-                <option value="">全部来源</option>
-                <option value="真题">真题</option>
-                <option value="模拟题">模拟题</option>
-                <option value="练习题">练习题</option>
-                <option value="AI咨询">AI咨询</option>
-              </select>
-              <select id="math-topic-filter" class="filter-select">
-                <option value="">全部知识点</option>
-              </select>
-            </div>
           </div>
-          <div class="question-list" id="math-question-list">
-            <div class="empty-hint">暂无题目，可通过AI助理上传图片录入</div>
-          </div>
+          <div class="bank-breadcrumb" id="bank-breadcrumb"></div>
+          <div id="bank-view"></div>
           <div class="question-detail" id="question-detail" style="display:none">
             <button class="back-btn" id="question-back">返回</button>
             <div class="detail-images" id="detail-images"></div>
@@ -878,14 +871,14 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <script src="js/config.js?v=20260804d"></script>
-  <script src="js/ai-assistant.js?v=20260804d"></script>
+  <script src="js/ai-assistant.js?v=20260804f"></script>
   <script src="js/english/vocabulary.js?v=20260804d"></script>
   <script src="js/english/dict.js?v=20260804d"></script>
   <script src="js/english/freq.js?v=20260804d"></script>
   <script src="js/english/articles.js?v=20260804d"></script>
   <script src="js/english/sentences.js?v=20260804d"></script>
   <script src="js/english/essay.js?v=20260804d"></script>
-  <script src="js/math/question-bank.js?v=20260804d"></script>
+  <script src="js/math/question-bank.js?v=20260804f"></script>
   <script src="js/math/weak-points.js?v=20260804d"></script>
   <script src="js/reports.js?v=20260804d"></script>
   <script src="js/friend-wake.js?v=20260804d"></script>

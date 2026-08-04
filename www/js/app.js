@@ -97,7 +97,7 @@ const app = {
         EssayModule.renderList();
         break;
       case 'math-bank':
-        MathBank.renderList();
+        MathBank.render();
         break;
       case 'math-weak':
         WeakPoints.render();

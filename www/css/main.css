@@ -154,16 +154,36 @@ body {
 }
 .content-section.active { display: block; }
 
-/* 页面主题背景（现代材质渐变派 v2：纯 CSS 柔和同色系渐变 + 极简几何柔光，无拟物纹理） */
-#page-home {
-  background:
-    radial-gradient(120% 55% at 50% -8%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 55%),
-    linear-gradient(180deg, #FAF6EF 0%, #EEE5D6 100%);
+/* 页面主题背景（v3 修正版）：body 铺满整页，不让蓝天从外侧冒出来 */
+/* 默认（default）：仍走 .content-section 透出 body 蓝天兜底 */
+.content-section#page-home,
+.content-section#page-pomodoro {
+  background: transparent;
 }
-#page-pomodoro {
+
+/* 主题背景：实际渲染在 body 上，通过 JS 切页时给 body 加 data-theme 来切换；
+   在 home / pomodoro 时覆盖蓝天背景，整页铺满渐变。*/
+body[data-theme="home"] {
   background:
-    radial-gradient(72% 42% at 50% 30%, rgba(255,244,226,0.95) 0%, rgba(255,244,226,0) 60%),
-    linear-gradient(165deg, #F1E3CC 0%, #E3CDA8 100%);
+    /* 右上角一团暖光晕：清晨阳光感 */
+    radial-gradient(60% 50% at 88% -10%, rgba(255, 232, 188, 0.85) 0%, rgba(255, 232, 188, 0) 65%),
+    /* 左下角柔光：托住卡片 */
+    radial-gradient(70% 60% at 10% 110%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%),
+    /* 主体色：从暖米铺到暖沙 */
+    linear-gradient(165deg, #FAF0DC 0%, #F1E1BF 55%, #E8CFA1 100%);
+  background-attachment: fixed;
+  background-size: cover;
+}
+body[data-theme="pomodoro"] {
+  background:
+    /* 中部聚光圆：专注暖灯感 */
+    radial-gradient(50% 40% at 50% 38%, rgba(255, 226, 170, 0.7) 0%, rgba(255, 226, 170, 0) 70%),
+    /* 左下角柔光 */
+    radial-gradient(60% 50% at 5% 110%, rgba(255, 244, 218, 0.55) 0%, rgba(255, 244, 218, 0) 60%),
+    /* 主体色：从暖木浅到暖木深 */
+    linear-gradient(160deg, #F0DDB3 0%, #E2C58A 55%, #C9A66B 100%);
+  background-attachment: fixed;
+  background-size: cover;
 }
 
 /* 头部导航 - 毛玻璃（轻量融入） */

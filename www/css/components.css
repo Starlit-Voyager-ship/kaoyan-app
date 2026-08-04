@@ -218,31 +218,40 @@
   flex-shrink: 0;
 }
 
-/* 快捷入口：5 等分 */
+/* 功能入口容器（白玻璃 · 包住 8 个小入口） */
 .home-quick {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--s-3);
+  gap: 2px;
   margin-bottom: var(--s-6);
+  padding: 14px 10px;
+  border-radius: var(--radius-lg, 18px);
+  background: var(--glass-bg-heavy, rgba(255,255,255,0.55));
+  backdrop-filter: var(--glass-blur, blur(14px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(14px));
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.40));
+  box-shadow: var(--glass-shadow, 0 8px 32px rgba(30,58,80,0.10));
 }
 .home-quick-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--s-2);
-  padding: var(--s-4) var(--s-1);
-  border-radius: var(--radius-md);
+  padding: 14px 6px;
+  border-radius: var(--radius-md, 12px);
   border: none;
   background: transparent;
   cursor: pointer;
   color: var(--text-secondary);
   font-family: inherit;
   font-size: var(--t-label);
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast), transform 0.12s ease;
 }
+.home-quick-item:hover { background: rgba(74, 144, 184, 0.06); }
 .home-quick-item:active {
-  background: var(--primary-tint);
+  background: var(--primary-tint, rgba(74,144,184,0.12));
   color: var(--primary);
+  transform: scale(0.96);
 }
 .home-quick-item .ico { color: currentColor; }
 

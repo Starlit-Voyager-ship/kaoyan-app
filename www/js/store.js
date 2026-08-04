@@ -434,6 +434,7 @@ const Store = {
   async savePet(petData, opts) {
     const user = this.getCurrentUser();
     if (!user || !petData) return;
+    if (!petData.id) petData.id = 'pet_' + user; // 兜底 id：保证宠物可按 'pet_<user>' 查到/更新/删除，否则每次刷新都重置
     const skipDecay = opts && opts.skipDecay;
     const pet = skipDecay ? Object.assign({}, petData) : this._applyDecay(Object.assign({}, petData));
     pet.username = user;

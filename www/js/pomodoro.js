@@ -201,8 +201,9 @@ const Pomodoro = {
         timestamp: new Date().toISOString()
       });
 
+      const coinPer = (window.Pet && Pet.LEARN_REWARDS && Pet.LEARN_REWARDS.pomodoro_per_min && Pet.LEARN_REWARDS.pomodoro_per_min.per) || 1;
       Pet.onLearnReward('pomodoro_per_min', minutes).then(() => {});
-      Utils.toast(`专注结束！${this.currentTodo.title} ${minutes} 分钟，+${minutes * 10} 金币`);
+      Utils.toast(`专注结束！${this.currentTodo.title} ${minutes} 分钟，+${minutes * coinPer} 金币`);
     } else if (wasRunning) {
       Utils.toast('专注时间不足1分钟，未记录');
     }

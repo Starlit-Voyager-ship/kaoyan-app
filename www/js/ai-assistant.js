@@ -432,7 +432,6 @@ const AIAssistant = {
       timestamp: new Date().toISOString()
     };
     this.messages.push(userMsg);
-    await Store.put('ai_chats', userMsg);
 
     input.value = '';
     this.pendingImage = null;
@@ -456,6 +455,8 @@ const AIAssistant = {
         const idx = this.messages.findIndex(m => m.id === userMsg.id);
         if (idx >= 0) this.messages[idx].image = null;
       }
+      // 图片已在上面置空，此处持久化时不带 base64，符合"只同步解析后文字"的产品设计
+      await Store.put('ai_chats', userMsg);
       const response = await this.callQwenText(settings, userMsg, visionText);
       const aiMsg = {
         id: Utils.uid(),

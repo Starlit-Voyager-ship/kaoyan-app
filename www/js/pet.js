@@ -62,11 +62,11 @@ const Pet = (() => {
 
   // ---- 学习行为 → 金币奖励（同时驱动金币流水） ----
   const LEARN_REWARDS = {
-    pomodoro_per_min: { source: 'pomodoro', per: 10, name: '专注' },
-    vocab_per_word:    { source: 'vocab',    per: 2,  name: '单词' },
-    article_complete:  { source: 'article',  per: 20, name: '文章阅读' },
-    sentence_complete: { source: 'sentence', per: 15, name: '长难句' },
-    ai_chat_per_msg:   { source: 'ai_chat',  per: 5,  name: 'AI对话' }
+    pomodoro_per_min: { source: 'pomodoro', per: 1,   name: '专注' },
+    vocab_per_word:    { source: 'vocab',    per: 1,   name: '单词' },
+    article_complete:  { source: 'article',  per: 100, name: '文章阅读' },
+    sentence_complete: { source: 'sentence', per: 15,  name: '长难句' },
+    ai_chat_per_msg:   { source: 'ai_chat',  per: 3,   name: 'AI对话' }
   };
 
   // ---- 状态机：根据 mood/hunger/thirst 决定宠物表情与提示 ----

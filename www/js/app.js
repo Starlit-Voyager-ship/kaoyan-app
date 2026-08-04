@@ -77,6 +77,7 @@ const app = {
         this.updateHomeStats();
         if (typeof PetUI !== 'undefined' && PetUI.updateHomeCard) PetUI.updateHomeCard();
         if (typeof Countdown !== 'undefined' && Countdown.renderHome) Countdown.renderHome();
+        if (typeof DailyQuote !== 'undefined' && DailyQuote.render) DailyQuote.render();
         break;
       case 'mine':
         this.renderMine();
@@ -138,6 +139,7 @@ const app = {
     this.updateHomeStats();
     if (typeof PetUI !== 'undefined' && PetUI.updateHomeCard) PetUI.updateHomeCard();
     if (typeof Countdown !== 'undefined' && Countdown.renderHome) Countdown.renderHome();
+    if (typeof DailyQuote !== 'undefined' && DailyQuote.render) DailyQuote.render();
   },
 
   async updateHomeStats() {

@@ -46,23 +46,25 @@ const Countdown = (() => {
     await Store.delete(STORE, ID);
   }
 
-  // 渲染首页卡
+  // 渲染首页 Hero（巨号天数 + 考研旅程进度条）
   async function renderHome() {
     const card = document.getElementById('home-countdown-card');
     if (!card) return;
     if (!Store.getCurrentUser()) { card.style.display = 'none'; return; }
-    card.style.display = 'flex';
+    card.style.display = '';
 
     const rec = await load();
     const nameEl = document.getElementById('home-countdown-name');
     const subEl  = document.getElementById('home-countdown-sub');
     const numEl  = document.getElementById('home-countdown-num');
+    const barEl  = document.getElementById('home-countdown-progress');
 
     if (!rec || !rec.date) {
       nameEl.textContent = '未设置目标日';
       subEl.textContent = '点击设置考研 / 考试日期';
       numEl.textContent = '--';
       card.classList.remove('is-past', 'is-today');
+      if (barEl) barEl.style.width = '0%';
       return;
     }
 
@@ -71,6 +73,8 @@ const Countdown = (() => {
       nameEl.textContent = rec.name || '目标日';
       subEl.textContent = '日期无效，点击重新设置';
       numEl.textContent = '--';
+      card.classList.remove('is-past', 'is-today');
+      if (barEl) barEl.style.width = '0%';
       return;
     }
 
@@ -80,14 +84,29 @@ const Countdown = (() => {
 
     if (d.isToday) {
       numEl.textContent = '0';
-      subEl.textContent = '就是今天！加油 💪';
+      subEl.textContent = '就是今天，全力以赴';
+      if (barEl) barEl.style.width = '100%';
     } else if (d.isPast) {
       numEl.textContent = Math.abs(d.days);
-      subEl.textContent = '已过去（点击修改）';
+      subEl.textContent = '已过去 · 点击可修改';
+      if (barEl) barEl.style.width = '100%';
     } else {
       numEl.textContent = d.days;
-      subEl.textContent = '天 · ' + rec.date + '（点击修改）';
+      const pct = yearProgress(rec.date);
+      if (barEl) barEl.style.width = pct + '%';
+      subEl.textContent = '已走过 ' + pct + '% · ' + rec.date + '（点击修改）';
     }
+  }
+
+  // 考研旅程进度：从目标年 1/1 到目标日，已过去的比例
+  function yearProgress(targetDateStr) {
+    const target = new Date(targetDateStr + 'T00:00:00');
+    const year = target.getFullYear();
+    const start = new Date(year, 0, 1).getTime();
+    const total = target.getTime() - start;
+    if (total <= 0) return 100;
+    const elapsed = Date.now() - start;
+    return Math.max(0, Math.min(100, Math.round((elapsed / total) * 100)));
   }
 
   // 打开编辑器

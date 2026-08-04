@@ -26,7 +26,7 @@
 
   /* ===== 中性色（天空主题）===== */
   --bg: transparent;
-  --bg-card: rgba(255,255,255,0.65);
+  --bg-card: rgba(255,255,255,0.48);
   --bg-card-solid: #FFFFFF;
   --bg-sidebar: #1A2630;
   --text: #1E3A50;
@@ -34,18 +34,18 @@
   --text-secondary: #4A6070;
   --text-tertiary: #7A94A8;
   --text-light: #7A94A8;
-  --border: rgba(255,255,255,0.35);
-  --border-light: rgba(255,255,255,0.20);
+  --border: rgba(255,255,255,0.28);
+  --border-light: rgba(255,255,255,0.18);
   --border-strong: rgba(200,215,230,0.50);
   --border-real: #D8E2EC;
 
-  /* ===== 毛玻璃核心 ===== */
-  --glass-bg: rgba(255,255,255,0.55);
-  --glass-bg-heavy: rgba(255,255,255,0.72);
-  --glass-border: rgba(255,255,255,0.40);
-  --glass-blur: blur(20px);
-  --glass-shadow: 0 8px 32px rgba(30,58,80,0.12), 0 2px 8px rgba(30,58,80,0.06);
-  --glass-shadow-hover: 0 12px 40px rgba(30,58,80,0.18), 0 4px 12px rgba(30,58,80,0.08);
+  /* ===== 毛玻璃核心（更淡一档 · 2026-08-04b）===== */
+  --glass-bg: rgba(255,255,255,0.42);
+  --glass-bg-heavy: rgba(255,255,255,0.55);
+  --glass-border: rgba(255,255,255,0.32);
+  --glass-blur: blur(14px);
+  --glass-shadow: 0 6px 24px rgba(30,58,80,0.08), 0 2px 6px rgba(30,58,80,0.04);
+  --glass-shadow-hover: 0 10px 32px rgba(30,58,80,0.12), 0 3px 10px rgba(30,58,80,0.06);
 
   /* ===== 抽屉深色主题 ===== */
   --drawer-bg: #1A2630;

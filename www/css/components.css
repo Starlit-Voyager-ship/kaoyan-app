@@ -110,20 +110,20 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--s-3);
-  margin-bottom: var(--s-2);
+  margin-bottom: var(--s-4);
 }
 .home-stat {
   background: var(--glass-bg-heavy);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius-lg);
-  padding: var(--s-3) var(--s-2);
+  padding: var(--s-4) var(--s-2);
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--s-1);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--glass-shadow);
   cursor: pointer;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
   border: 1px solid var(--glass-border);
@@ -146,7 +146,8 @@
   font-size: var(--t-h2);
   font-weight: 600;
   color: var(--text);
-  margin: var(--s-6) 0 var(--s-3);
+  margin: var(--s-8) 0 var(--s-4);
+  letter-spacing: 0.02em;
 }
 
 /* 继续学习引导卡（毛玻璃） */
@@ -221,14 +222,15 @@
 .home-quick {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--s-2);
+  gap: var(--s-3);
+  margin-bottom: var(--s-6);
 }
 .home-quick-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--s-2);
-  padding: var(--s-3) var(--s-1);
+  padding: var(--s-4) var(--s-1);
   border-radius: var(--radius-md);
   border: none;
   background: transparent;
@@ -319,8 +321,242 @@
 .home-countdown-card.is-past .home-countdown-num { color: #C8A24B; }
 .home-countdown-card.is-today .home-countdown-num { color: #E05050; }
 
+/* ========================================
+   首页重设计（2026-08-04）：倒计时 Hero + 次级专注卡
+   设计系统：蓝天玻璃主题（--primary 天空蓝）保留；
+   倒计时 Hero 用能量紫渐变作为唯一视觉爆发点
+   ======================================== */
+
+/* —— 倒计时 Hero（全宽白玻璃 · 2026-08-04b 视觉降阶） —— */
+.home-countdown-hero {
+  position: relative;
+  margin: 0 0 var(--s-3);
+  padding: 22px 20px 18px;
+  border-radius: 18px;
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  color: var(--text-primary);
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.home-countdown-hero:active { transform: scale(0.985); }
+.home-cd-edit {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%;
+  background: var(--primary-bg);
+  color: var(--primary); cursor: pointer;
+  transition: background 0.15s ease;
+  z-index: 2;
+}
+.home-cd-edit:hover { background: rgba(74,144,184,0.18); }
+.home-cd-name {
+  position: relative;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+.home-cd-num-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 2px 0 14px;
+}
+.home-cd-num {
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary-dark);
+}
+.home-cd-unit {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.home-cd-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--primary-bg);
+  overflow: hidden;
+}
+.home-cd-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+  transition: width 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.home-cd-sub {
+  position: relative;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+/* 过期 / 当天 状态（淡色处理，不再刺眼） */
+.home-countdown-hero.is-past .home-cd-num { color: #C8A24B; }
+.home-countdown-hero.is-today .home-cd-num { color: var(--danger); }
+
+/* ========================================
+   首页宠物小卡（2026-08-04b 找回 · 白玻璃）
+   ======================================== */
+.home-pet-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  margin: 0 0 var(--s-3);
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.home-pet-card:active { transform: scale(0.99); }
+.home-pet-card:hover  { box-shadow: var(--glass-shadow-hover); }
+.home-pet-portrait {
+  width: 64px; height: 64px;
+  border-radius: 14px;
+  background: var(--primary-bg);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.home-pet-portrait img { width: 96%; height: 96%; object-fit: contain; }
+.home-pet-body { flex: 1; min-width: 0; }
+.home-pet-row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+.home-pet-lvl {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+.home-pet-state {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary-dark);
+  font-weight: 500;
+  white-space: nowrap;
+}
+/* 状态色变体（轻染背景） */
+.home-pet-state.happy       { background: rgba(82,168,123,0.12); color: #3D8460; }
+.home-pet-state.normal      { background: rgba(74,144,184,0.10); color: var(--primary-dark); }
+.home-pet-state.hungry      { background: rgba(212,168,74,0.14); color: #B08128; }
+.home-pet-state.thirsty     { background: rgba(212,168,74,0.14); color: #B08128; }
+.home-pet-state.sad         { background: rgba(160,140,200,0.14); color: #6E5CA8; }
+.home-pet-state.critical    { background: rgba(212,100,111,0.14); color: #B8505A; }
+.home-pet-exp {
+  position: relative;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--primary-bg);
+  margin: 10px 0 6px;
+  overflow: hidden;
+}
+.home-pet-exp-fill {
+  position: absolute;
+  left: 0; top: 0;
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+  transition: width 0.5s ease;
+}
+.home-pet-exp-text {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.home-pet-row2 {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.home-pet-coin-today {
+  color: #B8893A;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.home-pet-coin-total {
+  color: var(--primary-dark);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* —— 今日专注（次级卡，明显小于倒计时） —— */
+.home-focus-card {
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg, 16px);
+  padding: 16px 18px;
+  margin-bottom: var(--s-4);
+  cursor: pointer;
+  box-shadow: var(--glass-shadow);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.home-focus-card:hover { box-shadow: var(--glass-shadow-hover); transform: translateY(-1px); }
+.home-focus-head {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.home-focus-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 600; color: var(--text-secondary);
+}
+.home-focus-label .ico { color: var(--primary); }
+.home-focus-val {
+  font-size: 24px; font-weight: 800; color: var(--text-primary);
+  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+}
+.home-focus-bar {
+  height: 6px; border-radius: 3px; margin: 10px 0 6px;
+  background: var(--border-light); overflow: hidden;
+}
+.home-focus-bar-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+  border-radius: 3px; transition: width 0.5s ease;
+}
+.home-focus-meta {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: var(--text-tertiary);
+}
+.home-focus-goal {
+  display: flex; align-items: center; gap: 3px;
+  cursor: pointer; color: var(--primary); font-weight: 500;
+  padding: 2px 4px; border-radius: 6px;
+  transition: background 0.15s ease;
+}
+.home-focus-goal:hover { background: var(--primary-soft); }
+.home-focus-goal .ico { color: var(--primary); }
+
 /* 开关按钮 */
-.toggle-switch {
   position: relative;
   display: inline-block;
   width: 48px; height: 26px;
@@ -377,4 +613,97 @@
 .settings-container .btn-danger {
   margin-right: 10px;
   margin-top: 8px;
+}
+
+/* —— 每日一句（白玻璃 · 文案卡） —— */
+.home-daily-quote {
+  position: relative;
+  margin: var(--s-6, 24px) 0 var(--s-4, 16px);
+  padding: 18px 20px 20px;
+  border-radius: var(--radius-lg, 18px);
+  background: var(--glass-bg-heavy, rgba(255,255,255,0.55));
+  backdrop-filter: var(--glass-blur, blur(14px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(14px));
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.40));
+  box-shadow: var(--glass-shadow, 0 8px 32px rgba(30,58,80,0.12));
+  overflow: hidden;
+}
+.home-daily-quote::before {
+  content: "";
+  position: absolute;
+  left: 12px; top: 8px;
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(74, 144, 184, 0.10);
+  pointer-events: none;
+  user-select: none;
+  font-family: Georgia, "Songti SC", "STSong", serif;
+}
+.dq-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--text-tertiary, #7A94A8);
+}
+.dq-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(74, 144, 184, 0.10);
+  color: var(--primary-dark, #2E6680);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.dq-date {
+  flex: 1;
+  font-variant-numeric: tabular-nums;
+}
+.dq-refresh {
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%;
+  background: rgba(74, 144, 184, 0.08);
+  color: var(--primary-dark, #2E6680);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.4s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.dq-refresh:hover { background: rgba(74, 144, 184, 0.18); }
+.dq-refresh:active { transform: scale(0.9); }
+.dq-refresh.spin svg { animation: dq-spin 0.6s ease; }
+@keyframes dq-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.dq-text {
+  position: relative;
+  font-size: 17px;
+  line-height: 1.7;
+  font-weight: 500;
+  color: var(--text, #1E3A50);
+  letter-spacing: 0.01em;
+  margin: 4px 0 8px;
+  min-height: 30px;
+}
+.dq-auth {
+  position: relative;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-tertiary, #7A94A8);
+  font-style: italic;
+}
+/* 切换淡入 */
+.home-daily-quote.dq-anim .dq-text,
+.home-daily-quote.dq-anim .dq-auth {
+  animation: dq-fade 0.45s ease;
+}
+@keyframes dq-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }

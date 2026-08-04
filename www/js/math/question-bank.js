@@ -31,6 +31,17 @@ const MATH_BOOKS = [
 const MATH_YEARS = [];
 for (let y = 2010; y <= 2025; y++) MATH_YEARS.push(String(y));
 
+/* 书籍卡片强调色 + 图标（美化用，无 emoji） */
+const BOOK_ACCENT = {
+  jichu660: '#4f46e5',
+  jichu700: '#0ea5e9',
+  yanxuan: '#f59e0b',
+  zhenjti_zhenshua: '#ef4444',
+  shuzhong_liti: '#10b981',
+  linian_zhenti: '#8b5cf6'
+};
+const BOOK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 5.5V20.5"/><path d="M9 3v15"/></svg>';
+
 /* 知识点分类（高数 + 线代），保留原 MATH_TOPICS 语义 */
 const MATH_TOPICS = [
   {
@@ -52,6 +63,7 @@ const UNFILED = '__unfiled__';
 
 const MathBank = {
   path: { book: null, category: null, kp: null, year: null },
+  search: '',
 
   init() {
     this.bindEvents();
@@ -66,6 +78,14 @@ const MathBank = {
     });
     const back = document.getElementById('question-back');
     if (back) back.addEventListener('click', () => this.backFromDetail());
+
+    const searchInput = document.getElementById('bank-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', Utils.debounce(() => {
+        this.search = (searchInput.value || '').trim();
+        this.render();
+      }, 250));
+    }
   },
 
   async getAll() {
@@ -90,21 +110,32 @@ const MathBank = {
       else unfiled++;
     });
 
-    let html = '<div class="bank-section-title">数学题库 · 书籍目录</div>';
-    html += '<div class="bank-grid">';
-    MATH_BOOKS.forEach(b => {
-      const sub = b.type === 'year' ? '按年份（2010–2025）' : '按高数 / 线代知识点';
-      html += `<div class="book-card" data-book="${b.id}">
-        <div class="book-name">${b.name}</div>
-        <div class="book-sub">${sub}</div>
-        <div class="book-count">${counts[b.id]} 题</div>
-      </div>`;
-    });
-    html += '</div>';
+    const q = this.search.toLowerCase();
+    const books = q ? MATH_BOOKS.filter(b => b.name.toLowerCase().includes(q)) : MATH_BOOKS;
+    const showUnfiled = unfiled > 0 && (!q || '未归档题目'.includes(q) || '未指定书籍'.includes(q));
 
-    if (unfiled > 0) {
+    let html = '<div class="bank-section-title">数学题库 · 书籍目录</div>';
+    if (!books.length && !showUnfiled) {
+      html += '<div class="empty-hint">没有匹配的书籍或题目</div>';
+    } else {
+      html += '<div class="bank-grid">';
+      books.forEach(b => {
+        const sub = b.type === 'year' ? '按年份（2010–2025）' : '按高数 / 线代知识点';
+        const accent = BOOK_ACCENT[b.id] || 'var(--primary)';
+        html += `<div class="book-card" data-book="${b.id}">
+          <div class="book-ico" style="--accent:${accent}">${BOOK_SVG}</div>
+          <div class="book-name">${b.name}</div>
+          <div class="book-sub">${sub}</div>
+          <div class="book-count">${counts[b.id]} 题</div>
+        </div>`;
+      });
+      html += '</div>';
+    }
+
+    if (showUnfiled) {
       html += '<div class="bank-section-title">其他</div>';
       html += `<div class="bank-grid"><div class="book-card book-card--muted" data-book="${UNFILED}">
+        <div class="book-ico" style="--accent:#94a3b8">${BOOK_SVG}</div>
         <div class="book-name">未归档题目</div>
         <div class="book-sub">未指定书籍的录入题</div>
         <div class="book-count">${unfiled} 题</div>
@@ -149,13 +180,18 @@ const MathBank = {
     });
 
     let html = `<div class="bank-section-title">${this.path.book.name} · 按年份</div><div class="bank-grid">`;
+    const q = this.search.toLowerCase();
     MATH_YEARS.forEach(y => {
+      if (q && !y.includes(q)) return;
       html += `<div class="year-card" data-year="${y}">
         <div class="year-num">${y}</div>
         <div class="year-count">${counts[y]} 题</div>
       </div>`;
     });
     html += '</div>';
+    if (q && html.endsWith('<div class="bank-grid"></div>')) {
+      html = `<div class="empty-hint">没有匹配的年份</div>`;
+    }
 
     const view = document.getElementById('bank-view');
     view.innerHTML = html;
@@ -177,10 +213,15 @@ const MathBank = {
       counts[cat + '||' + kp] = (counts[cat + '||' + kp] || 0) + 1;
     });
 
+    const q = this.search.toLowerCase();
     let html = `<div class="bank-section-title">${b.name} · 按知识点</div>`;
+    let anyKp = false;
     MATH_TOPICS.forEach(group => {
+      const subs = group.subs.filter(kp => !q || kp.toLowerCase().includes(q));
+      if (!subs.length) return;
+      anyKp = true;
       html += `<div class="bank-cat-title">${group.category}</div><div class="bank-grid">`;
-      group.subs.forEach(kp => {
+      subs.forEach(kp => {
         const n = counts[group.category + '||' + kp] || 0;
         html += `<div class="kp-card" data-cat="${group.category}" data-kp="${kp}">
           <div class="kp-name">${kp}</div>
@@ -189,6 +230,9 @@ const MathBank = {
       });
       html += '</div>';
     });
+    if (q && !anyKp) {
+      html += '<div class="empty-hint">没有匹配的知识点</div>';
+    }
 
     const view = document.getElementById('bank-view');
     view.innerHTML = html;
@@ -206,11 +250,21 @@ const MathBank = {
   async renderQuestions() {
     const all = await this.getAll();
     const b = this.path.book;
-    const list = all.filter(q => {
-      if (!this._matchesBook(q, b)) return false;
-      if (b.type === 'year') return q.year === this.path.year;
-      return (q.knowledgePoint || q.topic) === this.path.kp
-        && (q.category || categoryOfKp(q.knowledgePoint)) === this.path.category;
+    const q = this.search.toLowerCase();
+    const list = all.filter(x => {
+      if (!this._matchesBook(x, b)) return false;
+      if (b.type === 'year') {
+        if (x.year !== this.path.year) return false;
+      } else {
+        if ((x.knowledgePoint || x.topic) !== this.path.kp) return false;
+        if ((x.category || categoryOfKp(x.knowledgePoint)) !== this.path.category) return false;
+      }
+      if (q) {
+        const hay = [x.knowledgePoint || x.topic, x.source, x.ocrText, x.errorReason, x.year]
+          .filter(Boolean).join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
     }).sort((a, c) => (c.createdAt || '').localeCompare(a.createdAt || ''));
 
     const view = document.getElementById('bank-view');

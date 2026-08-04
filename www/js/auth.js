@@ -97,9 +97,7 @@ const Auth = {
     Store.setCurrentUser(username);
     document.getElementById('auth-page').classList.remove('active');
     document.getElementById('app-page').classList.add('active');
-    document.getElementById('sidebar-username').textContent = username;
-    const av = document.getElementById('sidebar-avatar');
-    if (av) av.textContent = (username || '?').charAt(0).toUpperCase();
+    // sidebar 已移除，跳过侧边栏头像/名称更新
     app.updateHomeStats();
     app.initAllModules();
     // 登录成功后立即刷新云端状态栏
@@ -263,8 +261,7 @@ const Auth = {
     Bmob.logout();
     Store.logout();
     document.getElementById('app-page').classList.remove('active');
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('overlay').classList.remove('show');
+    // sidebar & overlay 已移除，无需清理
 
     document.getElementById('login-username').value = '';
     document.getElementById('login-password').value = '';

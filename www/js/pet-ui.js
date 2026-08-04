@@ -408,6 +408,7 @@ const PetUI = (() => {
   function closePanel() {
     if (_elPanel) _elPanel.classList.remove('open');
   }
+  let _escHandler = null;
   function _buildPanel() {
     _elPanel = _el(`<div class="pet-panel" id="pet-panel">
       <div class="pet-panel-mask"></div>
@@ -424,8 +425,44 @@ const PetUI = (() => {
     </div>`);
     document.body.appendChild(_elPanel);
     _elPanelBody = _elPanel.querySelector('#pet-panel-body');
-    _elPanel.querySelector('.pet-panel-mask').addEventListener('click', closePanel);
-    _elPanel.querySelector('.pet-panel-close').addEventListener('click', closePanel);
+    const closeBtn = _elPanel.querySelector('.pet-panel-close');
+    const mask = _elPanel.querySelector('.pet-panel-mask');
+    const sheet = _elPanel.querySelector('.pet-panel-sheet');
+    // 关闭按钮：click + touchend 双保险
+    closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
+    closeBtn.addEventListener('touchend', (e) => { e.stopPropagation(); e.preventDefault(); closePanel(); });
+    mask.addEventListener('click', closePanel);
+    // 下滑手势关闭（仅 sheet 顶部 90px 区域触发）
+    let dStartY = 0, dStartX = 0, dDelta = 0, dDragging = false;
+    sheet.addEventListener('touchstart', (e) => {
+      const rect = sheet.getBoundingClientRect();
+      if (e.touches[0].clientY - rect.top < 90) {
+        dStartY = e.touches[0].clientY; dStartX = e.touches[0].clientX;
+        dDelta = 0; dDragging = true; sheet.style.transition = 'none';
+      }
+    }, { passive: true });
+    sheet.addEventListener('touchmove', (e) => {
+      if (!dDragging) return;
+      const dy = e.touches[0].clientY - dStartY;
+      const dx = Math.abs(e.touches[0].clientX - dStartX);
+      if (dy > 0 && dy > dx * 1.5) {
+        dDelta = dy;
+        sheet.style.transform = `translateY(${dy}px)`;
+        if (e.cancelable) e.preventDefault();
+      }
+    }, { passive: false });
+    sheet.addEventListener('touchend', () => {
+      if (!dDragging) return;
+      dDragging = false; sheet.style.transition = '';
+      if (dDelta > 80) closePanel(); else sheet.style.transform = '';
+      dDelta = 0;
+    });
+    // ESC / Android 硬件返回键关闭
+    _escHandler = (e) => {
+      if (!_elPanel || !_elPanel.classList.contains('open')) return;
+      if (e.key === 'Escape' || e.key === 'GoBack' || e.key === 'Back') closePanel();
+    };
+    document.addEventListener('keydown', _escHandler);
   }
 
   // ---- mount ----

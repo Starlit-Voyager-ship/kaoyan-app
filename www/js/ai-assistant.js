@@ -196,26 +196,39 @@ const AIAssistant = {
     const errorInput = errorEl ? errorEl.value.trim() : '';
 
     try {
-      // 上传前保险压缩：确保每张图 < 80KB（Bmob免费版字段/文件/云函数都有严格限制）
-      const MAX_IMG_BYTES = 80 * 1024;
-      const safeImages = [];
+      // === 两套图片：识别用极小图 + 存档用中等质量图 ===
+      // AI 识别（走 Bmob 云函数代理时限制 ~40KB 请求体）：压到极致，OCR 够用即可
+      const AI_MAX = 15 * 1024; // 单张 < 15KB，两张加起来不超云函数限制
+      const aiImages = [];
       for (const img of this.uploadImages) {
-        let compressed = img;
-        // 逐步降级：1024px/0.7 → 800px/0.6 → 600px/0.5
-        for (const [mw, q] of [[1024, 0.7], [800, 0.6], [600, 0.5]]) {
-          compressed = await Utils.compressImg(compressed, mw, q);
-          const b64 = compressed.substring(compressed.indexOf(',') + 1);
-          if (b64.length * 0.75 < MAX_IMG_BYTES) break;
+        let c = img;
+        for (const [mw, q] of [[600, 0.5], [480, 0.4], [360, 0.35]]) {
+          c = await Utils.compressImg(c, mw, q);
+          if ((c.substring(c.indexOf(',') + 1).length * 0.75) < AI_MAX) break;
         }
-        safeImages.push(compressed);
+        aiImages.push(c);
       }
-      this.uploadImages = safeImages; // 替换为保险压缩后的版本
 
+      // 存档用图（Bmob 文件 API + UI 展示）：质量稍高但控制在 80KB 内
+      const STORE_MAX = 80 * 1024;
+      const storeImages = [];
+      for (const img of this.uploadImages) {
+        let c = img;
+        for (const [mw, q] of [[1024, 0.7], [800, 0.6], [600, 0.5]]) {
+          c = await Utils.compressImg(c, mw, q);
+          if ((c.substring(c.indexOf(',') + 1).length * 0.75) < STORE_MAX) break;
+        }
+        storeImages.push(c);
+      }
+      this.uploadImages = storeImages; // 替换为存档版本（原数组不再需要）
+
+      // 第一步：AI 识别（用极小图，避免云函数超限）
+      Utils.toast('正在识别图片…');
+      const v = await this.callQwenVLClassify(settings, aiImages);
+
+      // 第二步：上传存档图片到 Bmob 云存储拿 URL
       Utils.toast('正在上传图片…');
       const imageUrls = await Bmob.uploadImages(this.uploadImages, 'archive');
-      console.log('[上传归档] 图片URL:', imageUrls);
-
-      const v = await this.callQwenVLClassify(settings, this.uploadImages);
       const topic = topicInput || v.topic || '其他';
       const errorReason = errorInput || v.errorHint || '';
       const user = Store.getCurrentUser();
@@ -428,7 +441,15 @@ const AIAssistant = {
 
     try {
       let visionText = '';
-      if (img) visionText = await this.callQwenVLOcr(settings, img);
+      if (img) {
+        // AI 识别用图压缩到极小（避免走 Bmob 云函数代理时超 40KB ���制）
+        let aiImg = img;
+        for (const [mw, q] of [[600, 0.5], [480, 0.4], [360, 0.35]]) {
+          aiImg = await Utils.compressImg(aiImg, mw, q);
+          if ((aiImg.substring(aiImg.indexOf(',') + 1).length * 0.75) < 15 * 1024) break;
+        }
+        visionText = await this.callQwenVLOcr(settings, aiImg);
+      }
       const response = await this.callQwenText(settings, userMsg, visionText);
       const aiMsg = {
         id: Utils.uid(),

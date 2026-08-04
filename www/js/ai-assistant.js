@@ -133,8 +133,11 @@ const AIAssistant = {
 
   async handleFile(file) {
     const base64 = await Utils.imgToBase64(file);
-    const quality = this._pendingPanel === 'upload' ? 0.92 : 0.85; // 上传归档用更高质量保 OCR 清晰
-    const compressed = await Utils.compressImg(base64, 1280, quality);
+    // 上传归档：1024px + 0.7质量（OCR够用，单张约50-100KB，适配Bmob免费版限制）
+    // AI问答：800px + 0.75（识别用，更小）
+    const quality = this._pendingPanel === 'upload' ? 0.7 : 0.75;
+    const maxWidth = this._pendingPanel === 'upload' ? 1024 : 800;
+    const compressed = await Utils.compressImg(base64, maxWidth, quality);
     this.setImage(this._pendingPanel || this.activeMode, compressed);
   },
 
@@ -193,7 +196,21 @@ const AIAssistant = {
     const errorInput = errorEl ? errorEl.value.trim() : '';
 
     try {
-      // 先上传图片到 Bmob 云存储（拿 URL），避免 base64 超字段限制
+      // 上传前保险压缩：确保每张图 < 80KB（Bmob免费版字段/文件/云函数都有严格限制）
+      const MAX_IMG_BYTES = 80 * 1024;
+      const safeImages = [];
+      for (const img of this.uploadImages) {
+        let compressed = img;
+        // 逐步降级：1024px/0.7 → 800px/0.6 → 600px/0.5
+        for (const [mw, q] of [[1024, 0.7], [800, 0.6], [600, 0.5]]) {
+          compressed = await Utils.compressImg(compressed, mw, q);
+          const b64 = compressed.substring(compressed.indexOf(',') + 1);
+          if (b64.length * 0.75 < MAX_IMG_BYTES) break;
+        }
+        safeImages.push(compressed);
+      }
+      this.uploadImages = safeImages; // 替换为保险压缩后的版本
+
       Utils.toast('正在上传图片…');
       const imageUrls = await Bmob.uploadImages(this.uploadImages, 'archive');
       console.log('[上传归档] 图片URL:', imageUrls);

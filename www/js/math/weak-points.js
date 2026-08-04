@@ -6,6 +6,27 @@
 
 const WeakPoints = {
   init() {
+    const list = document.getElementById('weak-list');
+    if (list) {
+      list.onclick = (e) => {
+        const btn = e.target.closest('.item-del-btn');
+        if (!btn) return;
+        const el = btn.closest('.weak-topic-item');
+        if (!el) return;
+        const dateStr = el.dataset.date;
+        const topic = el.dataset.topic;
+        window.confirmDeleteItem('删除薄弱点', `确定删除「${topic}」（${dateStr}）下的全部薄弱记录吗？此操作不可撤销。`, async () => {
+          const user = Store.getCurrentUser();
+          const data = await Store.getUserData('math_weak_points', user);
+          const targets = (data || []).filter(w => {
+            const d = w.date || (w.lastReview ? w.lastReview.slice(0, 10) : '未知日期');
+            return d === dateStr && (w.topic || '未分类') === topic;
+          });
+          for (const w of targets) await Store.delete('math_weak_points', w.id);
+          this.render();
+        });
+      };
+    }
     this.render();
   },
 
@@ -85,9 +106,10 @@ const WeakPoints = {
         </div>
         <div class="weak-day-topics">
           ${sortedTopics.map(([topic, tData]) => `
-            <div class="weak-topic-item">
+            <div class="weak-topic-item" data-date="${dateStr}" data-topic="${topic}">
               <div class="topic-name">${topic}</div>
               <div class="topic-meta">咨询 ${tData.count} 次${tData.lastTime ? ' · 最近 ' + new Date(tData.lastTime).toLocaleTimeString().slice(0,5) : ''}</div>
+              <button class="item-del-btn" title="删除该知识点全部记录" aria-label="删除">${window.TRASH_SVG}</button>
             </div>
           `).join('')}
         </div>

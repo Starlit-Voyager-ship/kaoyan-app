@@ -624,6 +624,32 @@
   margin-top: 8px;
 }
 
+/* —— 列表项通用删除按钮（数学题库/薄弱/文章/长难句复用） —— */
+.question-item, .article-item, .sentence-item, .weak-topic-item { position: relative; }
+.article-item, .sentence-item, .question-item { padding-right: 44px; }
+.weak-topic-item { padding-right: 44px; }
+.item-del-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: none;
+  background: rgba(224, 82, 82, 0.08);
+  color: #E05252;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 3;
+  transition: background 0.15s ease, transform 0.1s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.item-del-btn:hover { background: rgba(224, 82, 82, 0.16); }
+.item-del-btn:active { transform: scale(0.88); }
+
 /* —— 每日一句（白玻璃 · 文案卡） —— */
 .home-daily-quote {
   position: relative;

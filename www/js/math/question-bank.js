@@ -2,6 +2,21 @@
    数学题库模块
    ======================================== */
 
+/* 通用删除图标 + 删除确认弹窗（供数学/英语/薄弱等模块复用） */
+window.TRASH_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>';
+window.confirmDeleteItem = function (title, message, doDelete) {
+  Utils.showModal(title, message, `
+    <button class="btn-danger" id="cd-confirm-btn">确认删除</button>
+    <button class="btn-outline" onclick="Utils.hideModal()">取消</button>
+  `);
+  const btn = document.getElementById('cd-confirm-btn');
+  if (btn) btn.onclick = async () => {
+    try { await doDelete(); } catch (e) { console.error('[删除失败]', e); }
+    Utils.hideModal();
+    Utils.toast('已删除');
+  };
+};
+
 const MATH_TOPICS = [
   {
     category: '高等数学',
@@ -91,6 +106,8 @@ const MathBank = {
     questions.forEach(q => {
       const item = document.createElement('div');
       item.className = 'question-item';
+      item.style.position = 'relative';
+      item.style.paddingRight = '44px';
       item.innerHTML = `
         <div class="q-info">
           <div class="q-topic">${q.topic} ${q.imageData ? '<svg class="ico" viewBox="0 0 24 24" style="width:15px;height:15px;vertical-align:-2px"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M8 6V4h8v2"/></svg>' : ''}</div>
@@ -99,8 +116,16 @@ const MathBank = {
         <div class="q-tags">
           <span class="q-tag">${q.topic}</span>
         </div>
+        <button class="item-del-btn" title="删除此题目" aria-label="删除">${window.TRASH_SVG}</button>
       `;
       item.addEventListener('click', () => this.openDetail(q));
+      item.querySelector('.item-del-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.confirmDeleteItem('删除题目', `确定删除「${q.topic || '该题目'}」吗？此操作不可撤销。`, async () => {
+          await Store.delete('math_questions', q.id);
+          this.renderList();
+        });
+      });
       list.appendChild(item);
     });
   },

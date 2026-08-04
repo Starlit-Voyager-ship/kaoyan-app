@@ -38,13 +38,23 @@ const Articles = {
     articles.forEach(a => {
       const item = document.createElement('div');
       item.className = 'article-item';
+      item.style.position = 'relative';
+      item.style.paddingRight = '44px';
       const wrongN = (a.wrongQuestions && a.wrongQuestions.length) ? a.wrongQuestions.length : 0;
       item.innerHTML = `
         <h4>${a.title}${wrongN ? ` <span class="wrong-badge">${wrongN} 错</span>` : ''}</h4>
         <p>${a.content.substring(0, 80)}...</p>
         <small style="color:var(--text-light)">${new Date(a.createdAt).toLocaleDateString()}</small>
+        <button class="item-del-btn" title="删除此文章" aria-label="删除">${window.TRASH_SVG}</button>
       `;
       item.addEventListener('click', () => this.openArticle(a));
+      item.querySelector('.item-del-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.confirmDeleteItem('删除文章', `确定删除「${a.title || '该文章'}」吗？此操作不可撤销。`, async () => {
+          await Store.delete('articles', a.id);
+          this.renderList();
+        });
+      });
       list.appendChild(item);
     });
   },

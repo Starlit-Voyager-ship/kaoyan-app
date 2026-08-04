@@ -32,8 +32,17 @@ const Sentences = {
     sentences.forEach(s => {
       const item = document.createElement('div');
       item.className = 'sentence-item';
-      item.innerHTML = `<span class="sentence-original-text">${s.original}</span>`;
+      item.style.position = 'relative';
+      item.style.paddingRight = '44px';
+      item.innerHTML = `<span class="sentence-original-text">${s.original}</span><button class="item-del-btn" title="删除此长难句" aria-label="删除">${window.TRASH_SVG}</button>`;
       item.addEventListener('click', () => this.openDetail(s));
+      item.querySelector('.item-del-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.confirmDeleteItem('删除长难句', `确定删除「${s.source || '该长难句'}」吗？此操作不可撤销。`, async () => {
+          await Store.delete('sentences', s.id);
+          this.renderList();
+        });
+      });
       list.appendChild(item);
     });
   },

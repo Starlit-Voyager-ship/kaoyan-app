@@ -101,7 +101,7 @@
   --t-label: 11px;
 
   /* ===== 尺寸 ===== */
-  --header-height: 56px;
+  --header-height: 48px;
   --sidebar-width: 280px;
   --tabbar-height: 56px;
   --max-content: 720px;
@@ -150,24 +150,23 @@ body {
 }
 .content-section.active { display: block; }
 
-/* 头部导航 - 毛玻璃 */
+/* 头部导航 - 毛玻璃（轻量融入） */
 #app-header {
   position: fixed;
   top: 0; left: 0; right: 0;
   height: var(--header-height);
-  background: var(--glass-bg-heavy);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-bottom: 1px solid var(--glass-border);
+  background: rgba(255,255,255,0.45);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid rgba(255,255,255,0.35);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 14px;
   z-index: 100;
-  box-shadow: var(--shadow-sm);
 }
 .header-left, .header-right { display: flex; align-items: center; gap: 12px; }
-#page-title { font-size: 1.1rem; font-weight: 600; }
+#page-title { font-size: 1.05rem; font-weight: 600; letter-spacing: 0.02em; }
 
 main { margin-top: var(--header-height); }
 
@@ -618,7 +617,7 @@ h3 svg, h4 svg { vertical-align: middle; }
 
 /* 响应式 */
 @media (max-width: 640px) {
-  :root { --header-height: 52px; }
+  :root { --header-height: 46px; }
   .content-section { padding: 14px; }
   #app-header { padding: 0 12px; }
   h3 { font-size: 1.1rem; }

@@ -232,6 +232,14 @@ const Bmob = {
     try { data = JSON.parse(text); } catch { data = { raw: text }; }
     console.log('[Bmob] ◀ 文件上传 status:', res.status, '| response:', text.substring(0, 200));
     if (!res.ok) {
+      const code = data && data.code;
+      // 10007 = 文件服务未开启/域名未绑定
+      if (code === 10007) {
+        const err = new Error('BMOB_FILE_SERVICE_DISABLED');
+        err.code = 10007;
+        err.detail = data.error || '文件服务未开启';
+        throw err;
+      }
       throw new Error((data && (data.error || data.message)) || ('文件上传失败 HTTP ' + res.status));
     }
     // Bmob 返回格式: { url: "https://...", cdn: "https://...", filename: "..." }

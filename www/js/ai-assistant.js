@@ -196,7 +196,7 @@ const AIAssistant = {
     const errorInput = errorEl ? errorEl.value.trim() : '';
 
     try {
-      // === 统一压缩：存档质量（<80KB），同时用于 VL 识图 ===
+      // === 统一压缩：存档质量（<80KB）===
       const STORE_MAX = 80 * 1024;
       const storeImages = [];
       for (const img of this.uploadImages) {
@@ -209,22 +209,55 @@ const AIAssistant = {
       }
       this.uploadImages = storeImages;
 
-      // === 第一步：上传图片到 Bmob 云存储拿 URL（URL 后续既用于 VL 识图也用于存档展示）===
+      // === 第一步：尝试上传图片到 Bmob 文件服务拿 URL（最优路径）===
+      let imageUrls = [];
+      let useUrlMode = false;
       Utils.toast('正在上传图片…');
-      const imageUrls = await Bmob.uploadImages(this.uploadImages, 'archive');
-      // 过滤掉上传失败的空 URL
-      const validUrls = imageUrls.filter(u => u);
-      if (validUrls.length === 0) throw new Error('所有图片上传均失败，请检查网络');
+      try {
+        imageUrls = await Bmob.uploadImages(this.uploadImages, 'archive');
+        const validUrls = imageUrls.filter(u => u);
+        if (validUrls.length > 0) {
+          useUrlMode = true;
+          console.log('[上传] 文件服务可用，使用 URL 模式');
+        } else {
+          console.warn('[上传] 文件服务返回空 URL，降级为 base64 模式');
+        }
+      } catch (uploadErr) {
+        if (uploadErr.code === 10007 || /10007|文件服务|FILE_SERVICE/.test(uploadErr.message)) {
+          console.warn('[上传] Bmob 文件服务未开启（需去控制台绑定域名），降级为 base64 模式');
+          Utils.toast('文件服务未开启，使用备用模式…');
+        } else {
+          console.warn('[上传] 文件上传失败:', uploadErr.message, '→ 降级为 base64 模式');
+        }
+      }
 
-      // === 第二步：用 URL 调千问 VL 识图（不再内嵌 base64，请求体极小）===
+      // === 第二步：VL 识图（URL 模式 或 base64 备用模式）===
       Utils.toast('正在识别图片…');
-      const v = await this.callQwenVLClassify(settings, validUrls);
+      let v;
+      if (useUrlMode) {
+        v = await this.callQwenVLClassify(settings, imageUrls.filter(u => u));
+      } else {
+        // 备用：极小 base64 直传 VL（绕过 aiProxy 云函数限制，走 proxyFetch 直连 DashScope）
+        const AI_MAX = 20 * 1024; // <20KB/张，确保直连 DashScope 时不会超限
+        const aiImages = [];
+        for (const img of this.uploadImages) {
+          let c = img;
+          for (const [mw, q] of [[800, 0.5], [600, 0.4], [480, 0.35], [360, 0.3]]) {
+            c = await Utils.compressImg(c, mw, q);
+            if ((c.substring(c.indexOf(',') + 1).length * 0.75) < AI_MAX) break;
+          }
+          aiImages.push(c);
+        }
+        v = await this.callQwenVLClassify(settings, aiImages);
+        // 备用模式下 imageData 存压缩后的 base64（已控制在 AppData 字段限制内）
+        imageUrls = aiImages;
+      }
 
       const topic = topicInput || v.topic || '其他';
       const errorReason = errorInput || v.errorHint || '';
       const user = Store.getCurrentUser();
 
-      // imageData 存 URL 数组
+      // imageData：URL 模式存 URL 数组，base64 模式存压缩后的 base64 数组
       const imageData = imageUrls;
 
       if (v.type === 'math') {
@@ -312,7 +345,12 @@ const AIAssistant = {
         this._afterUploadSuccess();
       }
     } catch (e) {
-      this.showUploadResult('识别失败', e.message);
+      let hint = e.message;
+      // 文件服务未开启时给出明确指引
+      if (/10007|文件服务|FILE_SERVICE/.test(e.message)) {
+        hint = 'Bmob 文件服务未开启。\n\n请前往 Bmob 控制台（bmob.cn）→ 应用设置 → 域名管理 → 绑定文件域名。\n\n开启后图片上传会更快更稳定。当前已自动使用备用模式，如果识别仍失败请检查网络或千问 Key 配置。';
+      }
+      this.showUploadResult('识别失败', hint);
       this._uploadState = 'input';
       if (goBtn) { goBtn.textContent = '识别并归档'; goBtn.disabled = false; }
     }
@@ -434,17 +472,36 @@ const AIAssistant = {
       let visionText = '';
       let imageUrl = null;
       if (img) {
-        // 先上传图片到 Bmob 拿 URL（避免 base64 内嵌导致请求体过大）
+        // 优先：上传 Bmob 拿 URL（请求体最小）
         Utils.toast('正在上传图片...');
-        const uploaded = await Bmob.uploadImages([img], 'chat');
-        imageUrl = (uploaded[0]) || null;
-        if (imageUrl) {
+        let uploadOk = false;
+        try {
+          const uploaded = await Bmob.uploadImages([img], 'chat');
+          imageUrl = (uploaded[0]) || null;
+          if (imageUrl) uploadOk = true;
+        } catch (e) {
+          if (e.code === 10007 || /10007|文件服务/.test(e.message)) {
+            console.warn('[AI聊天] 文件服务未开启，降级为 base64 直传');
+          }
+        }
+
+        if (uploadOk && imageUrl) {
+          // URL 模式：用 URL 调 VL
           Utils.toast('正在识别图片...');
           visionText = await this.callQwenVLOcr(settings, [imageUrl]);
         } else {
-          console.warn('[AI聊天] 图片上传失败，跳过识图');
+          // 备用模式：压缩后 base64 直传 VL
+          console.warn('[AI聊天] 使用 base64 备用模式');
+          Utils.toast('正在识别图片...');
+          let aiImg = img;
+          for (const [mw, q] of [[800, 0.5], [600, 0.4], [480, 0.35], [360, 0.3]]) {
+            aiImg = await Utils.compressImg(aiImg, mw, q);
+            if ((aiImg.substring(aiImg.indexOf(',') + 1).length * 0.75) < 20 * 1024) break;
+          }
+          visionText = await this.callQwenVLOcr(settings, [aiImg]);
+          imageUrl = aiImg; // 存压缩后的 base64
         }
-        // 消息中存 URL 而非 base64（节省存储、加载更快）
+        // 消息中存 URL 或压缩 base64
         userMsg.image = imageUrl;
         const idx = this.messages.findIndex(m => m.id === userMsg.id);
         if (idx >= 0) this.messages[idx].image = imageUrl;

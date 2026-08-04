@@ -154,6 +154,18 @@ body {
 }
 .content-section.active { display: block; }
 
+/* 页面主题背景（现代材质渐变派 v2：纯 CSS 柔和同色系渐变 + 极简几何柔光，无拟物纹理） */
+#page-home {
+  background:
+    radial-gradient(120% 55% at 50% -8%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 55%),
+    linear-gradient(180deg, #FAF6EF 0%, #EEE5D6 100%);
+}
+#page-pomodoro {
+  background:
+    radial-gradient(72% 42% at 50% 30%, rgba(255,244,226,0.95) 0%, rgba(255,244,226,0) 60%),
+    linear-gradient(165deg, #F1E3CC 0%, #E3CDA8 100%);
+}
+
 /* 头部导航 - 毛玻璃（轻量融入） */
 #app-header {
   position: fixed;

@@ -185,7 +185,7 @@ const AIAssistant = {
     if (!settings.qwenKey) { Utils.toast('上传归档需先配置千问VL Key'); return; }
 
     const goBtn = document.getElementById('upload-modal-go');
-    if (goBtn) { goBtn.disabled = true; goBtn.textContent = '识别中…'; }
+    if (goBtn) { goBtn.disabled = true; goBtn.textContent = '处理中…'; }
     this._uploadState = 'loading';
 
     const sourceEl = document.getElementById('upload-source');
@@ -196,20 +196,7 @@ const AIAssistant = {
     const errorInput = errorEl ? errorEl.value.trim() : '';
 
     try {
-      // === 两套图片：识别用极小图 + 存档用中等质量图 ===
-      // AI 识别（走 Bmob 云函数代理时限制 ~40KB 请求体）：压到极致，OCR 够用即可
-      const AI_MAX = 15 * 1024; // 单张 < 15KB，两张加起来不超云函数限制
-      const aiImages = [];
-      for (const img of this.uploadImages) {
-        let c = img;
-        for (const [mw, q] of [[600, 0.5], [480, 0.4], [360, 0.35]]) {
-          c = await Utils.compressImg(c, mw, q);
-          if ((c.substring(c.indexOf(',') + 1).length * 0.75) < AI_MAX) break;
-        }
-        aiImages.push(c);
-      }
-
-      // 存档用图（Bmob 文件 API + UI 展示）：质量稍高但控制在 80KB 内
+      // === 统一压缩：存档质量（<80KB），同时用于 VL 识图 ===
       const STORE_MAX = 80 * 1024;
       const storeImages = [];
       for (const img of this.uploadImages) {
@@ -220,20 +207,24 @@ const AIAssistant = {
         }
         storeImages.push(c);
       }
-      this.uploadImages = storeImages; // 替换为存档版本（原数组不再需要）
+      this.uploadImages = storeImages;
 
-      // 第一步：AI 识别（用极小图，避免云函数超限）
-      Utils.toast('正在识别图片…');
-      const v = await this.callQwenVLClassify(settings, aiImages);
-
-      // 第二步：上传存档图片到 Bmob 云存储拿 URL
+      // === 第一步：上传图片到 Bmob 云存储拿 URL（URL 后续既用于 VL 识图也用于存档展示）===
       Utils.toast('正在上传图片…');
       const imageUrls = await Bmob.uploadImages(this.uploadImages, 'archive');
+      // 过滤掉上传失败的空 URL
+      const validUrls = imageUrls.filter(u => u);
+      if (validUrls.length === 0) throw new Error('所有图片上传均失败，请检查网络');
+
+      // === 第二步：用 URL 调千问 VL 识图（不再内嵌 base64，请求体极小）===
+      Utils.toast('正在识别图片…');
+      const v = await this.callQwenVLClassify(settings, validUrls);
+
       const topic = topicInput || v.topic || '其他';
       const errorReason = errorInput || v.errorHint || '';
       const user = Store.getCurrentUser();
 
-      // imageData 存 URL 数组而非 base64（Bmob 字段限制 ~40KB，图片必须走文件 API）
+      // imageData 存 URL 数组
       const imageData = imageUrls;
 
       if (v.type === 'math') {
@@ -441,14 +432,22 @@ const AIAssistant = {
 
     try {
       let visionText = '';
+      let imageUrl = null;
       if (img) {
-        // AI 识别用图压缩到极小（避免走 Bmob 云函数代理时超 40KB ���制）
-        let aiImg = img;
-        for (const [mw, q] of [[600, 0.5], [480, 0.4], [360, 0.35]]) {
-          aiImg = await Utils.compressImg(aiImg, mw, q);
-          if ((aiImg.substring(aiImg.indexOf(',') + 1).length * 0.75) < 15 * 1024) break;
+        // 先上传图片到 Bmob 拿 URL（避免 base64 内嵌导致请求体过大）
+        Utils.toast('正在上传图片...');
+        const uploaded = await Bmob.uploadImages([img], 'chat');
+        imageUrl = (uploaded[0]) || null;
+        if (imageUrl) {
+          Utils.toast('正在识别图片...');
+          visionText = await this.callQwenVLOcr(settings, [imageUrl]);
+        } else {
+          console.warn('[AI聊天] 图片上传失败，跳过识图');
         }
-        visionText = await this.callQwenVLOcr(settings, aiImg);
+        // 消息中存 URL 而非 base64（节省存储、加载更快）
+        userMsg.image = imageUrl;
+        const idx = this.messages.findIndex(m => m.id === userMsg.id);
+        if (idx >= 0) this.messages[idx].image = imageUrl;
       }
       const response = await this.callQwenText(settings, userMsg, visionText);
       const aiMsg = {

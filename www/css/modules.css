@@ -362,7 +362,7 @@
    注意 display:flex 限定在 .active，否则 #id 优先级会盖过 .content-section{display:none} */
 #page-ai-assistant.content-section.active {
   position: fixed;
-  top: var(--header-height);
+  top: 0;
   left: 0;
   right: 0;
   bottom: var(--tabbar-height);

@@ -144,7 +144,7 @@ body {
   max-width: var(--max-content);
   margin: 0 auto;
   width: 100%;
-  min-height: calc(100vh - var(--header-height) - var(--tabbar-height));
+  min-height: calc(100vh - var(--tabbar-height));
   /* 透明：让天空背景透出 */
   background: transparent;
 }
@@ -168,7 +168,8 @@ body {
 .header-left, .header-right { display: flex; align-items: center; gap: 12px; }
 #page-title { font-size: 1.05rem; font-weight: 600; letter-spacing: 0.02em; }
 
-main { margin-top: var(--header-height); }
+/* main 不再需要 margin-top（已删除标题栏） */
+main { margin-top: 0; }
 
 /* 侧边抽屉（深色、平涂、无渐变 · 规范 §9） */
 #sidebar {

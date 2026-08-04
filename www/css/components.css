@@ -220,7 +220,7 @@
 /* 快捷入口：5 等分 */
 .home-quick {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--s-2);
 }
 .home-quick-item {

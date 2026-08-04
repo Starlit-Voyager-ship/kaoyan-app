@@ -24,26 +24,9 @@ const app = {
   },
 
   bindGlobalEvents() {
-    // 菜单切换
-    document.getElementById('menu-toggle').addEventListener('click', () => this.toggleSidebar());
-    document.getElementById('sidebar-close').addEventListener('click', () => this.closeSidebar());
-    document.getElementById('overlay').addEventListener('click', () => this.closeSidebar());
-
     // 底部 Tab 主导航
     document.querySelectorAll('.tab-item').forEach(t => {
       t.addEventListener('click', () => this.navigate(t.dataset.tab, { fromTab: true }));
-    });
-
-    // 导航项点击
-    document.querySelectorAll('.nav-item[data-page]').forEach(item => {
-      item.addEventListener('click', () => {
-        if (item.classList.contains('disabled')) {
-          Utils.toast('该模块即将上线，敬请期待！');
-          return;
-        }
-        this.navigate(item.dataset.page);
-        this.closeSidebar();
-      });
     });
 
     // 「我的」页内功能行导航（设置等子页，设置走 page-settings）
@@ -61,16 +44,6 @@ const app = {
     document.getElementById('clear-data').addEventListener('click', () => this.clearDataConfirm());
   },
 
-  toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('overlay').classList.toggle('show');
-  },
-
-  closeSidebar() {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('overlay').classList.remove('show');
-  },
-
   navigate(page, opts) {
     opts = opts || {};
     const fromTab = !!opts.fromTab;
@@ -78,11 +51,6 @@ const app = {
     // 底部 Tab 高亮（仅来自 Tab 点击时切换）
     document.querySelectorAll('.tab-item').forEach(t => {
       t.classList.toggle('active', fromTab && t.dataset.tab === page);
-    });
-
-    // 抽屉项高亮（来自 Tab 时清空；来自抽屉/子页时按 data-page 匹配）
-    document.querySelectorAll('.nav-item[data-page]').forEach(item => {
-      item.classList.toggle('active', !fromTab && item.dataset.page === page);
     });
 
     // 切换内容区域
@@ -93,24 +61,6 @@ const app = {
     if (targetPage) {
       targetPage.classList.add('active');
     }
-
-    // 更新标题
-    const titles = {
-      home: '首页概览',
-      pomodoro: '专注计时',
-      'ai-assistant': 'AI助理',
-      vocab: '单词背诵',
-      articles: '文章阅读',
-      sentences: '长难句解析',
-      essay: '作文模板',
-      'math-bank': '数学题库',
-      'math-weak': '薄弱错题',
-      reports: '学习报表',
-      mine: '我的',
-      'friend-wake': '好友叫醒',
-      settings: '设置'
-    };
-    document.getElementById('page-title').textContent = titles[page] || '考研学习助手';
 
     this.currentPage = page;
 

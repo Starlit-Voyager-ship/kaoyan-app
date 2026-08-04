@@ -89,11 +89,17 @@ const Reports = {
     const dateInput = document.getElementById('daily-date-input');
     const date = dateInput?.value || Utils.today();
     const cached = await this.getCachedReport('daily', date);
-    if (cached) {
+    // 旧版缓存缺 prev / last7 字段 → 直接当无缓存，逼一次重新生成
+    const isStale = cached && (!cached.data || cached.data.prev === undefined || !Array.isArray(cached.data.last7));
+    if (cached && !isStale) {
       this.renderDailyReport(cached.data, date);
     } else {
+      // 同一日期重生成（覆盖旧缓存）
       document.getElementById('daily-report-content').innerHTML =
-        '<p class="empty-hint" style="padding:40px 0;text-align:center;color:var(--text-light)">该日暂无报表，点击"生成"按钮创建</p>';
+        '<p class="empty-hint" style="padding:24px 0;text-align:center;color:var(--text-light)">正在重新生成今日报表…</p>';
+      const dateInput = document.getElementById('daily-date-input');
+      // 直接复用 generateDaily（它会读 dateInput 的值覆盖缓存）
+      await this.generateDaily();
     }
   },
 
@@ -102,23 +108,59 @@ const Reports = {
     const dateInput = document.getElementById('daily-date-input');
     const targetDate = dateInput?.value || Utils.today();
 
-    // 收集目标日期数据
-    const focusRecords = await Store.getUserData('pomodoro_records', user);
-    const todayFocus = focusRecords.filter(r => r.date === targetDate && r.completed);
+    // 昨日对比：只与 targetDate - 1 对比
+    const prevDate = this.shiftDate(targetDate, -1);
+
+    // 一次性拉所有数据，闭包内分别按 date 过滤
+    const [focusAll, wordsAll, questionsAll, chatsAll, tasksAll] = await Promise.all([
+      Store.getUserData('pomodoro_records', user),
+      Store.getUserData('vocab_words', user),
+      Store.getUserData('math_questions', user),
+      Store.getUserData('ai_chats', user),
+      Store.getAll('pomo_tasks')
+    ]);
+
+    const inDate = (r) => r && r.date === targetDate && r.completed;
+    const prevInDate = (r) => r && r.date === prevDate && r.completed;
+
+    const todayFocus = focusAll.filter(inDate);
+    const prevFocus = focusAll.filter(prevInDate);
     const totalMinutes = todayFocus.reduce((s, r) => s + (r.duration || 0), 0);
     const sessions = todayFocus.length;
+    const prevTotalMinutes = prevFocus.reduce((s, r) => s + (r.duration || 0), 0);
+    const prevSessions = prevFocus.length;
 
-    const words = await Store.getUserData('vocab_words', user);
-    const todayWords = words.filter(w => w.firstLearned === targetDate && !w.isWrong).length;
-    const wrongWords = words.filter(w => w.isWrong && w.lastReview === targetDate).length;
+    const todayWords = wordsAll.filter(w => w.firstLearned === targetDate && !w.isWrong).length;
+    const wrongWords = wordsAll.filter(w => w.isWrong && w.lastReview === targetDate).length;
+    const todayMath = questionsAll.filter(q => q.createdAt && q.createdAt.startsWith(targetDate)).length;
+    const todayChats = chatsAll.filter(c => c.timestamp && c.timestamp.startsWith(targetDate)).length;
 
-    const questions = await Store.getUserData('math_questions', user);
-    const todayMath = questions.filter(q => q.createdAt && q.createdAt.startsWith(targetDate)).length;
+    // 待办完成数（按 completedAt 日期归到那一天）
+    const myTasks = (tasksAll || []).filter(t => t && t.username === user);
+    const taskDone = myTasks.filter(t => t.completed && (t.completedAt || '').slice(0, 10) === targetDate).length;
+    const prevTaskDone = myTasks.filter(t => t.completed && (t.completedAt || '').slice(0, 10) === prevDate).length;
 
-    const chats = await Store.getUserData('ai_chats', user);
-    const todayChats = chats.filter(c => c.timestamp && c.timestamp.startsWith(targetDate)).length;
+    // 近 7 天（含今日）每日专注分钟，用于小趋势图
+    const last7 = [];
+    for (let i = 6; i >= 0; i--) {
+      const dStr = this.shiftDate(targetDate, -i);
+      const mins = focusAll
+        .filter(r => r.date === dStr && r.completed)
+        .reduce((s, r) => s + (r.duration || 0), 0);
+      const ct = focusAll.filter(r => r.date === dStr && r.completed).length;
+      last7.push({ date: dStr, minutes: mins, sessions: ct });
+    }
 
-    const reportData = { totalMinutes, sessions, todayWords, wrongWords, todayMath, todayChats };
+    const reportData = {
+      totalMinutes, sessions, todayWords, wrongWords, todayMath, todayChats,
+      taskDone,
+      prev: {
+        totalMinutes: prevTotalMinutes,
+        sessions: prevSessions,
+        taskDone: prevTaskDone
+      },
+      last7
+    };
 
     // 渲染
     this.renderDailyReport(reportData, targetDate);
@@ -136,21 +178,104 @@ const Reports = {
     Utils.toast(`${targetDate} 日报已生成！`);
   },
 
+  shiftDate(dateStr, deltaDays) {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() + deltaDays);
+    return d.toISOString().slice(0, 10);
+  },
+
   renderDailyReport(data, dateStr) {
     const displayDate = Utils.formatDate(dateStr) || dateStr;
     const reportEl = document.getElementById('daily-report-content');
+    const isToday = dateStr === Utils.today();
+
+    // 同比徽章 helper
+    const badge = (cur, prev) => {
+      if (cur === prev) return '<span class="report-diff report-diff--flat">— 与昨日持平</span>';
+      if (prev === 0 && cur > 0) return '<span class="report-diff report-diff--up">↑ 新增 +' + cur + '</span>';
+      if (cur === 0) return '<span class="report-diff report-diff--down">↓ -100%</span>';
+      const diff = cur - prev;
+      const pct = Math.round((diff / prev) * 100);
+      if (diff > 0) return `<span class="report-diff report-diff--up">↑ +${pct}%</span>`;
+      return `<span class="report-diff report-diff--down">↓ ${pct}%</span>`;
+    };
+
+    // 通用 SVG 图标
+    const ico = (path) =>
+      `<svg class="report-stat-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+    const ICONS = {
+      clock: ico('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+      tomato: ico('<path d="M12 3a9 9 0 1 0 9 9c0-2-1.5-3-3-3s-1.5 1-3 1-1.5-2-1.5-3 1-3-1.5-4"/>'),
+      book:   ico('<path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z"/><path d="M4 16a4 4 0 0 1 4-4h12"/>'),
+      warn:   ico('<path d="M12 3 2 21h20z"/><path d="M12 10v5M12 18h0"/>'),
+      math:   ico('<path d="M4 6h16M6 6v12M4 12h4M14 6l4 12M18 6v12"/>'),
+      ai:     ico('<rect x="4" y="7" width="16" height="12" rx="3"/><path d="M9 7V4h6v3M12 11v0"/>'),
+      task:   ico('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/>')
+    };
+
+    // 近 7 天柱图
+    const last7 = (data.last7 && data.last7.length === 7) ? data.last7 : this._emptyLast7(dateStr);
+    const maxM = Math.max(...last7.map(x => x.minutes), 1);
+
     reportEl.innerHTML = `
-      <h4><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg> ${dateStr === Utils.today() ? '今日' : displayDate} 学习日报</h4>
-      <div class="report-stat-row"><span class="label">专注时长</span><span class="value">${data.totalMinutes} 分钟 (${data.sessions}个番茄)</span></div>
-      <div class="report-stat-row"><span class="label">新背单词</span><span class="value">${data.todayWords} 个</span></div>
-      <div class="report-stat-row"><span class="label">错词复习</span><span class="value">${data.wrongWords} 个</span></div>
-      <div class="report-stat-row"><span class="label">数学录题</span><span class="value">${data.todayMath} 道</span></div>
-      <div class="report-stat-row"><span class="label">AI咨询次数</span><span class="value">${data.todayChats} 次</span></div>
-      <h4><svg class="ico" viewBox="0 0 24 24"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.8 10.7c.5.4.8 1 .8 1.6V17h6v-1.7c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z"/></svg> AI学习建议</h4>
+      <h4><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg> ${isToday ? '今日' : displayDate} 学习日报</h4>
+
+      <div class="report-cards">
+        <div class="report-card report-card--focus">
+          <div class="report-card-head">${ICONS.clock} 专注时长</div>
+          <div class="report-card-val">${data.totalMinutes}<span class="unit">分钟</span></div>
+          <div class="report-card-sub">${data.sessions} 个番茄钟</div>
+          ${badge(data.totalMinutes, data.prev?.totalMinutes ?? 0)}
+        </div>
+        <div class="report-card report-card--task">
+          <div class="report-card-head">${ICONS.task} 待办完成</div>
+          <div class="report-card-val">${data.taskDone || 0}<span class="unit">项</span></div>
+          <div class="report-card-sub">勾选完成的当日待办</div>
+          ${badge(data.taskDone || 0, data.prev?.taskDone ?? 0)}
+        </div>
+        <div class="report-card report-card--pomo">
+          <div class="report-card-head">${ICONS.tomato} 完成番茄</div>
+          <div class="report-card-val">${data.sessions}<span class="unit">次</span></div>
+          <div class="report-card-sub">当日完整专注次数</div>
+          ${badge(data.sessions, data.prev?.sessions ?? 0)}
+        </div>
+      </div>
+
+      <div class="report-stat-row"><span class="label">${ICONS.book} 新背单词</span><span class="value">${data.todayWords} 个</span></div>
+      <div class="report-stat-row"><span class="label">${ICONS.warn} 错词复习</span><span class="value">${data.wrongWords} 个</span></div>
+      <div class="report-stat-row"><span class="label">${ICONS.math} 数学录题</span><span class="value">${data.todayMath} 道</span></div>
+      <div class="report-stat-row"><span class="label">${ICONS.ai} AI 咨询</span><span class="value">${data.todayChats} 次</span></div>
+
+      <h4><svg class="ico" viewBox="0 0 24 24"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-11"/></svg> 近 7 天专注时长（含今日）</h4>
+      <div class="report-mini-chart">
+        ${last7.map((d, i) => {
+          const h = Math.max(4, Math.round((d.minutes / maxM) * 100));
+          const isLast = i === last7.length - 1;
+          const mmdd = d.date.slice(5);
+          const zero = d.minutes === 0 ? ' is-zero' : '';
+          const todayCls = isLast ? ' is-today' : '';
+          return `
+            <div class="report-mini-col${todayCls}${zero}">
+              <span class="report-mini-val">${d.minutes || '·'}</span>
+              <div class="report-mini-bar" style="height:${h}%"></div>
+              <span class="report-mini-label">${mmdd}${isLast ? '<br><span class="report-mini-tag">今日</span>' : ''}</span>
+            </div>`;
+        }).join('')}
+      </div>
+
+      <h4><svg class="ico" viewBox="0 0 24 24"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.8 10.7c.5.4.8 1 .8 1.6V17h6v-1.7c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z"/></svg> AI 学习建议</h4>
       <p style="color:var(--text-secondary);font-size:0.92rem;line-height:1.8">
         ${this.generateSuggestion(data)}
       </p>
     `;
+  },
+
+  _emptyLast7(targetDate) {
+    const arr = [];
+    for (let i = 6; i >= 0; i--) {
+      arr.push({ date: this.shiftDate(targetDate, -i), minutes: 0, sessions: 0 });
+    }
+    return arr;
   },
 
   // ---- 周报 ----
@@ -159,31 +284,38 @@ const Reports = {
     const w = this.getWeekRange(this.currentWeekOffset);
     const key = w.start; // 用周一起始作为 key
     const cached = await this.getCachedReport('weekly', key);
-    if (cached) {
+    const isStale = cached && (!cached.data || cached.data.prev === undefined);
+    if (cached && !isStale) {
       this.renderWeeklyReport(cached.data, cached.weekStart, cached.weekEnd);
     } else {
       document.getElementById('weekly-report-content').innerHTML =
-        '<p class="empty-hint" style="padding:40px 0;text-align:center;color:var(--text-light)">该周暂无报表，点击"生成"按钮创建</p>';
+        '<p class="empty-hint" style="padding:24px 0;text-align:center;color:var(--text-light)">正在重新生成本周报表…</p>';
+      await this.generateWeekly();
     }
   },
 
   async generateWeekly() {
     const user = Store.getCurrentUser();
     const week = this.getWeekRange(this.currentWeekOffset);
+    const prevWeek = {
+      start: this.shiftDate(week.start, -7),
+      end: this.shiftDate(week.end, -7)
+    };
 
     // 收集目标周数据
-    const focusRecords = await Store.getUserData('pomodoro_records', user);
+    const [focusRecords, words, questions, chats] = await Promise.all([
+      Store.getUserData('pomodoro_records', user),
+      Store.getUserData('vocab_words', user),
+      Store.getUserData('math_questions', user),
+      Store.getUserData('ai_chats', user)
+    ]);
+
     const weekFocus = focusRecords.filter(r => r.date >= week.start && r.date <= week.end && r.completed);
     const totalMinutes = weekFocus.reduce((s, r) => s + (r.duration || 0), 0);
     const sessions = weekFocus.length;
 
-    const words = await Store.getUserData('vocab_words', user);
     const weekNewWords = words.filter(w => w.firstLearned >= week.start && w.firstLearned <= week.end && !w.isWrong).length;
-
-    const questions = await Store.getUserData('math_questions', user);
     const weekMath = questions.filter(q => q.createdAt && q.createdAt >= week.start && q.createdAt <= week.end).length;
-
-    const chats = await Store.getUserData('ai_chats', user);
     const weekChats = chats.filter(c => c.timestamp && c.timestamp >= week.start && c.timestamp <= week.end).length;
 
     // 每日分布
@@ -194,9 +326,26 @@ const Reports = {
       dailyDist.push({ date: dateStr, minutes: dayMin });
     }
 
+    // 上周同期数据
+    const prevFocus = focusRecords.filter(r => r.date >= prevWeek.start && r.date <= prevWeek.end && r.completed);
+    const prevTotalMinutes = prevFocus.reduce((s, r) => s + (r.duration || 0), 0);
+    const prevSessions = prevFocus.length;
+    const prevWeekNewWords = words.filter(w => w.firstLearned >= prevWeek.start && w.firstLearned <= prevWeek.end && !w.isWrong).length;
+    const prevWeekMath = questions.filter(q => q.createdAt && q.createdAt >= prevWeek.start && q.createdAt <= prevWeek.end).length;
+    const prevWeekChats = chats.filter(c => c.timestamp && c.timestamp >= prevWeek.start && c.timestamp <= prevWeek.end).length;
+
     const avgDaily = Math.round(totalMinutes / 7);
 
-    const reportData = { totalMinutes, sessions, weekNewWords, weekMath, weekChats, dailyDist, avgDaily };
+    const reportData = {
+      totalMinutes, sessions, weekNewWords, weekMath, weekChats, dailyDist, avgDaily,
+      prev: {
+        totalMinutes: prevTotalMinutes,
+        sessions: prevSessions,
+        weekNewWords: prevWeekNewWords,
+        weekMath: prevWeekMath,
+        weekChats: prevWeekChats
+      }
+    };
 
     // 渲染
     this.renderWeeklyReport(reportData, week.start, week.end);
@@ -220,23 +369,58 @@ const Reports = {
     const reportEl = document.getElementById('weekly-report-content');
     const maxMin = Math.max(...data.dailyDist.map(x => x.minutes), 1);
 
+    const badge = (cur, prev) => {
+      if (cur === prev) return '<span class="report-diff report-diff--flat">— 与上周持平</span>';
+      if (prev === 0 && cur > 0) return '<span class="report-diff report-diff--up">↑ 新增 +' + cur + '</span>';
+      if (cur === 0) return '<span class="report-diff report-diff--down">↓ -100%</span>';
+      const diff = cur - prev;
+      const pct = Math.round((diff / prev) * 100);
+      if (diff > 0) return `<span class="report-diff report-diff--up">↑ +${pct}%</span>`;
+      return `<span class="report-diff report-diff--down">↓ ${pct}%</span>`;
+    };
+
+    const safePrev = data.prev || {};
+
     reportEl.innerHTML = `
       <h4><svg class="ico" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M7 15l3.5-4 3 3L20 7"/></svg> ${weekStart} ~ ${weekEnd} 周度学习报告</h4>
-      <div class="report-stat-row"><span class="label">总专注时长</span><span class="value">${data.totalMinutes} 分钟 (${data.sessions}个番茄)</span></div>
-      <div class="report-stat-row"><span class="label">日均专注</span><span class="value">${data.avgDaily} 分钟/天</span></div>
-      <div class="report-stat-row"><span class="label">新学单词</span><span class="value">${data.weekNewWords} 个</span></div>
-      <div class="report-stat-row"><span class="label">数学题目</span><span class="value">${data.weekMath} 道</span></div>
-      <div class="report-stat-row"><span class="label">AI咨询</span><span class="value">${data.weekChats} 次</span></div>
+
+      <div class="report-cards">
+        <div class="report-card report-card--focus">
+          <div class="report-card-head">总专注时长</div>
+          <div class="report-card-val">${data.totalMinutes}<span class="unit">分钟</span></div>
+          <div class="report-card-sub">${data.sessions} 个番茄钟 · 日均 ${data.avgDaily}m</div>
+          ${badge(data.totalMinutes, safePrev.totalMinutes ?? 0)}
+        </div>
+        <div class="report-card report-card--pomo">
+          <div class="report-card-head">完成番茄</div>
+          <div class="report-card-val">${data.sessions}<span class="unit">次</span></div>
+          <div class="report-card-sub">当周完整专注次数</div>
+          ${badge(data.sessions, safePrev.sessions ?? 0)}
+        </div>
+        <div class="report-card report-card--math">
+          <div class="report-card-head">数学题目</div>
+          <div class="report-card-val">${data.weekMath}<span class="unit">道</span></div>
+          <div class="report-card-sub">当周新录入题</div>
+          ${badge(data.weekMath, safePrev.weekMath ?? 0)}
+        </div>
+      </div>
+
+      <div class="report-stat-row"><span class="label">新学单词</span><span class="value">${data.weekNewWords} 个 ${badge(data.weekNewWords, safePrev.weekNewWords ?? 0)}</span></div>
+      <div class="report-stat-row"><span class="label">AI咨询</span><span class="value">${data.weekChats} 次 ${badge(data.weekChats, safePrev.weekChats ?? 0)}</span></div>
 
       <h4><svg class="ico" viewBox="0 0 24 24"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-11"/></svg> 每日专注时长分布</h4>
-      <div style="display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:12px;padding:8px;background:var(--border-light);border-radius:8px;">
-        ${data.dailyDist.map(d => {
-          const h = Math.max(4, (d.minutes / maxMin) * 100);
-          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
-            <span style="font-size:0.7rem;color:var(--text-secondary)">${d.minutes}m</span>
-            <div style="width:100%;min-height:${h}%;background:var(--primary);border-radius:3px;min-height:4px"></div>
-            <span style="font-size:0.65rem;color:var(--text-light)">${d.date.slice(5)}</span>
-          </div>`;
+      <div class="report-mini-chart report-mini-chart--lg">
+        ${data.dailyDist.map((d, i) => {
+          const h = Math.max(4, Math.round((d.minutes / maxMin) * 100));
+          const mmdd = d.date.slice(5);
+          const wkday = ['一','二','三','四','五','六','日'][i] || '';
+          const zero = d.minutes === 0 ? ' is-zero' : '';
+          return `
+            <div class="report-mini-col${zero}">
+              <span class="report-mini-val">${d.minutes || '·'}</span>
+              <div class="report-mini-bar" style="height:${h}%"></div>
+              <span class="report-mini-label">周${wkday}<br>${mmdd}</span>
+            </div>`;
         }).join('')}
       </div>
 

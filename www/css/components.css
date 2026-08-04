@@ -23,10 +23,13 @@
 .auth-form {
   width: 100%;
   max-width: 380px;
-  background: var(--bg-card);
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius-lg);
   padding: 28px 24px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--glass-shadow);
+  border: 1px solid var(--glass-border);
 }
 
 .tab-switch {
@@ -65,11 +68,13 @@
 }
 
 /* 统计卡片 */
-/* ===== 首页 §10 重心布局 ===== */
+/* ===== 首页 §10 重心布局（天空毛玻璃）===== */
 /* Hero 重心卡：今日专注 */
 .home-hero {
-  background: var(--primary-bg);
-  border-radius: var(--radius-md);
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-xl);
   padding: 20px var(--s-4);
   display: flex;
   flex-direction: column;
@@ -77,6 +82,8 @@
   margin-bottom: var(--s-3);
   cursor: pointer;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
 }
 .home-hero:active { transform: translateY(-1px); box-shadow: var(--shadow-card-hover); }
 .hero-label {
@@ -98,7 +105,7 @@
   color: var(--text-secondary);
 }
 
-/* 次级统计：3 等分卡 */
+/* 次级统计：3 等分卡（毛玻璃） */
 .home-stat-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -106,8 +113,10 @@
   margin-bottom: var(--s-2);
 }
 .home-stat {
-  background: var(--bg-card);
-  border-radius: var(--radius-md);
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-lg);
   padding: var(--s-3) var(--s-2);
   text-align: center;
   display: flex;
@@ -117,6 +126,7 @@
   box-shadow: var(--shadow-sm);
   cursor: pointer;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  border: 1px solid var(--glass-border);
 }
 .home-stat:active { transform: translateY(-1px); box-shadow: var(--shadow-card-hover); }
 .home-stat .ico { color: var(--primary); }
@@ -139,17 +149,20 @@
   margin: var(--s-6) 0 var(--s-3);
 }
 
-/* 继续学习引导卡 */
+/* 继续学习引导卡（毛玻璃） */
 .home-continue {
-  background: var(--bg-card);
-  border-radius: var(--radius-md);
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-lg);
   padding: var(--s-4);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--glass-shadow);
   display: flex;
   align-items: center;
   gap: var(--s-3);
   cursor: pointer;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  border: 1px solid var(--glass-border);
 }
 .home-continue:active { transform: translateY(-1px); box-shadow: var(--shadow-card-hover); }
 .home-continue-icon {
@@ -287,11 +300,14 @@
 }
 .setting-row .setting-input { max-width: 280px; }
 .settings-section {
-  background: var(--bg-card);
-  border-radius: var(--radius-md);
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-lg);
   padding: 20px;
   margin-bottom: 16px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--glass-shadow);
+  border: 1px solid var(--glass-border);
 }
 .settings-section h4 { margin-bottom: 16px; font-size: 1rem; }
 .settings-container { max-width: 600px; }

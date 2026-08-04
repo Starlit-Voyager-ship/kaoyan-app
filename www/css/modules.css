@@ -178,6 +178,57 @@
 }
 .pomo-stats-title { font-size: 0.95rem; font-weight: 600; color: var(--text); }
 .pomo-stats-date { font-size: 0.78rem; color: var(--text-light); }
+.pomo-stats-sub { font-size: 0.72rem; color: var(--text-light); margin-left: auto; }
+
+/* —— 相较昨日对比行 —— */
+.pomo-compare-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pomo-compare-item {
+  background: var(--primary-bg);
+  border-radius: var(--radius-md);
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.pomo-compare-label { font-size: 0.72rem; color: var(--text-light); }
+.pomo-compare-num { font-size: 1.2rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.pomo-compare-delta {
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(120,120,120,0.12);
+  color: var(--text-secondary);
+}
+.pomo-compare-delta.up   { color: #10b981; background: rgba(16,185,129,0.12); }
+.pomo-compare-delta.down { color: #ef4444; background: rgba(239,68,68,0.12); }
+.pomo-compare-delta.flat { color: var(--text-light); background: var(--primary-bg); }
+.pomo-compare-delta .arr { font-size: 0.85rem; line-height: 1; }
+
+/* —— 7 天折线/柱状图 —— */
+.pomo-trend-chart { position: relative; padding: 6px 4px 0; }
+.pomo-trend-svg { display: block; width: 100%; height: 160px; }
+.pomo-trend-axis { stroke: var(--border, #e5e7eb); stroke-width: 1; }
+.pomo-trend-grid { stroke: rgba(120,120,120,0.15); stroke-width: 1; stroke-dasharray: 3 3; }
+.pomo-trend-bar { fill: var(--primary); fill-opacity: 0.32; transition: fill-opacity .2s; }
+.pomo-trend-bar.today { fill: var(--c-coral, #ff7a59); fill-opacity: 0.55; }
+.pomo-trend-line {
+  fill: none;
+  stroke: var(--c-coral, #ff7a59);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pomo-trend-dot { fill: var(--c-coral, #ff7a59); }
+.pomo-trend-dot.today { fill: #ef4444; stroke: #fff; stroke-width: 1.5; }
+.pomo-trend-label { font-size: 10px; fill: var(--text-light); }
+.pomo-trend-tip { font-size: 10px; fill: var(--text); font-weight: 600; }
+
 .pomo-stats-grid {
   display: flex;
   gap: 8px;

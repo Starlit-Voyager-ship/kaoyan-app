@@ -48,7 +48,7 @@
   </script>
   <link rel="stylesheet" href="css/main.css?v=20260804i">
   <link rel="stylesheet" href="css/components.css?v=20260804d">
-  <link rel="stylesheet" href="css/modules.css?v=20260804o">
+  <link rel="stylesheet" href="css/modules.css?v=20260804p">
   <link rel="stylesheet" href="css/pet.css?v=20260804a">
   <!-- KaTeX：渲染 AI 模型返回的 LaTeX 数学公式 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
@@ -237,25 +237,13 @@
       <section id="page-pomodoro" class="content-section">
         <div class="pomodoro-container">
           <div class="pomo-tabs">
-            <button class="pomo-tab active" data-pomo-tab="todo">专注</button>
-            <button class="pomo-tab" data-pomo-tab="tasks">待办</button>
+            <button class="pomo-tab active" data-pomo-tab="tasks">待办</button>
+            <button class="pomo-tab" data-pomo-tab="todo">专注</button>
             <button class="pomo-tab" data-pomo-tab="stats">统计</button>
           </div>
 
-          <!-- 待办列表 -->
-          <div id="pomo-todo-panel" class="pomo-panel active">
-            <div class="pomo-header">
-              <h3>专注</h3>
-              <button class="btn-sm btn-primary" id="pomo-add-todo">+ 添加</button>
-            </div>
-            <div class="pomo-todo-list" id="pomo-todo-list"></div>
-            <div class="pomo-todo-empty" id="pomo-todo-empty" style="display:none">
-              <p>暂无专注项，点击右上角添加</p>
-            </div>
-          </div>
-
           <!-- 待办（每日清单 + 跨天顺延） -->
-          <div id="pomo-tasks-panel" class="pomo-panel">
+          <div id="pomo-tasks-panel" class="pomo-panel active">
             <div class="pomo-header">
               <h3>待办</h3>
               <button class="btn-sm btn-primary" id="pomo-add-task">+ 新建</button>
@@ -265,6 +253,18 @@
               <p>暂无待办，点击右上角新建</p>
             </div>
             <div class="pomo-task-summary" id="pomo-task-summary"></div>
+          </div>
+
+          <!-- 专注列表 -->
+          <div id="pomo-todo-panel" class="pomo-panel">
+            <div class="pomo-header">
+              <h3>专注</h3>
+              <button class="btn-sm btn-primary" id="pomo-add-todo">+ 添加</button>
+            </div>
+            <div class="pomo-todo-list" id="pomo-todo-list"></div>
+            <div class="pomo-todo-empty" id="pomo-todo-empty" style="display:none">
+              <p>暂无专注项，点击右上角添加</p>
+            </div>
           </div>
 
           <!-- 计时中（正向计时） -->
@@ -319,6 +319,24 @@
                   <span class="pomo-stat-num" id="today-total-minutes">0</span>
                   <span class="pomo-stat-unit">分钟</span>
                 </div>
+              </div>
+            </div>
+
+            <div class="pomo-stats-card">
+              <div class="pomo-stats-header">
+                <span class="pomo-stats-title">相较昨日</span>
+                <span class="pomo-stats-sub">专注分钟 / 完成次数 / 待办完成</span>
+              </div>
+              <div class="pomo-compare-row" id="pomo-compare-row"></div>
+            </div>
+
+            <div class="pomo-stats-card">
+              <div class="pomo-stats-header">
+                <span class="pomo-stats-title">近 7 天专注</span>
+                <span class="pomo-stats-sub">每日分钟</span>
+              </div>
+              <div class="pomo-chart-area" id="pomo-trend-chart">
+                <p class="pomo-chart-empty">暂无数据</p>
               </div>
             </div>
 
@@ -897,12 +915,12 @@
   <script src="js/countdown.js?v=20260804b"></script>
   <script src="js/daily-quote.js?v=20260804c"></script>
   <script src="js/auth.js?v=20260804a"></script>
-  <script src="js/pomodoro.js?v=20260804e"></script>
+  <script src="js/pomodoro.js?v=20260804f"></script>
   <!-- KaTeX：公式渲染 -->
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <script src="js/config.js?v=20260804d"></script>
-  <script src="js/ai-assistant.js?v=20260804f"></script>
+  <script src="js/ai-assistant.js?v=20260804g"></script>
   <script src="js/english/vocabulary.js?v=20260804d"></script>
   <script src="js/english/dict.js?v=20260804d"></script>
   <script src="js/english/freq.js?v=20260804d"></script>

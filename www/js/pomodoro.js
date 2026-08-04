@@ -19,6 +19,7 @@ const Pomodoro = {
     this.renderTodos();
     this.renderTasks();
     this.updateStatsView();
+    // 默认进入"待办"面板（HTML 已 active，无需 switchPanel）
   },
 
   bindEvents() {
@@ -157,35 +158,56 @@ const Pomodoro = {
     this.renderTodos();
   },
 
-  /* ---------- 待办（每日清单 + 跨天顺延） ---------- */
-  loadTasks() {
+  /* ---------- 待办（每日清单 + 跨天顺延 · 云端同步） ---------- */
+  async loadTasks() {
+    // 1) 先从本地缓存兜底（即开即用）
     const user = Store.getCurrentUser();
     const key = `pomo_tasks_${user || 'guest'}`;
-    try {
-      this.tasks = JSON.parse(localStorage.getItem(key)) || [];
-    } catch (e) {
-      this.tasks = [];
-    }
+    let local = [];
+    try { local = JSON.parse(localStorage.getItem(key)) || []; } catch (e) { local = []; }
+    this.tasks = local;
     this.autoCarryOverTasks();
+    // 2) 再从云端拉一遍（双端同步关键）
+    try {
+      const cloud = await Store.getAll('pomo_tasks');
+      if (Array.isArray(cloud) && cloud.length >= 0) {
+        const localIds = new Set(this.tasks.map(t => t.id));
+        const merged = this.tasks.slice();
+        cloud.forEach(t => { if (t && t.id && !localIds.has(t.id)) merged.push(t); });
+        this.tasks = merged;
+        this._saveTasksLocal();
+      }
+    } catch (e) { console.warn('[Pomodoro] 云端待办拉取失败，使用本地', e); }
   },
 
-  saveTasks() {
+  _saveTasksLocal() {
     const user = Store.getCurrentUser();
     const key = `pomo_tasks_${user || 'guest'}`;
-    localStorage.setItem(key, JSON.stringify(this.tasks));
+    try { localStorage.setItem(key, JSON.stringify(this.tasks)); } catch (e) {}
+  },
+
+  // 单条同步到云端（用于新增 / 勾选 / 顺延等）
+  _syncTaskToCloud(task) {
+    if (!task || !task.id) return;
+    Store.put('pomo_tasks', Object.assign({}, task)).catch(e => console.warn('[Pomodoro] 同步失败', e));
   },
 
   autoCarryOverTasks() {
     const today = Utils.today();
     let changed = false;
+    const dirty = [];
     this.tasks.forEach(t => {
       if (!t.completed && t.date && t.date < today) {
         t.date = today;
         t.carryOver = (t.carryOver || 0) + 1;
         changed = true;
+        dirty.push(t);
       }
     });
-    if (changed) this.saveTasks();
+    if (changed) {
+      this._saveTasksLocal();
+      dirty.forEach(t => this._syncTaskToCloud(t));
+    }
   },
 
   renderTasks() {
@@ -274,7 +296,7 @@ const Pomodoro = {
   },
 
   addTask(title) {
-    this.tasks.push({
+    const task = {
       id: Utils.uid(),
       title,
       date: Utils.today(),
@@ -282,8 +304,10 @@ const Pomodoro = {
       completedAt: null,
       carryOver: 0,
       createdAt: new Date().toISOString()
-    });
-    this.saveTasks();
+    };
+    this.tasks.push(task);
+    this._saveTasksLocal();
+    this._syncTaskToCloud(task);
     this.renderTasks();
   },
 
@@ -292,13 +316,16 @@ const Pomodoro = {
     if (!t) return;
     t.completed = !t.completed;
     t.completedAt = t.completed ? new Date().toISOString() : null;
-    this.saveTasks();
+    this._saveTasksLocal();
+    this._syncTaskToCloud(t);
     this.renderTasks();
   },
 
   deleteTask(id) {
     this.tasks = this.tasks.filter(t => t.id !== id);
-    this.saveTasks();
+    this._saveTasksLocal();
+    // 真正从云端删（Store.delete 走 Bmob REST）
+    Store.delete('pomo_tasks', id).catch(e => console.warn('[Pomodoro] 云端删除失败', e));
     this.renderTasks();
   },
 
@@ -422,9 +449,135 @@ const Pomodoro = {
     document.getElementById('stats-history-month').textContent = today.slice(0, 4) + '年' + today.slice(5, 7) + '月';
 
     await this.loadTodayStats();
+    await this.renderCompareWithYesterday(user);
+    await this.renderTrendChart(user);
     await this.renderFocusChart(user);
     await this.renderHourChart(user);
     await this.renderHistoryList(user);
+  },
+
+  /* —— 相较昨日 —— */
+  async renderCompareWithYesterday(username) {
+    const container = document.getElementById('pomo-compare-row');
+    if (!container) return;
+    const records = await Store.getUserData('pomodoro_records', username);
+    const completed = records.filter(r => r.completed);
+    // 待办已完成数：直接从 this.tasks 拿即可（已含本地+云端，且全部是当前用户的）
+    const myTasks = this.tasks || [];
+    const myDoneAll = myTasks.filter(t => t.completed && t.completedAt);
+
+    const today = Utils.today();
+    const yest = this._dateOffset(today, -1);
+    const todayMin = completed.filter(r => r.date === today).reduce((s, r) => s + (r.duration || 0), 0);
+    const yestMin  = completed.filter(r => r.date === yest).reduce((s, r) => s + (r.duration || 0), 0);
+    const todaySes = completed.filter(r => r.date === today).length;
+    const yestSes  = completed.filter(r => r.date === yest).length;
+    const todayTaskDone = myDoneAll.filter(t => (t.completedAt || '').slice(0, 10) === today).length;
+    const yestTaskDone  = myDoneAll.filter(t => (t.completedAt || '').slice(0, 10) === yest).length;
+
+    const items = [
+      { label: '专注分钟', today: todayMin, yest: yestMin, unit: '分' },
+      { label: '完成次数', today: todaySes, yest: yestSes, unit: '次' },
+      { label: '待办完成', today: todayTaskDone, yest: yestTaskDone, unit: '项' }
+    ];
+    container.innerHTML = items.map(it => this._compareItemHtml(it)).join('');
+  },
+
+  _compareItemHtml({ label, today, yest, unit }) {
+    const delta = today - yest;
+    let pct = 0;
+    if (yest > 0) pct = Math.round((delta / yest) * 100);
+    else if (today > 0) pct = 100; // 昨日 0 今日 > 0 算 +100%
+    let cls = 'flat', arr = '—', text = '持平';
+    if (delta > 0)      { cls = 'up';   arr = '↑'; text = pct > 999 ? '+999%' : '+' + pct + '%'; }
+    else if (delta < 0) { cls = 'down'; arr = '↓'; text = (pct < -999 ? '-999%' : pct + '%'); }
+    return `<div class="pomo-compare-item">
+      <div class="pomo-compare-label">${label}</div>
+      <div class="pomo-compare-num">${today}<span style="font-size:0.7rem;color:var(--text-light);font-weight:500;margin-left:3px">${unit}</span></div>
+      <span class="pomo-compare-delta ${cls}"><span class="arr">${arr}</span> ${text}</span>
+    </div>`;
+  },
+
+  _dateOffset(yyyymmdd, offsetDays) {
+    const [y, m, d] = yyyymmdd.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + offsetDays);
+    const yy = dt.getUTCFullYear();
+    const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getUTCDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  },
+
+  /* —— 近 7 天专注柱+折线 —— */
+  async renderTrendChart(username) {
+    const container = document.getElementById('pomo-trend-chart');
+    if (!container) return;
+    const records = await Store.getUserData('pomodoro_records', username);
+    const completed = records.filter(r => r.completed);
+    const today = Utils.today();
+    const days = [];
+    for (let i = 6; i >= 0; i--) days.push(this._dateOffset(today, -i));
+    const mins = days.map(d => completed.filter(r => r.date === d).reduce((s, r) => s + (r.duration || 0), 0));
+    const max = Math.max(...mins, 60); // 防止全 0 时坐标轴看着别扭
+    if (mins.every(m => m === 0)) {
+      container.innerHTML = '<p class="pomo-chart-empty">最近 7 天还没有专注记录，完成第一次专注后再来看趋势吧</p>';
+      return;
+    }
+
+    // SVG 布局
+    const W = 320, H = 160;
+    const padL = 28, padR = 10, padT = 14, padB = 22;
+    const innerW = W - padL - padR, innerH = H - padT - padB;
+    const n = days.length;
+    const barW = innerW / n * 0.55;
+    const stepX = innerW / n;
+
+    // 网格线（4 条横线）
+    const gridY = [0, 0.25, 0.5, 0.75, 1].map(p => padT + innerH * (1 - p));
+    const gridSvg = gridY.map(y => `<line class="pomo-trend-grid" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}"/>`).join('');
+
+    // 柱
+    const barSvg = mins.map((m, i) => {
+      const x = padL + stepX * i + (stepX - barW) / 2;
+      const h = (m / max) * innerH;
+      const y = padT + innerH - h;
+      const isToday = i === n - 1;
+      return `<rect class="pomo-trend-bar${isToday ? ' today' : ''}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(h, 1).toFixed(1)}" rx="2"/>`;
+    }).join('');
+
+    // 折线（点 + 连线）
+    const pts = mins.map((m, i) => {
+      const x = padL + stepX * i + stepX / 2;
+      const y = padT + innerH - (m / max) * innerH;
+      return [x, y, m, i === n - 1];
+    });
+    const lineD = pts.map((p, i) => (i === 0 ? `M ${p[0]} ${p[1]}` : `L ${p[0]} ${p[1]}`)).join(' ');
+    const dotSvg = pts.map(([x, y, m, today]) =>
+      `<circle class="pomo-trend-dot${today ? ' today' : ''}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5"/>`).join('');
+
+    // 标签（日期 + 数值）
+    const labelSvg = pts.map(([x, y, m, today]) => {
+      const dt = days[pts.indexOf([x, y, m, today])];
+      const md = dt.slice(5); // MM-DD
+      const isMax = m === Math.max(...mins) && m > 0;
+      const showVal = m > 0 ? `<text class="pomo-trend-tip" x="${x.toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle">${m}</text>` : '';
+      return `${showVal}<text class="pomo-trend-label" x="${x.toFixed(1)}" y="${(H - 6).toFixed(1)}" text-anchor="middle">${md}</text>`;
+    }).join('');
+
+    // Y 轴最大值提示
+    const yLabel = `<text class="pomo-trend-label" x="${padL - 4}" y="${padT + 4}" text-anchor="end">${max}</text>
+      <text class="pomo-trend-label" x="${padL - 4}" y="${(padT + innerH + 4).toFixed(1)}" text-anchor="end">0</text>`;
+
+    container.innerHTML = `<div class="pomo-trend-chart">
+      <svg class="pomo-trend-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+        ${gridSvg}
+        ${barSvg}
+        <path class="pomo-trend-line" d="${lineD}"/>
+        ${dotSvg}
+        ${labelSvg}
+        ${yLabel}
+      </svg>
+    </div>`;
   },
 
   async renderFocusChart(username) {

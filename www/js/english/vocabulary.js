@@ -922,25 +922,49 @@ const Vocabulary = {
     { name: '低频·考研难词', min: 12001, max: 999999 }
   ],
 
-  // 读取已标记熟词集合（云端 vocab_known 单条记录）
+  // 读取已标记熟词集合。
+  // 兼容两种存储形态：
+  //   - 旧版单条记录 known_<user>（words 数组）
+  //   - 新版本片记录 known_<user>_0 / _1 ...（Bmob 单字段限制 40KB，全量约 57KB，必须分片）
   async getKnownSet() {
     const user = Store.getCurrentUser();
     if (!user) return new Set();
     try {
       const all = await Store.getUserData('vocab_known', user);
-      const rec = (all || []).find(r => r.username === user);
-      if (rec && Array.isArray(rec.words)) return new Set(rec.words);
+      const set = new Set();
+      (all || []).forEach(r => {
+        if (r && Array.isArray(r.words)) r.words.forEach(w => { if (w) set.add(w); });
+      });
+      return set;
     } catch (e) {}
     return new Set();
   },
 
-  // 保存熟词集合（覆盖式写入单条记录）
+  // 保存熟词集合：先删除旧分片（含旧版单条记录），再按 CHUNK 大小分片写入，
+  // 确保单条记录不超过 Bmob 单字段 40KB 限制，避免静默失败导致整本词典被误标熟词。
   async saveKnownSet(set) {
     const user = Store.getCurrentUser();
     if (!user) return;
-    const payload = { id: `known_${user}`, username: user, words: [...set] };
-    const p = Store.put('vocab_known', payload);
-    if (p && p.catch) p.catch(() => {});
+    const words = [...set];
+    // 1) 删除旧分片（await 完成后再写，避免竞态丢数据）
+    try {
+      const all = await Store.getUserData('vocab_known', user);
+      const oldIds = (all || [])
+        .map(r => r && typeof r.id === 'string' ? r.id : '')
+        .filter(id => id.startsWith(`known_${user}`));
+      for (const id of oldIds) {
+        try { await Store.delete('vocab_known', id); } catch (e) {}
+      }
+    } catch (e) {}
+    // 2) 分片写入（每片约 8KB，远低于 40KB）
+    const CHUNK = 800;
+    const n = Math.max(1, Math.ceil(words.length / CHUNK));
+    for (let i = 0; i < n; i++) {
+      const slice = words.slice(i * CHUNK, (i + 1) * CHUNK);
+      try {
+        await Store.put('vocab_known', { id: `known_${user}_${i}`, words: slice });
+      } catch (e) {}
+    }
   },
 
   // 词汇量测试：按词频带分层抽样，4 选 1 考义
@@ -1068,9 +1092,11 @@ const Vocabulary = {
     const freq = (typeof window !== 'undefined' && window.WORD_FREQ) ? window.WORD_FREQ : {};
     const known = await this.getKnownSet();
     let toFilter = 0;
+    let vocabEstimate = 0;
     for (const word in dict) {
-      if (known.has(word)) continue;
       const rank = freq[word] || 99999;
+      if (rank <= cutoffRank) vocabEstimate++;
+      if (known.has(word)) continue;
       if (rank <= cutoffRank) toFilter++;
     }
     const bandsText = this.FILTER_BANDS.map(b => {
@@ -1083,7 +1109,7 @@ const Vocabulary = {
       <div style="text-align:center;padding:24px 0">
         <div style="font-size:2.2rem;font-weight:700;color:var(--primary)">${rate}%</div>
         <p style="margin:10px 0;color:var(--text-secondary);font-size:0.85rem">${bandsText}</p>
-        <p style="margin:14px 0;font-size:0.95rem">预估词汇量约 <b>${cutoffRank === 0 ? '较低' : cutoffRank}</b> 词（COCA 频率）</p>
+        <p style="margin:14px 0;font-size:0.95rem">预估词汇量约 <b>${cutoffRank === 0 ? '较低' : vocabEstimate}</b> 词（COCA 频率）</p>
         <p style="margin:6px 0 18px;color:var(--text-secondary)">将过滤 <b style="color:var(--primary)">${toFilter}</b> 个熟词，背单词不再出现它们</p>
         <button class="btn-primary" id="filter-apply">应用过滤</button>
         <button class="btn-secondary" id="filter-again" style="margin-left:8px">再测一次</button>

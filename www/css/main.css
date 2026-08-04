@@ -365,7 +365,7 @@ h3 svg, h4 svg { vertical-align: middle; }
 .tab-item.active::before { opacity: 1; }
 .tab-item .tab-label { font-size: 11px; font-weight: 500; letter-spacing: 0.2px; }
 
-/* 中间凸起的圆形主按钮（AI助理） */
+/* 中间凸起的圆形主按钮（首页概览）— 默认中性玻璃，仅激活时蓝透 */
 .tab-item.tab-center {
   flex: 0 0 auto;
   justify-content: flex-end;
@@ -377,24 +377,23 @@ h3 svg, h4 svg { vertical-align: middle; }
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(110, 168, 220, 0.55), rgba(110, 168, 220, 0.32));
+  background: rgba(255, 255, 255, 0.38);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
   border: 1.5px solid rgba(255, 255, 255, 0.55);
-  color: #fff;
+  color: var(--text-light);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-top: -16px;
   margin-bottom: 4px;
-  box-shadow: 0 4px 14px rgba(110, 168, 220, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+  box-shadow: 0 4px 14px rgba(60, 80, 110, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
 }
 .tab-center .tab-ico {
   width: 24px;
   height: 24px;
-  color: #fff;
-  filter: drop-shadow(0 1px 1px rgba(60, 95, 140, 0.35));
+  color: var(--text-light);
 }
 .tab-center .tab-label {
   margin-top: 0;
@@ -402,12 +401,42 @@ h3 svg, h4 svg { vertical-align: middle; }
   position: relative;
   z-index: 1;
 }
+/* 激活态：仅在首页时变蓝色半透明（透明度再调低） */
 .tab-item.tab-center.active .tab-center-circle {
   transform: scale(1.06);
-  background: linear-gradient(135deg, rgba(110, 168, 220, 0.7), rgba(110, 168, 220, 0.45));
-  box-shadow: 0 6px 18px rgba(110, 168, 220, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  background: linear-gradient(135deg, rgba(110, 168, 220, 0.42), rgba(110, 168, 220, 0.2));
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(110, 168, 220, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
+.tab-item.tab-center.active .tab-ico { color: #fff; }
 .tab-item.tab-center.active .tab-label { color: var(--primary); font-weight: 600; }
+
+/* 普通 tab 激活态：蓝色半透明圆角底（与首页蓝透一致，仅当前页显示） */
+.tab-item:not(.tab-center).active { color: var(--primary); }
+.tab-item:not(.tab-center).active .tab-ico { color: var(--primary); }
+.tab-item:not(.tab-center).active::before { opacity: 0; }
+.tab-item:not(.tab-center).active::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 58px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(110, 168, 220, 0.42), rgba(110, 168, 220, 0.2));
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 3px 10px rgba(110, 168, 220, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  z-index: 0;
+}
+.tab-item:not(.tab-center).active .tab-ico,
+.tab-item:not(.tab-center).active .tab-label {
+  position: relative;
+  z-index: 1;
+}
 
 /* 「我的」页功能行 */
 .mine-row {

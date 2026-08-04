@@ -126,24 +126,46 @@ const Store = {
   },
 
   async _getUserDataFromCloudOrCache(storeName, username) {
-    if (Bmob.isLoggedIn() && Bmob.username === username) {
-      try {
-        const items = await Bmob.getAppData(storeName);
-        // 合并：云端有 + 本地独有（防止云端拒存大对象导致本地数据被覆盖丢失）
-        const cloudIds = new Set(items.map(i => i.id));
-        const localItems = await this._getUserDataFromCache(storeName, username);
-        const localOnly = localItems.filter(i => i && i.id && !cloudIds.has(i.id));
-        const merged = items.concat(localOnly);
-        // 同步合并结果到本地缓存
-        for (const it of merged) {
-          await this._cachePut(`${username}::${storeName}::${it.id}`, it);
-        }
-        return merged;
-      } catch (e) {
-        console.warn('[Store] 云端读取失败，回落本地缓存', e.message);
+    const canonical = username;
+    // 候选账号：规范名 + 当前认证云端名（多端可能因影子账号解析不同而分散）
+    const candidates = [...new Set([canonical, Bmob.username].filter(Boolean))];
+    let cloudItems = [];
+    if (Bmob.isLoggedIn()) {
+      for (const uid of candidates) {
+        try {
+          const items = await Bmob.getAppData(storeName, uid);
+          cloudItems = cloudItems.concat(items);
+        } catch (e) { /* 某候选账号无数据则忽略，继续下一个 */ }
       }
     }
-    return this._getUserDataFromCache(storeName, username);
+    // 按 item.id 去重，避免多候选账号重复显示
+    const seen = new Set();
+    cloudItems = cloudItems.filter(i => i && i.id && !seen.has(i.id) && seen.add(i.id));
+
+    const cloudIds = new Set(cloudItems.map(i => i && i.id));
+    let localItems = await this._getUserDataFromCache(storeName, canonical);
+    // 兼容历史：本地缓存可能曾以影子账号名（如 123_msb7wtet）为键存储，一并取出回传
+    if (Bmob.username && Bmob.username !== canonical) {
+      const shadowLocal = await this._getUserDataFromCache(storeName, Bmob.username);
+      localItems = localItems.concat(shadowLocal);
+    }
+    const localOnly = localItems.filter(i => i && i.id && !cloudIds.has(i.id));
+    const merged = cloudItems.concat(localOnly);
+
+    // 打通多端：仅存在于本机缓存的数据（如电脑端本地保存的文章/题目）回传到云端，
+    // 之后其他设备即可拉取。写入统一用规范账号名，避免再次分散。
+    if (Bmob.isLoggedIn() && localOnly.length) {
+      for (const it of localOnly) {
+        try {
+          await Bmob.saveAppData(storeName, Object.assign({}, it, { username: canonical }));
+        } catch (e) { console.warn('[Store] 本地数据回传云端失败', e.message); }
+      }
+    }
+    // 同步合并结果到本地缓存
+    for (const it of merged) {
+      await this._cachePut(`${canonical}::${storeName}::${it.id}`, it);
+    }
+    return merged;
   },
 
   async _getUserDataFromCache(storeName, username) {

@@ -11,6 +11,9 @@ const Bmob = {
   sessionToken: '',
   userObjectId: '',
   username: '',
+  // 数据归属用的「规范账号名」（与登录表单输入一致），与认证用的云端账号解耦，
+  // 避免多端因 cloud_user_* 映射不同导致数据被拆分到不同云端账号。
+  dataUserId: '',
 
   // 从 APP_CONFIG 初始化；并尝试恢复本地会话
   init(cfg) {
@@ -144,14 +147,15 @@ const Bmob = {
   // 保存一条记录（按 userId+module+itemId 去重，存在则更新）
   async saveAppData(module, item) {
     if (!this.hasCredentials()) return null;
-    const where = { userId: this.username, module, itemId: item.id };
+    const uid = this.dataUserId || this.username;
+    const where = { userId: uid, module, itemId: item.id };
     let existing = null;
     try {
       const q = await this.request('GET', '/classes/AppData?where=' + encodeURIComponent(JSON.stringify(where)));
       existing = (q.results && q.results[0]) || null;
     } catch (e) { console.warn('[Bmob] 查询失败', e); }
     const payload = {
-      userId: this.username,
+      userId: uid,
       module,
       itemId: item.id,
       item
@@ -163,16 +167,19 @@ const Bmob = {
   },
 
   // 取某模块全部记录（返回 item 数组）
-  async getAppData(module) {
+  // userIdOverride：可选，指定要查询的云端账号（多端合并时用于读取影子账号数据）
+  async getAppData(module, userIdOverride) {
     if (!this.hasCredentials()) return [];
-    const where = { userId: this.username, module };
+    const uid = userIdOverride || this.dataUserId || this.username;
+    const where = { userId: uid, module };
     const q = await this.request('GET', '/classes/AppData?where=' + encodeURIComponent(JSON.stringify(where)));
     return (q.results || []).map(r => r.item);
   },
 
   async deleteAppData(module, itemId) {
     if (!this.hasCredentials()) return;
-    const where = { userId: this.username, module, itemId };
+    const uid = this.dataUserId || this.username;
+    const where = { userId: uid, module, itemId };
     try {
       const q = await this.request('GET', '/classes/AppData?where=' + encodeURIComponent(JSON.stringify(where)));
       const existing = (q.results && q.results[0]) || null;
@@ -182,8 +189,9 @@ const Bmob = {
 
   async clearAppData(module) {
     if (!this.hasCredentials()) return;
+    const uid = this.dataUserId || this.username;
     try {
-      const where = { userId: this.username, module };
+      const where = { userId: uid, module };
       const q = await this.request('GET', '/classes/AppData?where=' + encodeURIComponent(JSON.stringify(where)));
       const rs = q.results || [];
       for (const r of rs) {

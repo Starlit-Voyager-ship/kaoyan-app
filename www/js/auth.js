@@ -14,10 +14,13 @@ const Auth = {
 
     // ① 有云端 session → 直接进入
     if (this.cloudReady && Bmob.isLoggedIn()) {
-      const user = Bmob.username;
-      Store.setCurrentUser(user);
+      // 规范账号名：优先由「影子账号 → 规范名」反向映射得出（多端一致），
+      // 避免 web 端把 currentUser 记成影子账号后查错库。
+      const canonical = this.canonicalFromCloudUser(Bmob.username) || Bmob.username;
+      Bmob.dataUserId = canonical;
+      Store.setCurrentUser(canonical);
       this.cloudOk = true;
-      this.enterApp(user);
+      this.enterApp(canonical);
       return;
     }
 
@@ -34,6 +37,23 @@ const Auth = {
       if (loginTab) loginTab.classList.add('active');
       if (loginPanel) loginPanel.classList.add('active');
     }
+  },
+
+  // 由云端登录账号反查规范账号名：扫描 localStorage 的 cloud_user_* 映射，
+  // 若某条映射的值正好等于当前云端账号，则其键（去掉前缀）即规范名。
+  // 例：cloud_user_123 = 123_msb7wtet，且当前云端账号为 123_msb7wtet → 返回 "123"。
+  // 多端一致的关键：数据与规范名绑定，而非随各设备影子账号漂移。
+  canonicalFromCloudUser(cloudUser) {
+    if (!cloudUser) return null;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf('cloud_user_') === 0 && localStorage.getItem(k) === cloudUser) {
+          return k.slice('cloud_user_'.length);
+        }
+      }
+    } catch (e) { /* localStorage 不可用时忽略 */ }
+    return null;
   },
 
   bindEvents() {
@@ -110,6 +130,7 @@ const Auth = {
       const loginData = await Bmob.login(cloudUser, password);
       console.log('[Auth] ✅ 云端登录成功:', JSON.stringify(loginData));
       this.cloudOk = true;
+      Bmob.dataUserId = username; // 数据统一归属规范账号名
       if (cloudUser !== username) localStorage.setItem('cloud_user_' + username, cloudUser);
       errorEl.textContent = '';
       this.enterApp(username);
@@ -126,6 +147,7 @@ const Auth = {
           console.log('[Auth] → 尝试注册原用户名:', username);
           await Bmob.register(username, password);
           this.cloudOk = true;
+          Bmob.dataUserId = username;
           errorEl.textContent = '';
           this.enterApp(username);
           Utils.toast(`欢迎，${username}！已开通云同步`);
@@ -146,6 +168,8 @@ const Auth = {
       try {
         await Bmob.register(tsAccount, password);
         localStorage.setItem('cloud_user_' + username, tsAccount);
+        Bmob.username = username; // Step4 未自动回写，这里显式把数据归属设回规范名
+        Bmob.dataUserId = username;
         this.cloudOk = true;
         errorEl.textContent = '';
         this.enterApp(username);
@@ -170,6 +194,7 @@ const Auth = {
         console.log('[Auth] → 尝试后缀账号:', cloudName);
         await Bmob.login(cloudName, password);
         Bmob.username = localName; // 数据统一用本地用户名
+        Bmob.dataUserId = localName;
         localStorage.setItem('cloud_user_' + localName, cloudName);
         this.cloudOk = true;
         errorEl.textContent = '';
@@ -181,6 +206,7 @@ const Auth = {
         try {
           await Bmob.register(cloudName, password);
           Bmob.username = localName;
+          Bmob.dataUserId = localName;
           localStorage.setItem('cloud_user_' + localName, cloudName);
           this.cloudOk = true;
           errorEl.textContent = '';
@@ -219,6 +245,7 @@ const Auth = {
     try {
       await Bmob.register(username, password);
       this.cloudOk = true;
+      Bmob.dataUserId = username;
       errorEl.textContent = '';
       this.enterApp(username);
       Utils.toast(`注册成功！欢迎 ${username}（云同步已开启）`);

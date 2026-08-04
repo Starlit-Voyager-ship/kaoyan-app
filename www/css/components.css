@@ -226,10 +226,10 @@
   margin-bottom: var(--s-6);
   padding: 14px 10px;
   border-radius: var(--radius-lg, 18px);
-  background: var(--glass-bg-heavy, rgba(255,255,255,0.55));
+  background: var(--glass-bg-heavy, rgba(255,255,255,0.48));
   backdrop-filter: var(--glass-blur, blur(14px));
   -webkit-backdrop-filter: var(--glass-blur, blur(14px));
-  border: 1px solid var(--glass-border, rgba(255,255,255,0.40));
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.28));
   box-shadow: var(--glass-shadow, 0 8px 32px rgba(30,58,80,0.10));
 }
 .home-quick-item {
@@ -630,10 +630,10 @@
   margin: var(--s-6, 24px) 0 var(--s-4, 16px);
   padding: 18px 20px 20px;
   border-radius: var(--radius-lg, 18px);
-  background: var(--glass-bg-heavy, rgba(255,255,255,0.55));
+  background: var(--glass-bg-heavy, rgba(255,255,255,0.48));
   backdrop-filter: var(--glass-blur, blur(14px));
   -webkit-backdrop-filter: var(--glass-blur, blur(14px));
-  border: 1px solid var(--glass-border, rgba(255,255,255,0.40));
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.28));
   box-shadow: var(--glass-shadow, 0 8px 32px rgba(30,58,80,0.12));
   overflow: hidden;
 }

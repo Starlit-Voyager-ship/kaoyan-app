@@ -107,18 +107,15 @@ const Articles = {
     const raw = art && art.aiResponse;
     if (!raw) { box.innerHTML = ''; box.style.display = 'none'; return; }
 
-    let data;
-    try {
-      const m = raw.match(/\{[\s\S]*\}/);
-      data = JSON.parse(m ? m[0] : raw);
-    } catch (e) { data = { summary: raw, article: '', questions: [] }; }
-    if (!data || typeof data !== 'object') data = { summary: String(raw || ''), article: '', questions: [] };
+    // 防御性 JSON 解析：先严格，再宽松
+    let data = this._parseAIResponse(raw);
+    console.log('[reader-ai] summary.len=' + (data.summary || '').length
+      + ' questions=' + (data.questions || []).length
+      + ' article.len=' + (data.article || '').length);
 
     const wrong = Array.isArray(art.wrongQuestions) ? art.wrongQuestions : [];
     let html = '<div class="reader-ai-card">';
     html += '<h4>AI 阅读解析</h4>';
-
-    // 不在 AI 解析区重复文章正文——原文已在阅读区上方渲染。
 
     // ① 题目区：题干加粗，选项另起列表
     const questions = Array.isArray(data.questions) ? data.questions : [];
@@ -127,21 +124,28 @@ const Articles = {
       questions.forEach((q, i) => {
         const isWrong = wrong.indexOf(i) !== -1;
         const opts = Array.isArray(q.options) ? q.options : [];
+        const qText = String(q.question || q.text || '').trim();
+        // 题干去重：剔除被错塞进 question 的 "A. ... B. ... C. ... D. ..." 整段
+        const cleanQ = qText.replace(/\s*[A-D][\.\)、]\s*[^A-D]+(?=\s+[A-D][\.\)、]|$)/g, '').trim() || qText;
         html += `<div class="ai-q ${isWrong ? 'wrong' : ''}" data-idx="${i}">
           <div class="ai-q-head">
             <span class="ai-q-no">${this._esc(q.no || ('第' + (i + 1) + '题'))}</span>
             <button type="button" class="ai-q-toggle ${isWrong ? 'on' : ''}" data-idx="${i}">${isWrong ? '✓ 我答错了' : '标记错题'}</button>
           </div>
-          ${q.question ? `<div class="ai-q-text">${this._esc(q.question)}</div>` : ''}
+          ${cleanQ ? `<div class="ai-q-text">${this._esc(cleanQ)}</div>` : ''}
           ${opts.length ? '<ul class="ai-q-opts">' + opts.map(o => '<li>' + this._esc(o) + '</li>').join('') + '</ul>' : ''}
           ${q.answer ? `<div class="ai-q-ans"><b>答案：</b>${this._esc(q.answer)}</div>` : ''}
           ${q.explanation ? `<div class="ai-q-exp">${this._esc(q.explanation)}</div>` : ''}
         </div>`;
       });
       html += '</div>';
+    } else {
+      // 题目解析失败：兜底显示原始 raw（折叠），用户能直观看到 AI 到底回了啥
+      html += '<div class="ai-parse-fallback"><div class="ai-fallback-hint">未能解析出题目结构，AI 原始返回：</div>'
+        + '<pre class="ai-raw">' + this._esc(raw) + '</pre></div>';
     }
 
-    // ③ 概括放最后
+    // ② 概括放最后
     if (data.summary) html += `<div class="ai-summary">${this._esc(data.summary)}</div>`;
     html += '</div>';
     box.innerHTML = html;
@@ -150,6 +154,44 @@ const Articles = {
     box.querySelectorAll('.ai-q-toggle').forEach(btn => {
       btn.addEventListener('click', () => this.toggleWrong(parseInt(btn.dataset.idx, 10)));
     });
+  },
+
+  // 解析 AI 响应：标准 JSON 优先，否则从 raw 字符串里正则提取
+  _parseAIResponse(raw) {
+    if (!raw) return { summary: '', article: '', questions: [] };
+    if (typeof raw === 'object') return raw;
+    // 1) 标准 JSON
+    try {
+      const fence = String(raw).match(/```json\s*([\s\S]*?)```/i);
+      const m = fence ? fence[1] : String(raw).match(/\{[\s\S]*\}/);
+      if (m) {
+        const obj = JSON.parse(fence ? m.trim() : m[0]);
+        if (obj && typeof obj === 'object') {
+          return {
+            summary: String(obj.summary || ''),
+            article: String(obj.article || ''),
+            questions: Array.isArray(obj.questions) ? obj.questions : []
+          };
+        }
+      }
+    } catch (e) { /* 继续走兜底 */ }
+    // 2) 兜底：从 raw 字符串提取题号
+    const out = { summary: String(raw), article: '', questions: [] };
+    const qMatches = String(raw).match(/(?:^|\n)\s*(\d{1,2})\s*[\.、\)]\s*[^\n]+/g);
+    if (qMatches && qMatches.length) {
+      out.questions = qMatches.slice(0, 10).map((line, i) => {
+        const m2 = line.match(/(\d{1,2})\s*[\.、\)]\s*([\s\S]+)/);
+        return {
+          no: m2 ? m2[1] : ('第' + (i + 1) + '题'),
+          question: m2 ? m2[2].trim() : line.trim(),
+          options: [],
+          answer: '',
+          explanation: ''
+        };
+      });
+      out.summary = '（AI 未返回结构化 JSON，已用正则粗略提取 ' + out.questions.length + ' 道题）';
+    }
+    return out;
   },
 
   async toggleWrong(idx) {

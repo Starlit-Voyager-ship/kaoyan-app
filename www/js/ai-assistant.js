@@ -309,13 +309,42 @@ const AIAssistant = {
         this._afterUploadSuccess();
       } else if (v.type === 'english') {
         const title = source ? source : ('AI上传文章 ' + new Date().toLocaleDateString());
-        // 识别后自动生成阅读解析（含逐题答案），失败仅保存文章
+        // 优先：qwen-vl-max 直看多图，输出结构化 JSON（文章/题目分离更准）
+        // 兜底：老 OCR + 文本模型
         let analysis = '';
-        if (v.text) {
+        let articleText = v.text || '';
+        // 估算 aiImages 总 base64 字节数
+        const totalBytes = aiImages.reduce((sum, im) => {
+          const b64 = (im || '').replace(/^data:[^;]+;base64,/, '');
+          return sum + Math.ceil((b64.length || 0) * 0.75);
+        }, 0);
+        const canVL = aiImages.length > 0 && aiImages.length <= 3 && totalBytes < 35 * 1024;
+        if (canVL) {
+          try {
+            Utils.toast('视觉模型直读图片，分析文章与题目…');
+            const parsed = await this.callQwenEnglishAnalyzeVL(settings, aiImages);
+            analysis = JSON.stringify(parsed);
+            // 视觉分析里 article 字段就是纯文章正文——用它作 content
+            if (parsed.article && parsed.article.trim()) articleText = parsed.article;
+          } catch (e) {
+            console.warn('[上传归档] VL 视觉分析失败，回退到文本模型：', e.message);
+            Utils.toast('视觉解析失败，回退到文本模型…');
+            try {
+              const parsed2 = await this.callQwenEnglishAnalyze(settings, v.text);
+              analysis = parsed2 ? JSON.stringify(parsed2) : '';
+              if (parsed2 && parsed2.article) articleText = parsed2.article;
+            } catch (e2) {
+              console.warn('[上传归档] 英语解析生成失败，仅保存文章：', e2.message);
+              Utils.toast('阅读解析生成失败（' + e2.message + '），文章已保存');
+            }
+          }
+        } else if (v.text) {
+          // 文本模型兜底
           try {
             Utils.toast('正在生成阅读解析…');
             const parsed = await this.callQwenEnglishAnalyze(settings, v.text);
             analysis = parsed ? JSON.stringify(parsed) : '';
+            if (parsed && parsed.article) articleText = parsed.article;
           } catch (e) {
             console.warn('[上传归档] 英语解析生成失败，仅保存文章：', e.message);
             Utils.toast('阅读解析生成失败（' + e.message + '），文章已保存');
@@ -326,7 +355,7 @@ const AIAssistant = {
           username: user,
           title,
           source: source || '',
-          content: v.text || '',
+          content: articleText,
           imageData,
           aiResponse: analysis,
           wrongQuestions: [],
@@ -340,7 +369,7 @@ const AIAssistant = {
         })();
         let body = `标题：${title}`;
         if (summaryTxt) body += `\n\nAI摘要：\n${summaryTxt}`;
-        body += `\n\n英文全文：\n${v.text || ''}`;
+        body += `\n\n英文全文：\n${articleText}`;
         if (qCount) body += `\n\n（已识别 ${qCount} 道题目，可在阅读页查看解析并标注错题）`;
         this.showUploadResult('已归档到【英语文章】' + (analysis ? '（含AI解析）' : ''), body);
         this._afterUploadSuccess();
@@ -778,12 +807,114 @@ const AIAssistant = {
   },
 
   parseJSON(raw) {
+    if (raw == null) return { type: 'other', topic: '', errorHint: '', text: '' };
+    if (typeof raw === 'object') return raw;
     try {
-      const m = raw.match(/\{[\s\S]*\}/);
-      return JSON.parse(m ? m[0] : raw);
+      // 1) 优先匹配 ```json ... ``` 围栏
+      const fence = String(raw).match(/```json\s*([\s\S]*?)```/i);
+      if (fence) return JSON.parse(fence[1].trim());
+      // 2) 取第一个 {...} 块
+      const m = String(raw).match(/\{[\s\S]*\}/);
+      if (m) return JSON.parse(m[0]);
+      return { type: 'other', topic: '', errorHint: '', text: String(raw) };
     } catch (e) {
-      return { type: 'other', topic: '', errorHint: '', text: raw };
+      return { type: 'other', topic: '', errorHint: '', text: String(raw) };
     }
+  },
+
+  // 严格解析：失败返回 null（用于结构化必须成功的链路，如英语解析）
+  parseJSONStrict(raw) {
+    if (raw == null) return null;
+    if (typeof raw === 'object') return raw;
+    try {
+      const fence = String(raw).match(/```json\s*([\s\S]*?)```/i);
+      if (fence) return JSON.parse(fence[1].trim());
+      const m = String(raw).match(/\{[\s\S]*\}/);
+      if (m) return JSON.parse(m[0]);
+      return null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  /* ---------- 千问VL：英语阅读整图分析（多图：文章+题目混合，qwen-vl-max 直出结构化 JSON） ---------- */
+  async callQwenEnglishAnalyzeVL(settings, images) {
+    const imgs = Array.isArray(images) ? images : [images];
+    const MAX_TOTAL = 35 * 1024; // Bmob aiProxy 限制 40KB
+    let totalBytes = 0;
+    const validImgs = [];
+    for (const raw of imgs) {
+      const b64 = (typeof raw === 'string') ? raw.replace(/^data:[^;]+;base64,/, '') : '';
+      const bytes = Math.ceil((b64.length || 0) * 0.75);
+      if (totalBytes + bytes > MAX_TOTAL) break;
+      totalBytes += bytes;
+      const url = /^data:/.test(raw) ? raw : 'data:image/jpeg;base64,' + raw;
+      validImgs.push(url);
+    }
+    if (!validImgs.length) throw new Error('图片过大或为空，跳过视觉分析');
+
+    const sysPrompt =
+      '你是考研英语二阅读老师。用户上传了 ' + validImgs.length + ' 张图，按上传顺序排列：' +
+      '通常前几张是「文章正文（Passage）」，后面是「阅读理解题目（Questions + Options）」。' +
+      '请逐字阅读所有图片，输出严格 JSON（不要任何额外文字、不要 Markdown 代码块、不要解释）：\n' +
+      '{\n' +
+      '  "summary": "用中文概括文章主旨与段落结构（2-4 句）",\n' +
+      '  "article": "纯文章正文（剔除所有题号、题干、选项 A./B./C./D.；按原图段落顺序拼接；保留完整段落，不要翻译成中文，不要添加原文中没有的内容）",\n' +
+      '  "questions": [\n' +
+      '    {\n' +
+      '      "no": "题号，如 21、22、(A)、(B)",\n' +
+      '      "question": "题干原文（仅题干，不要把 A/B/C/D 选项文字也塞进来）",\n' +
+      '      "options": ["A. ...","B. ...","C. ...","D. ..."],\n' +
+      '      "answer": "正确选项（如 C 或 C. xxx），唯一明确",\n' +
+      '      "explanation": "解析：为何选它、各干扰项错在哪。不要重复题干，不要复制文章段落。"\n' +
+      '    }\n' +
+      '  ]\n' +
+      '}\n' +
+      '【强约束】\n' +
+      '1) 输出必须是合法 JSON（双引号、无尾逗号、无注释）；\n' +
+      '2) article 与 questions 互不重叠——article 中绝不能含题号/题干/选项文字；\n' +
+      '3) explanation 不得复制文章段落，只针对本题解析；\n' +
+      '4) questions 数组按原图题号顺序；\n' +
+      '5) 若图中没有题目，questions 返回 []；若图中没有文章，article 返回 ""；\n' +
+      '6) 只返回 JSON 对象本体，不要任何前后缀文字。';
+
+    const userContent = [
+      ...validImgs.map(u => ({ type: 'image_url', image_url: { url: u } })),
+      { type: 'text', text: '请按系统指令严格输出 JSON。' }
+    ];
+
+    const url = `${settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`;
+    const res = await this.proxyFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.qwenKey}` },
+      body: JSON.stringify({
+        model: 'qwen-vl-max',
+        messages: [
+          { role: 'system', content: sysPrompt },
+          { role: 'user', content: userContent }
+        ],
+        max_tokens: 4000,
+        temperature: 0.2
+      })
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      let detail = '';
+      try { const j = JSON.parse(txt); detail = j.error?.message || j.message || ''; } catch (_) {}
+      throw new Error('千问VL英语解析：' + (detail || ('HTTP ' + res.status)));
+    }
+    const data = await res.json();
+    const raw = data.choices[0].message.content;
+    console.log('[VL英语解析] raw.len=' + String(raw || '').length + ' preview=' + String(raw || '').slice(0, 200));
+    const parsed = this.parseJSONStrict(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('VL 返回非结构化 JSON：' + String(raw).slice(0, 120));
+    }
+    if (typeof parsed.article !== 'string') parsed.article = '';
+    if (!Array.isArray(parsed.questions)) parsed.questions = [];
+    if (typeof parsed.summary !== 'string') parsed.summary = '';
+    console.log('[VL英语解析] OK article=' + parsed.article.length + ' questions=' + parsed.questions.length);
+    return parsed;
   },
 
   /* ---------- 通用：历史 / 渲染 / 错误 ---------- */

@@ -301,6 +301,7 @@ const PetUI = (() => {
     `;
   }
   function _renderShop(snap) {
+    const freeQuota = snap.freeQuota || { used: 0, total: 2 };
     return `
       <div class="pet-shop">
         ${snap.items.map(it => {
@@ -310,15 +311,21 @@ const PetUI = (() => {
           if (it.mood)   desc.push(`心情+${it.mood}`);
           if (it.exp)    desc.push(`+${it.exp} 经验`);
           if (it.expBuffMs) desc.push('30分钟内经验×2');
-          const affordable = snap.coins >= it.price;
+          const isFree = !!it.free;
+          // 免费道具：不查金币，额度耗尽时禁用
+          const affordable = isFree ? (freeQuota.used < freeQuota.total) : (snap.coins >= it.price);
+          const priceLabel = isFree
+            ? `<span class="pet-shop-quota">应急 ${freeQuota.total - freeQuota.used}/${freeQuota.total}</span>`
+            : `${it.price} ¥`;
+          const cls = `pet-shop-item${isFree ? ' pet-shop-item-free' : ''}`;
           return `
-            <button class="pet-shop-item" data-item="${it.id}" ${affordable ? '' : 'disabled'}>
+            <button class="${cls}" data-item="${it.id}" ${affordable ? '' : 'disabled'}>
               <span class="swatch" style="background:${it.color}"></span>
               <span class="meta">
-                <span class="name">${_esc(it.name)}</span>
-                <span class="desc">${_esc(desc.join(' · '))}</span>
+                <span class="name">${_esc(it.name)}${isFree ? '<span class="pet-free-tag">应急</span>' : ''}</span>
+                <span class="desc">${_esc(desc.join(' · '))}${isFree ? ' · 不涨经验' : ''}</span>
               </span>
-              <span class="price">${it.price} ¥</span>
+              <span class="price">${priceLabel}</span>
             </button>
           `;
         }).join('')}
@@ -493,6 +500,12 @@ const PetUI = (() => {
     if (!_pet || !_pet.petType) {
       _showAdoptDialog();
       return;
+    }
+    // 饿死/渴死降级提示（仅一次；pet.starvationNote 来自 _applyDecay）
+    if (_pet.starvationNote) {
+      _showToast(_pet.starvationNote + '（已恢复至 50%）');
+      _pet.starvationNote = '';
+      try { await Store.savePet(_pet, { skipDecay: true }); } catch (e) {}
     }
     const snap = await Pet.snapshot();
     if (!snap) { _showToast('加载失败'); return; }

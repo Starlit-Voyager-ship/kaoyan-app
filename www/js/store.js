@@ -407,17 +407,59 @@ const Store = {
   _PET_DECAY_INTERVAL_MS: 5 * 60 * 1000,
   _PET_HUNGER_LOSS_PER_TICK: 1,
   _PET_THIRST_LOSS_PER_TICK: 1,
+  _PET_SLEEP_START_HOUR: 22,    // 22:00 起宠物睡觉
+  _PET_SLEEP_END_HOUR: 8,       // 08:00 起床
+  _PET_SLEEP_FACTOR: 0.3,       // 睡眠时段损耗 × 0.3
+  _PET_FREE_QUOTA_DAILY: 2,     // 免费道具每日限额
+
+  // 统计 [from, to) 中属于睡眠时段（22:00-08:00）的毫秒数
+  _countSleepMs(from, to) {
+    const H1 = this._PET_SLEEP_START_HOUR;
+    const H2 = this._PET_SLEEP_END_HOUR;
+    let sleep = 0;
+    let t = from;
+    // 跳到下一个整点小时，逐小时推进；最坏 7 天 = 168 步，可接受
+    while (t < to) {
+      const d = new Date(t);
+      const hour = d.getHours();
+      const nextHourStart = new Date(d);
+      nextHourStart.setHours(hour + 1, 0, 0, 0);
+      const segEnd = Math.min(to, nextHourStart.getTime());
+      // inSleep：hour >= 22 或 hour < 8（跨午夜）
+      const inSleep = (hour >= H1) || (hour < H2);
+      if (inSleep) sleep += segEnd - t;
+      t = segEnd;
+    }
+    return sleep;
+  },
 
   _applyDecay(pet) {
     const now = Date.now();
     const last = pet.lastUpdate || now;
-    const ticks = Math.floor((now - last) / this._PET_DECAY_INTERVAL_MS);
-    if (ticks <= 0) return pet;
-    pet.hunger = Math.max(0, (pet.hunger || 0) - ticks * this._PET_HUNGER_LOSS_PER_TICK);
-    pet.thirst = Math.max(0, (pet.thirst || 0) - ticks * this._PET_THIRST_LOSS_PER_TICK);
+    const elapsed = now - last;
+    if (elapsed <= 0) return pet;
+
+    // 拆分睡眠/清醒时段损耗
+    const sleepMs = this._countSleepMs(last, now);
+    const awakeMs = Math.max(0, elapsed - sleepMs);
+    const lossPerMs = this._PET_HUNGER_LOSS_PER_TICK / this._PET_DECAY_INTERVAL_MS;
+    // hunger 和 thirst 走相同衰减曲线
+    const hungerLoss = (awakeMs * lossPerMs * 1.0) + (sleepMs * lossPerMs * this._PET_SLEEP_FACTOR);
+
+    pet.hunger = Math.max(0, (pet.hunger || 0) - hungerLoss);
+    pet.thirst = Math.max(0, (pet.thirst || 0) - hungerLoss);
     // 心情 = (hunger+thirst)/2 - 5（最低 0 最高 100）
     pet.mood = Math.max(0, Math.min(100, Math.round((pet.hunger + pet.thirst) / 2 - 5)));
     pet.lastUpdate = now;
+
+    // 饿死 / 渴死 → 等级 -1（最低 lv0），饱食/口渴恢复到 50 防止连环死
+    if ((pet.hunger <= 0 || pet.thirst <= 0) && (pet.lvl || 0) > 0) {
+      pet.lvl = Math.max(0, (pet.lvl || 1) - 1);
+      pet.exp = 0;
+      pet.hunger = 50;
+      pet.thirst = 50;
+      pet.starvationNote = '宠物饿死/渴死，等级降低 1 级';
+    }
     return pet;
   },
 

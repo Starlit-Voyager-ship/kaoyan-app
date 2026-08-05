@@ -332,6 +332,32 @@
   gap: 2px;
   white-space: nowrap;
 }
+/* 应急免费道具：绿框区分 + "应急"小角标 */
+.pet-panel-body .pet-shop-item-free {
+  border-color: rgba(94, 178, 124, 0.45);
+  background: linear-gradient(180deg, rgba(220, 245, 230, 0.6), rgba(255, 255, 255, 0.55));
+}
+.pet-panel-body .pet-shop-item-free .price { color: #2E8A57; }
+.pet-panel-body .pet-shop-quota {
+  display: inline-flex; align-items: center;
+  font-size: 0.74rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(46, 138, 87, 0.12);
+  color: #2E8A57;
+  font-weight: 600;
+}
+.pet-free-tag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.62rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(46, 138, 87, 0.18);
+  color: #2E8A57;
+  font-weight: 600;
+  vertical-align: 1px;
+}
 
 /* ---- 静态宠物（PNG，没有 GIF idle）—— CSS 营造活感 ---- */
 .desktop-pet-img.is-static {

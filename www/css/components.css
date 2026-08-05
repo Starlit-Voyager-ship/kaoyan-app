@@ -143,11 +143,12 @@
 
 /* 区块标题 */
 .home-section-title {
-  font-size: var(--t-h2);
+  font-size: 0.82rem;
   font-weight: 600;
-  color: var(--text);
-  margin: var(--s-5) 0 var(--s-3);
+  color: var(--text-secondary, #555);
+  margin: var(--s-3, 12px) 0 var(--s-2, 8px);
   letter-spacing: 0.02em;
+  text-transform: none;
 }
 
 /* 继续学习引导卡（毛玻璃） */
@@ -223,8 +224,8 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 2px;
-  margin-bottom: var(--s-4);
-  padding: 10px 8px;
+  margin-bottom: var(--s-3, 12px);
+  padding: 8px 6px;
   border-radius: var(--radius-lg, 18px);
   background: var(--glass-bg-heavy, rgba(255,255,255,0.48));
   backdrop-filter: var(--glass-blur, blur(14px));
@@ -236,17 +237,18 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--s-2);
-  padding: 8px 4px;
+  gap: var(--s-1, 4px);
+  padding: 6px 4px;
   border-radius: var(--radius-md, 12px);
   border: none;
   background: transparent;
   cursor: pointer;
   color: var(--text-secondary);
   font-family: inherit;
-  font-size: var(--t-label);
+  font-size: 0.74rem;
   transition: background var(--transition-fast), color var(--transition-fast), transform 0.12s ease;
 }
+.home-quick-item .ico { width: 22px; height: 22px; }
 .home-quick-item:hover { background: rgba(74, 144, 184, 0.06); }
 .home-quick-item:active {
   background: var(--primary-tint, rgba(74,144,184,0.12));
@@ -653,8 +655,8 @@
 /* —— 每日一句（白玻璃 · 文案卡） —— */
 .home-daily-quote {
   position: relative;
-  margin: var(--s-4, 16px) 0 var(--s-3, 12px);
-  padding: 12px 16px 14px;
+  margin: var(--s-2, 8px) 0 var(--s-2, 8px);
+  padding: 10px 14px 12px;
   border-radius: var(--radius-lg, 18px);
   background: var(--glass-bg-heavy, rgba(255,255,255,0.48));
   backdrop-filter: var(--glass-blur, blur(14px));
@@ -680,7 +682,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   font-size: 12px;
   color: var(--text-tertiary, #7A94A8);
 }
@@ -718,13 +720,13 @@
 }
 .dq-text {
   position: relative;
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.55;
   font-weight: 500;
   color: var(--text, #1E3A50);
   letter-spacing: 0.01em;
-  margin: 2px 0 6px;
-  min-height: 24px;
+  margin: 2px 0 4px;
+  min-height: 22px;
 }
 .dq-auth {
   position: relative;

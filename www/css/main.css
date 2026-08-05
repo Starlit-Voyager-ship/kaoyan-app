@@ -668,7 +668,13 @@ h3 svg, h4 svg { vertical-align: middle; }
 /* 响应式 */
 @media (max-width: 640px) {
   :root { --header-height: 46px; }
-  .content-section { padding: 14px; }
+  /* 仅改左右 padding，保留底部的 tabbar-height + safe-area 余量 */
+  .content-section {
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 12px;
+    padding-bottom: calc(12px + var(--tabbar-height) + env(safe-area-inset-bottom) + 12px);
+  }
   #app-header { padding: 0 12px; }
   h3 { font-size: 1.1rem; }
 

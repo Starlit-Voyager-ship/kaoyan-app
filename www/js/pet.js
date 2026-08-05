@@ -9,6 +9,8 @@
 
 const Pet = (() => {
   // ---- 道具表（不引图，色块+文字） ----
+  // - price=0 视为免费道具：消耗每日免费额度（默认 2 份/天），不涨经验
+  // - exp=0 表示不涨经验（与免费道具搭配）
   const ITEMS = [
     { id: 'food_pack',  name: '食物包',    price: 30, hunger: 30, thirst: 0,  mood: 0,  exp: 5,  color: '#F2A85C' },
     { id: 'water_pack', name: '饮水包',    price: 30, hunger: 0,  thirst: 30, mood: 0,  exp: 5,  color: '#5DA9D8' },
@@ -16,7 +18,11 @@ const Pet = (() => {
     { id: 'feast',      name: '营养大餐',  price: 80, hunger: 50, thirst: 50, mood: 30, exp: 20, color: '#E5BE6A' },
     { id: 'happy_pill', name: '心情药丸',  price: 60, hunger: 0,  thirst: 0,  mood: 50, exp: 5,  color: '#E08196' },
     { id: 'exp_drug',   name: '多倍经验药', price: 100, hunger: 0, thirst: 0, mood: 0, exp: 0, color: '#7C6BC4',
-      apply: (pet) => { pet.expBuffUntil = Date.now() + 30 * 60 * 1000; } }
+      apply: (pet) => { pet.expBuffUntil = Date.now() + 30 * 60 * 1000; } },
+    // 应急免费道具：每天限 2 份，恢复约 40% 各项属性，不涨经验，防止宠物饿死
+    { id: 'free_water', name: '矿泉水',    price: 0,  hunger: 0,  thirst: 40, mood: 10, exp: 0, color: '#7EC2E8', free: true },
+    { id: 'free_bread', name: '面包',      price: 0,  hunger: 40, thirst: 5,  mood: 10, exp: 0, color: '#E0A875', free: true },
+    { id: 'free_toy',   name: '玩具',      price: 0,  hunger: 0,  thirst: 0,  mood: 40, exp: 0, color: '#C28BC9', free: true }
   ];
   const ITEM_BY_ID = Object.fromEntries(ITEMS.map(it => [it.id, it]));
 
@@ -118,9 +124,26 @@ const Pet = (() => {
     if (!item) return { ok: false, msg: '道具不存在' };
     const user = Store.getCurrentUser();
     if (!user) return { ok: false, msg: '请先登录' };
-    const remaining = await Store.spendCoins(user, item.price);
-    if (remaining < 0) return { ok: false, msg: '金币不足' };
-    await Store.addCoinEntry('item', -item.price, item.name);
+
+    // 免费道具：先检查/重置每日 quota
+    if (item.free) {
+      const quotaPet = await loadPet();
+      const today = (typeof Utils !== 'undefined' && Utils.today) ? Utils.today() : new Date().toISOString().slice(0, 10);
+      if (quotaPet.freeQuotaDate !== today) {
+        quotaPet.freeQuotaDate = today;
+        quotaPet.freeQuotaUsed = 0;
+      }
+      const dailyQuota = (typeof Store !== 'undefined' && Store._PET_FREE_QUOTA_DAILY) || 2;
+      if ((quotaPet.freeQuotaUsed || 0) >= dailyQuota) {
+        return { ok: false, msg: '今天的应急道具已用完（每天 2 份）' };
+      }
+      quotaPet.freeQuotaUsed = (quotaPet.freeQuotaUsed || 0) + 1;
+      await Store.savePet(quotaPet);
+    } else if (item.price > 0) {
+      const remaining = await Store.spendCoins(user, item.price);
+      if (remaining < 0) return { ok: false, msg: '金币不足' };
+      await Store.addCoinEntry('item', -item.price, item.name);
+    }
 
     const pet = await loadPet();
     pet.hunger = Math.min(100, (pet.hunger || 0) + (item.hunger || 0));
@@ -129,8 +152,20 @@ const Pet = (() => {
     if (item.apply) item.apply(pet);
 
     await Store.savePet(pet);
-    if (item.exp) await Store.addPetExp(user, item.exp);
+    // 免费道具不涨经验
+    if (item.exp && !item.free) await Store.addPetExp(user, item.exp);
     return { ok: true, msg: `已使用 ${item.name}`, pet: await Store.getPet(user) };
+  }
+
+  // ---- 读取今日免费道具剩余额度（UI 显示用） ----
+  async function getFreeQuota() {
+    const user = Store.getCurrentUser();
+    if (!user) return { used: 0, total: 2, date: '' };
+    const pet = await loadPet();
+    const today = (typeof Utils !== 'undefined' && Utils.today) ? Utils.today() : new Date().toISOString().slice(0, 10);
+    const total = (typeof Store !== 'undefined' && Store._PET_FREE_QUOTA_DAILY) || 2;
+    if (pet.freeQuotaDate !== today) return { used: 0, total, date: today };
+    return { used: pet.freeQuotaUsed || 0, total, date: today };
   }
 
   // ---- 抚摸（点宠物身体） ----
@@ -166,6 +201,7 @@ const Pet = (() => {
     const coins = await Store.getCoins(user);
     const coinLog = await Store.getCoinLog(user);
     const expToNext = Store.expToNext(pet.lvl);
+    const freeQuota = await getFreeQuota();
     return {
       pet,
       state: getState(pet),
@@ -177,14 +213,15 @@ const Pet = (() => {
       items: ITEMS,
       learnRewards: LEARN_REWARDS,
       assets: getAssets(pet),
-      petTypes: PET_TYPES
+      petTypes: PET_TYPES,
+      freeQuota
     };
   }
 
   return {
     ITEMS, ITEM_BY_ID, LEARN_REWARDS,
     PET_TYPES, DEFAULT_TYPE,
-    loadPet, adopt, getAssets, useItem, pet, onLearnReward, snapshot, getState,
+    loadPet, adopt, getAssets, useItem, getFreeQuota, pet, onLearnReward, snapshot, getState,
     DEFAULT_PET
   };
 })();

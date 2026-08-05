@@ -125,23 +125,31 @@ const Utils = {
     });
   },
 
-  // 长图竖向切分：高/宽比过大时切成上下两半，降低单图文字密度，提升 OCR 逐字保真
-  // 返回数组（1 张或 2 张 dataURL）。切分失败/比例正常时返回原图。
-  cropImageHalves(base64) {
+  // 长图竖向切分：高/宽比过大时按比例切成 N 段，降低单图文字密度，提升 OCR 逐字保真
+  // - ratio<1.4: 1 张（横图，不切）
+  // - 1.4≤ratio<2.4: 2 段（一般长图，如"文章+题目"一张图）
+  // - ratio≥2.4: 3 段（极长图，如整张试卷：上半文章+题+下半文章+题）
+  // 返回数组（1/2/3 张 dataURL）。切分失败时返回原图。
+  splitLongImage(base64) {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
         const ratio = img.height / Math.max(1, img.width);
         if (ratio < 1.4) { resolve([base64]); return; }
+        const parts = ratio >= 2.4 ? 3 : 2;
         try {
-          const half = Math.floor(img.height / 2);
-          const mk = (sy, sh) => {
+          const segH = Math.floor(img.height / parts);
+          const out = [];
+          for (let i = 0; i < parts; i++) {
+            const sy = i * segH;
+            const sh = (i === parts - 1) ? (img.height - sy) : segH;
             const c = document.createElement('canvas');
             c.width = img.width; c.height = sh;
             c.getContext('2d').drawImage(img, 0, sy, img.width, sh, 0, 0, img.width, sh);
-            return c.toDataURL('image/jpeg', 0.9);
-          };
-          resolve([mk(0, half), mk(half, img.height - half)]);
+            // 切分段用高画质输出（用户原图清晰度不打折）
+            out.push(c.toDataURL('image/jpeg', 0.92));
+          }
+          resolve(out);
         } catch (_) {
           resolve([base64]);
         }
@@ -149,6 +157,11 @@ const Utils = {
       img.onerror = () => resolve([base64]);
       img.src = base64;
     });
+  },
+
+  // 兼容旧调用（部分早期代码可能引用 cropImageHalves）
+  cropImageHalves(base64) {
+    return this.splitLongImage(base64);
   },
 
   // 简单的hash函数（用于密码存储演示）

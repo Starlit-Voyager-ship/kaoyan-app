@@ -314,13 +314,25 @@ const AIAssistant = {
         // 两段式管线（解决「长文识别不全 / 缺词少段」）：
         //  Stage1 视觉模型只做「逐字抄写」（保真优先，不输出 JSON，避免长文丢字）
         //  Stage2 文本模型把干净转录拆成 {summary, article, questions[]}
+        // 兜底：若 Stage2 拆出 questions=[] 但转录里能看到题目特征词，用本地正则抓出 questions
         let analysis = '';
         let articleText = v.text || '';
+        let transcript = '';
         try {
           Utils.toast('正在逐字识别文章与题目…');
           const transcribeImages = await this._buildTranscribeImages();
-          const transcript = await this.callQwenEnglishTranscribe(settings, transcribeImages);
+          transcript = await this.callQwenEnglishTranscribe(settings, transcribeImages);
           const parsed = await this.callQwenEnglishAnalyze(settings, transcript);
+          // 兜底：parsed.questions 空 但 transcript 含明显题目特征词 → 本地正则抓
+          if (parsed && (!parsed.questions || parsed.questions.length === 0)) {
+            const rawQs = this._extractRawQuestions(transcript);
+            if (rawQs.length) {
+              console.log('[英语解析] Stage2 未拆出题目，正则兜底抓到 ' + rawQs.length + ' 道');
+              parsed.questions = rawQs;
+              if (!parsed.summary) parsed.summary = '（AI 解析未生成，已用本地正则提取题目）';
+              Utils.toast('AI 未识别题目，已用本地正则补抓 ' + rawQs.length + ' 道（无答案解析）');
+            }
+          }
           analysis = parsed ? JSON.stringify(parsed) : '';
           // 优先用结构化 article；若没拆出 article 但转录很长，拿转录全文兜底，保证阅读页有内容
           if (parsed && parsed.article && parsed.article.trim()) {
@@ -657,25 +669,29 @@ const AIAssistant = {
   /* ---------- 千问文本：英语阅读解析（纯文章正文 + 概括 + 逐题答案） ---------- */
   async callQwenEnglishAnalyze(settings, text) {
     const messages = [
-      { role: 'system', content: '你是考研英语二阅读老师。下面是一段「已逐字识别的英文原文」（可能同时含文章正文和阅读理解题目，也可能只有文章或只有题目）。请严格拆分并输出 JSON：\n' +
+      { role: 'system', content: '你是考研英语二阅读老师。下面是一段「已逐字识别的英文原文」，可能同时包含「文章正文」和「阅读理解题目」，也可能只包含其一（用户可能先传文章再传题目，或一张图文章+题同框，或多张图：上半文章+下半文章+题）。\n' +
+        '请严格按以下 JSON 结构输出，字段顺序固定：\n' +
         '{\n' +
-        '  "summary": "用中文概括文章主旨与段落结构（2-4句）",\n' +
-        '  "article": "纯文章正文（必须从用户提供的 text 中提取，剔除所有题目、题号、选项 A./B./C./D.、题号 21./22./23. 等干扰项；保留完整段落、不要添油加醋、不要翻译成中文；若用户提供的 text 里看不到独立文章段落只有题目，请填空字符串 \"\"）",\n' +
+        '  "summary": "用中文概括全部文章的主旨与段落结构（2-4 句）",\n' +
+        '  "article": "纯文章正文（多篇文章时用 \\\\n\\\\n--- 第 N 篇 ---\\\\n\\\\n 分隔）。从 text 中提取，剔除所有题目、题号、选项 A./B./C./D. 或 a)/b)/c)/d)、页眉页脚、试卷标题（如『2007 年考研试题 第 X 页』）。保留完整段落、不要添油加醋、不要翻译成中文。若 text 里完全看不到独立文章段落只有题目，请填空字符串 \\"\\"",\n' +
         '  "questions": [\n' +
         '    {\n' +
-        '      "no": "题号，如 21、22、(A)、(B)",\n' +
-        '      "question": "题干原文（保持完整，仅题干，不要把选项 A/B/C/D 的文字也塞进来）",\n' +
+        '      "no": "题号，如 21、22、Text 1 第 1 题、(A)、(B)",\n' +
+        '      "question": "题干原文（保持完整，仅题干；如题干以 What/Which/Why/How/According to the author 等开头原样保留）",\n' +
         '      "options": ["A. fair","B. ample","C. trustworthy","D. recommendable"],\n' +
-        '      "answer": "正确选项（如 \"C\" 或 \"C. trustworthy\"），必须明确唯一",\n' +
+        '      "answer": "正确选项（如 C 或 C. trustworthy），必须明确唯一",\n' +
         '      "explanation": "解析：为何选它、各干扰项错在哪。不要重复题干和选项文字，不要把文章段落塞进来，只针对本题做解析。"\n' +
         '    }\n' +
         '  ]\n' +
         '}\n' +
-        '请保证：\n' +
-        '1) questions 按题目在原文中出现顺序排列；\n' +
-        '2) article 字段必须是「纯净的文章正文」，与 questions 完全不重叠，绝不能含题目/题号/选项；\n' +
-        '3) explanation 字段仅针对本题，绝不能复制文章段落；\n' +
-        '4) 若 text 中无题目，questions 返回空数组 []；\n' +
+        '判定规则：\n' +
+        '1) 题目特征词：What / Which / Why / How / According to the passage / The author / It can be inferred / In the author\'s opinion / We can learn 等开头的句子为题干；\n' +
+        '2) 选项特征：紧随题干的下文以 A./B./C./D. 或 a)/b)/c)/d) 开头的若干行；\n' +
+        '3) 题号特征：行首出现的 21./22./23./(1)/(2)/Text 1 第 1 题 等；\n' +
+        '4) 一篇文章可能配 1-5 道题，按出现顺序排列；多篇文章则按文章出现顺序串行排列 questions；\n' +
+        '5) 硬约束：article 字段必须「纯净」，与 questions 完全不重叠，绝不能含题目/题号/选项；explanation 字段仅针对本题，绝不能复制文章段落；\n' +
+        '6) 若 text 中无题目，questions 返回空数组 []；\n' +
+        '7) 若题干看不清而选项清晰，仍要保留 options 并标注 question = 「（题干未识别）」；\n' +
         '只返回 JSON 对象本体，不要任何前后缀文字、解释或 Markdown 代码块。' },
       { role: 'user', content: text }
     ];
@@ -688,10 +704,41 @@ const AIAssistant = {
     }
   },
 
+  // 兜底：从原始转录里按特征词抓出疑似题目段落，用于 Stage2 拆分失败时给用户保留题目可见
+  _extractRawQuestions(transcript) {
+    if (!transcript) return [];
+    const lines = String(transcript).split(/\n/);
+    const questionStarter = /^(What|Which|Why|How|According to|In the author|It can be inferred|We can learn|The author|The word|The phrase|Paragraph\s*\d+|The author of|Passersby)/i;
+    const optionLine = /^\s*[A-D][\.\)、\)]\s+\S/;
+    const qNo = /^\s*(\d{1,2}|Text\s*\d+\s*第?\s*\d*\s*题|\(\d+\))\s*[\.\)\、]/;
+    const blocks = [];
+    let cur = null;
+    for (let i = 0; i < lines.length; i++) {
+      const ln = (lines[i] || '').trim();
+      if (!ln) { if (cur) { cur.gap = (cur.gap || 0) + 1; } continue; }
+      if (qNo.test(ln) || (questionStarter.test(ln) && ln.length > 15 && ln.length < 220)) {
+        if (cur) blocks.push(cur);
+        const noM = ln.match(qNo);
+        cur = { no: noM ? noM[1] : '', question: noM ? ln.replace(qNo, '').trim() : ln, options: [], answer: '', explanation: '' };
+      } else if (cur && optionLine.test(ln)) {
+        cur.options.push(ln);
+      } else if (cur) {
+        if (cur.options.length === 0) cur.question += ' ' + ln;
+      }
+    }
+    if (cur) blocks.push(cur);
+    return blocks.filter(b => b.question && b.options.length >= 2).map(b => ({
+      no: b.no, question: b.question.trim(), options: b.options, answer: b.answer,
+      explanation: b.explanation || '（AI 解析失败，请在阅读区查阅原文后作答）'
+    }));
+  },
+
   /* ---------- 千问VL：英语阅读「逐字转录」（仅抄写，不做结构化输出） ---------- */
   async callQwenEnglishTranscribe(settings, images) {
     const imgs = Array.isArray(images) ? images : [images];
-    const MAX_TOTAL = 36 * 1024; // aiProxy 40KB 限制；转录阶段 prompt 极小，把更多字节留给图片
+    // 预算策略：App 原生环境直连千问，无 aiProxy 40KB 限制，给足清晰度；
+    //           浏览器环境仍受 Bmob aiProxy 40KB 上限，保守压缩保识别成功率。
+    const MAX_TOTAL = this.isNativePlatform() ? 220 * 1024 : 36 * 1024;
     let total = 0;
     const valid = [];
     for (const raw of imgs) {
@@ -703,14 +750,23 @@ const AIAssistant = {
     }
     if (!valid.length) throw new Error('图片过大或为空，跳过转录');
 
+    // 多图顺序标注，让 VL 知道"图 1/3 → 图 2/3 → 图 3/3"的纵向顺序
+    const orderNote = valid.length > 1
+      ? '【多张图按从上到下的顺序提供：第 1 张是图片上半部分，第 ' + valid.length + ' 张是图片下半部分。请严格按这个顺序把所有图片里的文字串成完整文本。】\n'
+      : '';
+
     const userContent = [
       ...valid.map(u => ({ type: 'image_url', image_url: { url: u } })),
       { type: 'text', text:
-        '请逐字转录以下图片中的全部英文文字，严格按阅读/排版顺序，保留原有段落与换行。规则：\n' +
-        '1) 只输出转录出的原文文本本身，不要加任何说明、不要总结、不要分析、不要翻译；\n' +
-        '2) 文章正文原样保留（英文），题目也原样保留（题干+选项 A./B./C./D.）；\n' +
-        '3) 不要遗漏任何一行、任何一段，即使文字很多也要完整转录；\n' +
-        '4) 若某张图局部看不清，也请尽量转录可见部分，不要整段留空。\n' +
+        orderNote +
+        '请逐字转录以下图片中的全部英文文字，严格按从上到下的阅读顺序，保留原有段落与换行。\n' +
+        '硬性规则：\n' +
+        '1) 只输出转录出的原文文本本身，不要加任何说明、不要总结、不要分析、不要翻译、不要 JSON；\n' +
+        '2) 文章正文原样保留（英文段落），题目也原样保留（题干 + 选项 A./B./C./D. 或 a)/b)/c)/d)）；\n' +
+        '3) 【最重要】图片中「所有区域」都必须转录：上、中、下三段都看；不要只看图片上半部分就停；\n' +
+        '4) 即使文字很多也要完整转录，不要省略任何一行、任何一段；\n' +
+        '5) 若某处实在看不清，用 "〔看不清〕" 标记但继续往下转录；\n' +
+        '6) 如果图片里有「多篇文章+多组题目」（常见于整张试卷同框），每篇文章和它后面的题目都全部转录，中间用空行分隔。\n' +
         '现在开始转录：' }
     ];
 
@@ -737,23 +793,27 @@ const AIAssistant = {
     return String(raw || '').trim();
   },
 
-  // 为转录阶段构建高质量、低密度的图片集：长图竖向切分（≤2 张时）+ 按总预算压缩
+  // 为转录阶段构建高质量、低密度的图片集：长图竖向切分（按比例 1/2/3 段）+ 按总预算压缩
   async _buildTranscribeImages() {
     const raws = this.uploadImages || [];
     if (!raws.length) return [];
-    // 只在上传 ≤2 张时做竖向切分（降低单图文字密度，提升逐字保真）；过多图则直接压缩全图避免过度碎片化
-    const doSplit = raws.length <= 2;
+    // 始终做竖向切分（splitLongImage 内部按 ratio 自动决定 1/2/3 段）
     const pieces = [];
     for (const img of raws) {
-      const halves = doSplit ? (await Utils.cropImageHalves(img)) : [img];
+      const halves = await Utils.splitLongImage(img);
       for (const h of halves) pieces.push(h);
     }
-    const BUDGET = 36 * 1024;
+    // 预算：App 原生放宽到 220KB（清晰度优先），浏览器仍 36KB
+    const BUDGET = this.isNativePlatform() ? 220 * 1024 : 36 * 1024;
     const perTarget = Math.floor(BUDGET / Math.max(1, pieces.length));
     const out = [];
     for (const p of pieces) {
       let c = p;
-      for (const [mw, q] of [[1400,0.82],[1200,0.78],[1100,0.74],[1000,0.7],[900,0.66],[800,0.6],[700,0.54],[600,0.5],[500,0.44],[400,0.4]]) {
+      // App 内优先保分辨率（1400-1600px 起步），浏览器为压缩到 36KB 压狠点
+      const ladder = this.isNativePlatform()
+        ? [[1600, 0.9], [1500, 0.88], [1400, 0.86], [1300, 0.84], [1200, 0.82], [1100, 0.8], [1000, 0.78], [900, 0.76], [800, 0.74], [700, 0.7]]
+        : [[1400, 0.82], [1200, 0.78], [1100, 0.74], [1000, 0.7], [900, 0.66], [800, 0.6], [700, 0.54], [600, 0.5], [500, 0.44], [400, 0.4]];
+      for (const [mw, q] of ladder) {
         c = await Utils.compressImg(c, mw, q);
         if ((c.substring(c.indexOf(',') + 1).length * 0.75) < perTarget) break;
       }

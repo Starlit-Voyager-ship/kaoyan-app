@@ -345,6 +345,8 @@ const FriendWake = {
         this.showStatus();
       }
     } catch { this.showStatus(); }
+    // 启动即尝试从云端同步绑定关系（被邀请方在对方填码后自动互绑）
+    this.detectBond(false);
     this.updateNetStatus();
   },
 
@@ -415,47 +417,64 @@ const FriendWake = {
       infoEl.innerHTML = '<span style="color:var(--danger)">请输入6位邀请码</span>'; return;
     }
 
-    // 查找对方发出的邀请码
+    // 查找对方发出的邀请码（未被使用过）
     let matches = [];
     try {
       matches = await WakeStore.query('WakeBind', { code: inputCode, type: 'invite' });
     } catch (e) { /* 回落 */ }
 
-    const valid = (matches || []).find(m => m.fromUser && m.fromUser !== me && (!m.expireAt || m.expireAt > Date.now()));
+    const valid = (matches || []).find(m =>
+      m.fromUser && m.fromUser !== me &&
+      (!m.expireAt || m.expireAt > Date.now()) &&
+      !m.consumed); // 已消费（被他人绑定过）的邀请码不可复用
     if (!valid) {
-      infoEl.innerHTML = '<span style="color:var(--danger)">邀请码无效或已过期</span>';
+      infoEl.innerHTML = '<span style="color:var(--danger)">邀请码无效、已过期或已被使用</span>';
       return;
     }
 
-    // 双向绑定：更新对方邀请码记录指向我，并写一条 my→peer 绑定关系
-    if (WakeStore.cloudReady() && valid.objectId) {
-      try { await Bmob.request('PUT', '/classes/WakeBind/' + valid.objectId, { toUser: me }, false); } catch (e) {}
-    }
+    const peer = valid.fromUser;
+    // ① 我 → 对方 的绑定记录（允许我主动叫醒对方）
     await WakeStore.save('WakeBind', {
-      fromUser: me, toUser: valid.fromUser, code: inputCode,
+      fromUser: me, toUser: peer, code: inputCode,
       type: 'bond', expireAt: 0
     });
+    // ② 对方 → 我 的绑定记录（关键：让对方也能回叫醒我，实现互相叫醒）
+    await WakeStore.save('WakeBind', {
+      fromUser: peer, toUser: me, code: inputCode,
+      type: 'bond', expireAt: 0
+    });
+    // 标记对方邀请码已消费，避免被第三人重复绑定
+    if (WakeStore.cloudReady() && valid.objectId) {
+      try { await Bmob.request('PUT', '/classes/WakeBind/' + valid.objectId, { toUser: me, consumed: true }, false); } catch (e) {}
+    }
 
     this.bound = true;
-    this.peerUser = valid.fromUser;
-    this.peerCode = valid.fromUser;
+    this.peerUser = peer;
+    this.peerCode = peer;
     this.myCode = inputCode;
     this.saveBinding();
-    this.showControl(valid.fromUser);
-    infoEl.innerHTML = '<span style="color:var(--success)">绑定成功！</span>';
-    Utils.toast('绑定成功！');
+    this.showControl(peer);
+    infoEl.innerHTML = '<span style="color:var(--success)">绑定成功！现在你们可以互相叫醒</span>';
+    Utils.toast('绑定成功！可以互相叫醒');
     this.maybeStartGuard();
     this.renderDiag();
   },
 
+  // 解除一对绑定：删除自己与对方各自的绑定记录（互相解绑）
+  async removePairBond(me, peer) {
+    await WakeStore.remove('WakeBind', { fromUser: me });
+    if (peer) await WakeStore.remove('WakeBind', { fromUser: peer, toUser: me });
+  },
+
   doUnbind() {
-    Utils.showModal('解除绑定', '确定解除好友叫醒绑定关系吗？', `
+    Utils.showModal('解除绑定', '确定解除好友叫醒绑定关系吗？双方将同时解除互相叫醒。', `
       <button class="btn-danger" id="confirm-unbind">确认解绑</button>
       <button class="btn-outline" onclick="Utils.hideModal()">取消</button>
     `);
     document.getElementById('confirm-unbind').onclick = async () => {
       const me = this.user();
-      await WakeStore.remove('WakeBind', { fromUser: me });
+      const peer = this.peerUser;
+      await this.removePairBond(me, peer);
       this.bound = false;
       this.peerUser = null;
       this.peerCode = null;
@@ -464,6 +483,55 @@ const FriendWake = {
       Utils.hideModal();
       Utils.toast('已解绑');
     };
+  },
+
+  /* ---------- 自动同步绑定关系（云端为准） ---------- */
+  // 我（被邀请方或邀请方）打开应用/轮询时，检测云端是否存在指向我的绑定记录，
+  // 若存在则自动进入"已绑定"状态——这是实现"互相叫醒"的关键：
+  // 邀请方 A 发出邀请后无需任何操作，B 填码瞬间即写入 A→B 的绑定记录，A 下次轮询自动绑定。
+  async detectBond(allowUnbind) {
+    const me = this.user();
+    if (!me) return false;
+    let list = [];
+    try { list = await WakeStore.query('WakeBind', { fromUser: me }); }
+    catch (e) { return false; }
+
+    const record = (list || []).find(r =>
+      (r.type === 'bond' && r.toUser && r.toUser !== me) ||
+      (r.type === 'invite' && r.toUser && r.toUser !== me && r.consumed)
+    );
+
+    if (record) {
+      const peer = record.toUser;
+      if (!this.bound || this.peerUser !== peer) {
+        this.bound = true;
+        this.peerUser = peer;
+        this.peerCode = peer;
+        this.myCode = record.code || this.myCode;
+        this.saveBinding();
+        // 确保自己侧存在 bond 记录（幂等，避免对方解绑重绑后丢失）
+        WakeStore.save('WakeBind', {
+          fromUser: me, toUser: peer, code: record.code || this.myCode,
+          type: 'bond', expireAt: 0
+        }).catch(() => {});
+        this.showControl(peer);
+        this.renderDiag();
+        Utils.toast('已与 ' + peer + ' 互相绑定，可互相叫醒');
+      }
+      this.maybeStartGuard();
+      return true;
+    }
+
+    // 云端已无指向我的绑定记录（对方已解绑）→ 同步解除本地绑定
+    if (allowUnbind && this.bound && this.peerUser && WakeStore.cloudReady()) {
+      this.bound = false;
+      this.peerUser = null;
+      this.peerCode = null;
+      this.clearBindingStore();
+      this.showStatus();
+      this.renderDiag();
+    }
+    return false;
   },
 
   /* ---------- 叫醒（长按触发） ---------- */
@@ -558,6 +626,16 @@ const FriendWake = {
       try { localStorage.setItem('wake_lastts_' + me, String(this.lastWakeTs)); } catch (e) {}
       this.lastPending = 0;
     } catch (e) { /* 静默 */ }
+
+    // 绑定关系自愈：未绑定时自动发现（被邀请方自动互绑）；已绑定时检测对方是否已解绑
+    try {
+      if (!this.bound) {
+        await this.detectBond(false);
+      } else if (this.peerUser && WakeStore.cloudReady()) {
+        await this.detectBond(true);
+      }
+    } catch (e) { /* 静默 */ }
+
     this.updateNetStatus();
   },
 

@@ -202,14 +202,16 @@ const AIAssistant = {
 
     try {
       // 图片仅用于本地识别，不存云端（用户需求：只同步解析后的文字）
-      // 逐张压缩到 <15KB，单张请求 aiProxy 云函数（限制 40KB）不会超限
-      const AI_MAX = 15 * 1024;
+      // 文字图压缩策略：总 base64 预算 33KB（aiProxy 限制 40KB，给 JSON 留余量）
+      // 单张目标 = 总预算 / 图数，按图数动态分配；文字图优先保分辨率 + 适中质量，避免压糊丢词少段
+      const AI_TOTAL_BUDGET = 33 * 1024;
+      const perImgTarget = Math.floor(AI_TOTAL_BUDGET / Math.max(1, this.uploadImages.length));
       const aiImages = [];
       for (const img of this.uploadImages) {
         let c = img;
-        for (const [mw, q] of [[800, 0.5], [640, 0.45], [512, 0.4], [400, 0.35]]) {
+        for (const [mw, q] of [[1200,0.78],[1100,0.72],[1000,0.68],[900,0.62],[800,0.58],[720,0.52],[640,0.48],[560,0.42],[480,0.38],[400,0.34]]) {
           c = await Utils.compressImg(c, mw, q);
-          if ((c.substring(c.indexOf(',') + 1).length * 0.75) < AI_MAX) break;
+          if ((c.substring(c.indexOf(',') + 1).length * 0.75) < perImgTarget) break;
         }
         aiImages.push(c);
       }
@@ -318,7 +320,7 @@ const AIAssistant = {
           const b64 = (im || '').replace(/^data:[^;]+;base64,/, '');
           return sum + Math.ceil((b64.length || 0) * 0.75);
         }, 0);
-        const canVL = aiImages.length > 0 && aiImages.length <= 3 && totalBytes < 35 * 1024;
+        const canVL = aiImages.length > 0 && aiImages.length <= 2 && totalBytes < 33 * 1024;
         if (canVL) {
           try {
             Utils.toast('视觉模型直读图片，分析文章与题目…');
@@ -840,7 +842,7 @@ const AIAssistant = {
   /* ---------- 千问VL：英语阅读整图分析（多图：文章+题目混合，qwen-vl-max 直出结构化 JSON） ---------- */
   async callQwenEnglishAnalyzeVL(settings, images) {
     const imgs = Array.isArray(images) ? images : [images];
-    const MAX_TOTAL = 35 * 1024; // Bmob aiProxy 限制 40KB
+    const MAX_TOTAL = 33 * 1024; // Bmob aiProxy 限制 40KB，给 JSON 留余量
     let totalBytes = 0;
     const validImgs = [];
     for (const raw of imgs) {
@@ -854,12 +856,11 @@ const AIAssistant = {
     if (!validImgs.length) throw new Error('图片过大或为空，跳过视觉分析');
 
     const sysPrompt =
-      '你是考研英语二阅读老师。用户上传了 ' + validImgs.length + ' 张图，按上传顺序排列：' +
-      '通常前几张是「文章正文（Passage）」，后面是「阅读理解题目（Questions + Options）」。' +
+      '你是考研英语二阅读老师。用户上传了 ' + validImgs.length + ' 张图，按上传顺序排列（可能是「文章正文」与「阅读理解题目」混合，先后顺序不定）。请逐图阅读，自行区分哪部分是文章、哪部分是题目。' +
       '请逐字阅读所有图片，输出严格 JSON（不要任何额外文字、不要 Markdown 代码块、不要解释）：\n' +
       '{\n' +
       '  "summary": "用中文概括文章主旨与段落结构（2-4 句）",\n' +
-      '  "article": "纯文章正文（剔除所有题号、题干、选项 A./B./C./D.；按原图段落顺序拼接；保留完整段落，不要翻译成中文，不要添加原文中没有的内容）",\n' +
+      '  "article": "纯文章正文（无论出现在第几张图中，只提取纯文章段落，剔除所有题号、题干、选项 A./B./C./D.）。【逐字完整转录】：必须按原图段落顺序拼接、用换行分隔段落；不得意译、不得添加原文没有的内容、更不得省略或截断任何句子——即使文章很长也要一次性完整输出。保留英文原文，不要翻译。",\n' +
       '  "questions": [\n' +
       '    {\n' +
       '      "no": "题号，如 21、22、(A)、(B)",\n' +
@@ -893,7 +894,7 @@ const AIAssistant = {
           { role: 'system', content: sysPrompt },
           { role: 'user', content: userContent }
         ],
-        max_tokens: 4000,
+        max_tokens: 6000,
         temperature: 0.2
       })
     });

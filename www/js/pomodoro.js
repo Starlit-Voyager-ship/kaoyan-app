@@ -13,12 +13,11 @@ const Pomodoro = {
 
   init() {
     this.bindEvents();
-    this.loadTodos();
     this.loadTasks();
     this.loadTodayStats();
-    this.renderTodos();
     this.renderTasks();
     this.updateStatsView();
+    this.loadTodos();   // 异步：云端优先加载，结束内部 renderTodos
     // 默认进入"待办"面板（HTML 已 active，无需 switchPanel）
   },
 
@@ -72,29 +71,44 @@ const Pomodoro = {
     if (name === 'stats') this.updateStatsView();
   },
 
-  /* ---------- 待办 ---------- */
-  loadTodos() {
+  /* ---------- 待办（每日快捷待办 · 云端双端同步） ---------- */
+  async loadTodos() {
     const user = Store.getCurrentUser();
-    const key = `pomo_todos_${user || 'guest'}`;
+    const id = `pomo_todos_${user || 'guest'}`;
+    let items = null;
+    // 1) 云端优先（双端同步关键）
     try {
-      this.todos = JSON.parse(localStorage.getItem(key)) || [];
-    } catch (e) {
-      this.todos = [];
+      const all = await Store.getUserData('pomo_todos', user || 'guest');
+      const rec = (all || []).find(r => r.id === id);
+      if (rec && Array.isArray(rec.items)) items = rec.items;
+    } catch (e) { console.warn('[Pomodoro] 云端待办读取失败，转本地', e); }
+    // 2) 本地兜底（含旧版 localStorage 数据迁移）
+    if (!items) {
+      try {
+        const raw = localStorage.getItem(id);
+        if (raw) items = JSON.parse(raw) || null;
+      } catch (e) {}
     }
+    this.todos = items || [];
     if (this.todos.length === 0) {
       this.todos = [
         { id: Utils.uid(), title: '背单词', subtitle: '正向计时' },
         { id: Utils.uid(), title: '数学', subtitle: '正向计时' },
         { id: Utils.uid(), title: '英语', subtitle: '正向计时' }
       ];
-      this.saveTodos();
     }
+    this.saveTodos();      // 把云端/本地数据回写双端
+    this.renderTodos();
   },
 
-  saveTodos() {
+  async saveTodos() {
     const user = Store.getCurrentUser();
-    const key = `pomo_todos_${user || 'guest'}`;
-    localStorage.setItem(key, JSON.stringify(this.todos));
+    const id = `pomo_todos_${user || 'guest'}`;
+    // 本地即时缓存（同设备秒开）
+    try { localStorage.setItem(id, JSON.stringify(this.todos)); } catch (e) {}
+    // 云端双端同步（未登录仅写本地缓存，登录后自动回传）
+    Store.put('pomo_todos', { id, items: this.todos })
+      .catch(e => console.warn('[Pomodoro] 待办同步失败', e));
   },
 
   renderTodos() {

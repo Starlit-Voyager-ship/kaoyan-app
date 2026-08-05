@@ -84,8 +84,19 @@ const PetUI = (() => {
     setTimeout(() => p.remove(), 1300);
   }
 
-  // ---- position ----
-  function _loadPos() {
+  // ---- position（本地秒开缓存 + 云端双端同步）----
+  let _posCloudTimer = null;
+  async function _loadPos() {
+    const user = Store.getCurrentUser();
+    // 1) 云端优先（跨设备一致）
+    if (user) {
+      try {
+        const all = await Store.getUserData('pet_pos', user);
+        const rec = (all || []).find(r => r.id === 'pet_pos_' + user);
+        if (rec && typeof rec.x === 'number' && typeof rec.y === 'number') return { x: rec.x, y: rec.y };
+      } catch (e) {}
+    }
+    // 2) 本地兜底
     try {
       const raw = localStorage.getItem(POS_KEY);
       if (raw) {
@@ -95,8 +106,18 @@ const PetUI = (() => {
     } catch (e) {}
     return null;
   }
+  function _savePosCloud() {
+    if (_posCloudTimer) clearTimeout(_posCloudTimer);
+    _posCloudTimer = setTimeout(() => {
+      const user = Store.getCurrentUser();
+      if (!user) return;
+      Store.put('pet_pos', { id: 'pet_pos_' + user, x: _x, y: _y })
+        .catch(() => {});
+    }, 800);
+  }
   function _savePos() {
     try { localStorage.setItem(POS_KEY, JSON.stringify({ x: _x, y: _y })); } catch (e) {}
+    _savePosCloud();   // 防抖写云端（拖拽/漫游结束后落盘）
   }
   function _applyPos() {
     if (!_elPet) return;
@@ -656,7 +677,7 @@ const PetUI = (() => {
     _elPet.style.zIndex = Z_PET;
     _elPet.style.cursor = 'grab';
 
-    const saved = _loadPos();
+    const saved = await _loadPos();
     if (saved) {
       _x = saved.x; _y = saved.y;
     } else {

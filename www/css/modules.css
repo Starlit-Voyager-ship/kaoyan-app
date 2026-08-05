@@ -880,7 +880,6 @@
 
 /* 背词计划统计面板 */
 .vocab-plan-card {
-  background: var(--glass-bg-heavy);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
@@ -958,6 +957,120 @@
   cursor: pointer;
 }
 .firekeep-owned { font-size: 0.78rem; color: var(--text-light); }
+
+/* 背单词：通用设置区 + 准备开始/学习中分层视图 */
+.learn-global-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 4px 4px;
+  border-bottom: 1px dashed var(--border-light, #e3e8ef);
+  margin-bottom: 8px;
+}
+.learn-settings {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.learn-settings-spacer { flex: 1; }
+.learn-settings-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* 准备开始视图：白玻璃卡片，居中突出 */
+.vocab-learn-prepare {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 8px 0;
+}
+.prepare-card {
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl, 18px);
+  padding: 24px 18px 22px;
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.prepare-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(95,158,180,0.12);
+  color: var(--primary, #5A8F9E);
+  margin-bottom: 12px;
+}
+.prepare-icon .ico { width: 30px; height: 30px; }
+.prepare-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text, #2c3e50);
+  margin: 0 0 4px;
+}
+.prepare-sub {
+  font-size: 0.82rem;
+  color: var(--text-light, #6b7280);
+  margin: 0 0 18px;
+}
+.prepare-task-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 18px;
+  padding: 14px 6px;
+  background: var(--bg-soft, #f4f6fa);
+  border-radius: var(--radius-md, 12px);
+  flex-wrap: nowrap;
+}
+.prepare-task-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 56px;
+}
+.prepare-task-plus,
+.prepare-task-eq {
+  font-size: 1rem;
+  color: var(--text-light, #6b7280);
+  padding-bottom: 14px;
+}
+.prepare-num {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--primary, #5A8F9E);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.prepare-task-total .prepare-num {
+  color: var(--success, #2e9e5b);
+  font-size: 1.8rem;
+}
+.prepare-label {
+  font-size: 0.74rem;
+  color: var(--text-light, #6b7280);
+  margin-top: 2px;
+}
+.prep-start-btn {
+  font-size: 1rem;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+}
+.prepare-hint {
+  font-size: 0.76rem;
+  color: var(--text-tertiary, #9ca3af);
+  margin: 0;
+  line-height: 1.5;
+}
 
 /* 过滤熟词入口 */
 .learn-filter-row {

@@ -86,9 +86,10 @@ const app = {
         this.renderMine();
         break;
       case 'vocab':
-        Vocabulary.startLearning();
+        // 不自动开始：用户必须主动点「开始背单词」才进入学习状态
         Vocabulary.renderVocabList('all');
         Vocabulary.renderWrongList();
+        if (typeof Vocabulary._syncLearningMode === 'function') Vocabulary._syncLearningMode();
         break;
       case 'articles':
         Articles.renderList();

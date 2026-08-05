@@ -61,12 +61,14 @@ const Vocabulary = {
   _sparkOn: false,    // 火花是否点亮
   _fireKeepOwned: 0,  // 持有续火卡数量
   _fireKeepWeekBuy: 0,// 本周已购数量
+  _learningStarted: false, // 本会话是否已开始学习（控制 prep/active 视图切换）
 
   init() {
     this.bindEvents();
     this._restoreSpeedUI();
     this.renderVocabList('all', 'all');
     this._initPlanAndStreak();
+    this._syncLearningMode();        // 默认进入「准备开始」状态
   },
 
   async _initPlanAndStreak() {
@@ -75,6 +77,7 @@ const Vocabulary = {
       await this.loadStreak();
       await this.renderPlanStats();
       this._refreshFireKeepUI();
+      this._updatePrepareSummary();           // plan 加载完后，把今日任务摘要同步进 prepare 视图
       if (typeof app !== 'undefined' && app.updateHomeStats) app.updateHomeStats();
     } catch (e) { /* 统计失败不阻塞 */ }
   },
@@ -118,6 +121,9 @@ const Vocabulary = {
     document.getElementById('vocab-start-btn').addEventListener('click', startLearningFlow);
     const topStart = document.getElementById('vocab-start-btn-top');
     if (topStart) topStart.addEventListener('click', startLearningFlow);
+    // learn 准备视图里的「开始背单词」按钮（首次学习或断点续学共用）
+    const learnStart = document.getElementById('vocab-start-btn-learn');
+    if (learnStart) learnStart.addEventListener('click', startLearningFlow);
 
     // 单词操作
     document.getElementById('word-know').addEventListener('click', () => this.markKnown());
@@ -203,13 +209,49 @@ const Vocabulary = {
     document.querySelectorAll('.vocab-panel').forEach(p => p.classList.toggle('active', p.id === 'vocab-' + tabName));
     if (tabName === 'all') this.renderVocabList('all', this.currentSource);
     if (tabName === 'wrong') this.renderWrongList();
-    if (tabName === 'learn') { this._restoreSpeedUI(); this._refreshCheckinBtn(); this.refreshFilterTip(); }
+    if (tabName === 'learn') {
+      this._restoreSpeedUI();
+      this._refreshCheckinBtn();
+      this.refreshFilterTip();
+      this._updatePrepareSummary();
+      this._syncLearningMode();
+    }
+  },
+
+  // ---------- 背单词：视图分层（准备开始 / 学习中 / 已完成）---------
+  // 学习相关元素包在 #vocab-learn-active 里，仅 _learningStarted=true 时显示；
+  // 默认显示 #vocab-learn-prepare（今日任务摘要 + 开始按钮）。
+  _syncLearningMode() {
+    const prep = document.getElementById('vocab-learn-prepare');
+    const active = document.getElementById('vocab-learn-active');
+    if (!prep || !active) return;
+    if (this._learningStarted) {
+      prep.style.display = 'none';
+      active.style.display = '';
+    } else {
+      active.style.display = 'none';
+      prep.style.display = '';
+    }
+  },
+
+  // 把今日任务摘要（按当前 plan 计算）同步进准备视图
+  _updatePrepareSummary() {
+    const plan = this._plan || this._defaultPlan;
+    const newLimit = plan.newPerDay || 50;
+    const reviewLimit = newLimit * (plan.reviewRatio || 3);
+    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+    setText('prep-new-count', newLimit);
+    setText('prep-review-count', reviewLimit);
+    setText('prep-total-count', newLimit + reviewLimit);
   },
 
   // ---------- 背单词：艾宾浩斯选词 + 进度多端保留 ----------
   async startLearning() {
     const user = Store.getCurrentUser();
     const today = Utils.today();
+    // 同步部分：立刻切到「学习中」视图，避免点完按钮还停留在 prepare 视图
+    this._learningStarted = true;
+    this._syncLearningMode();
 
     // 1) 尝试恢复今日云端进度（刷新网页 / 换手机都从断点继续）
     const restored = await this._loadProgress(user, today);
@@ -695,8 +737,13 @@ const Vocabulary = {
   },
 
   // 今日打卡（独立每日记录，与背诵进度解耦）
+  // 硬规矩：必须先背完当日所有任务才能打卡。未完成直接拒绝。
   async checkIn() {
     if (this._checkedIn) { Utils.toast('今天已经打卡啦 ✓'); return; }
+    if (!this.completed) {
+      Utils.toast('请先完成今日背单词任务，再打卡 ✏️');
+      return;
+    }
     this._checkedIn = true;
     this._checkInTime = new Date().toISOString();
     this._refreshCheckinBtn();
@@ -743,6 +790,11 @@ const Vocabulary = {
   _refreshCheckinBtn() {
     const btn = document.getElementById('word-checkin');
     if (!btn) return;
+    // 数据错乱兜底：以前打过卡但今日任务被清空 → 视为未打卡
+    if (this._checkedIn && !this.completed) {
+      this._checkedIn = false;
+      this._checkInTime = null;
+    }
     if (this._checkedIn) {
       btn.textContent = '今日已打卡 ✓';
       btn.classList.add('checked');
@@ -1395,6 +1447,7 @@ const Vocabulary = {
     this._plan.newPerDay = n;
     await this.savePlan();
     await this.renderPlanStats();
+    this._updatePrepareSummary();
     Utils.toast('每日新词：' + n + ' 个');
   },
 
@@ -1403,6 +1456,7 @@ const Vocabulary = {
     this._plan.reviewRatio = r;
     await this.savePlan();
     await this.renderPlanStats();
+    this._updatePrepareSummary();
     Utils.toast('复习比例：1:' + r);
   },
 

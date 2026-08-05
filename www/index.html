@@ -48,7 +48,7 @@
   </script>
   <link rel="stylesheet" href="css/main.css?v=20260805c">
   <link rel="stylesheet" href="css/components.css?v=20260805b">
-  <link rel="stylesheet" href="css/modules.css?v=20260805c">
+  <link rel="stylesheet" href="css/modules.css?v=20260805d">
   <link rel="stylesheet" href="css/pet.css?v=20260804a">
   <!-- KaTeX：渲染 AI 模型返回的 LaTeX 数学公式 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
@@ -508,39 +508,6 @@
 
           <!-- 词汇表面板（默认首页） -->
           <div id="vocab-all" class="vocab-panel active">
-            <!-- 背词计划统计面板 -->
-            <div class="vocab-plan-card">
-              <div class="plan-stat-row">
-                <div class="plan-stat"><span class="plan-stat-num" id="plan-total-words">0</span><span class="plan-stat-label">总词汇</span></div>
-                <div class="plan-stat"><span class="plan-stat-num" id="plan-learned">0</span><span class="plan-stat-label">已背·含熟词</span></div>
-                <div class="plan-stat"><span class="plan-stat-num" id="plan-days">—</span><span class="plan-stat-label">预计背完</span></div>
-              </div>
-              <div class="plan-config">
-                <div class="plan-config-block">
-                  <span class="plan-config-title">每日新词</span>
-                  <div class="plan-opt-row">
-                    <button class="plan-new-opt" data-n="30">30</button>
-                    <button class="plan-new-opt" data-n="50">50</button>
-                    <button class="plan-new-opt" data-n="60">60</button>
-                    <button class="plan-new-opt" data-n="70">70</button>
-                  </div>
-                </div>
-                <div class="plan-config-block">
-                  <span class="plan-config-title">复习比例（新:复）</span>
-                  <div class="plan-opt-row">
-                    <button class="plan-ratio-opt" data-r="1">1:1</button>
-                    <button class="plan-ratio-opt" data-r="2">1:2</button>
-                    <button class="plan-ratio-opt" data-r="3">1:3</button>
-                    <button class="plan-ratio-opt" data-r="4">1:4</button>
-                    <button class="plan-ratio-opt" data-r="5">1:5</button>
-                  </div>
-                </div>
-              </div>
-              <div class="plan-summary">
-                每日任务：新词 <b id="plan-new-perday">50</b> ＋ 复习 <b id="plan-review-perday">150</b> ＝ 共 <b id="plan-total-perday">200</b> 词
-              </div>
-              <button class="btn-primary btn-block vocab-start-btn" id="vocab-start-btn-top">开始背单词</button>
-            </div>
             <div class="vocab-search">
               <input type="text" id="vocab-search-input" placeholder="搜索单词..." class="search-input">
             </div>
@@ -554,7 +521,6 @@
               <button class="src-filter-btn" data-source="reading">阅读词</button>
             </div>
             <div class="vocab-list" id="vocab-list"></div>
-            <button class="btn-primary btn-block vocab-start-btn" id="vocab-start-btn">开始背单词</button>
           </div>
 
           <!-- 背单词面板（扇贝式） -->
@@ -575,27 +541,35 @@
 
             <!-- 准备开始视图（默认显示，未点开始背单词按钮前只看到这个） -->
             <div id="vocab-learn-prepare" class="vocab-learn-prepare">
-              <div class="prepare-card">
-                <div class="prepare-icon">
-                  <svg class="ico" viewBox="0 0 24 24"><path d="M4 5h13a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H7"/><path d="M4 5v14M8 9h7M8 13h5"/></svg>
+              <div class="vocab-plan-card prepare-plan">
+                <div class="plan-stat-row">
+                  <div class="plan-stat"><span class="plan-stat-num" id="plan-total-words">0</span><span class="plan-stat-label">总词汇</span></div>
+                  <div class="plan-stat"><span class="plan-stat-num" id="plan-learned">0</span><span class="plan-stat-label">已背·含熟词</span></div>
+                  <div class="plan-stat"><span class="plan-stat-num" id="plan-days">—</span><span class="plan-stat-label">预计背完</span></div>
                 </div>
-                <h3 class="prepare-title">准备好开始今日背单词吗？</h3>
-                <p class="prepare-sub">按计划完成所有单词即可获得今日打卡 ✓</p>
-                <div class="prepare-task-row">
-                  <div class="prepare-task-item">
-                    <span class="prepare-num" id="prep-new-count">50</span>
-                    <span class="prepare-label">新词</span>
+                <div class="plan-config">
+                  <div class="plan-config-block">
+                    <span class="plan-config-title">每日新词</span>
+                    <div class="plan-opt-row">
+                      <button class="plan-new-opt" data-n="30">30</button>
+                      <button class="plan-new-opt" data-n="50">50</button>
+                      <button class="plan-new-opt" data-n="60">60</button>
+                      <button class="plan-new-opt" data-n="70">70</button>
+                    </div>
                   </div>
-                  <div class="prepare-task-plus">+</div>
-                  <div class="prepare-task-item">
-                    <span class="prepare-num" id="prep-review-count">150</span>
-                    <span class="prepare-label">复习</span>
+                  <div class="plan-config-block">
+                    <span class="plan-config-title">复习比例（新:复）</span>
+                    <div class="plan-opt-row">
+                      <button class="plan-ratio-opt" data-r="1">1:1</button>
+                      <button class="plan-ratio-opt" data-r="2">1:2</button>
+                      <button class="plan-ratio-opt" data-r="3">1:3</button>
+                      <button class="plan-ratio-opt" data-r="4">1:4</button>
+                      <button class="plan-ratio-opt" data-r="5">1:5</button>
+                    </div>
                   </div>
-                  <div class="prepare-task-eq">=</div>
-                  <div class="prepare-task-item prepare-task-total">
-                    <span class="prepare-num" id="prep-total-count">200</span>
-                    <span class="prepare-label">合计词</span>
-                  </div>
+                </div>
+                <div class="plan-summary">
+                  每日任务：新词 <b id="plan-new-perday">50</b> ＋ 复习 <b id="plan-review-perday">150</b> ＝ 共 <b id="plan-total-perday">200</b> 词
                 </div>
                 <button class="btn-primary btn-block prep-start-btn" id="vocab-start-btn-learn">开始背单词</button>
                 <p class="prepare-hint">未完成所有任务前不显示打卡按钮，打卡与火花一并保留。</p>
@@ -1009,7 +983,7 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <script src="js/config.js?v=20260804d"></script>
   <script src="js/ai-assistant.js?v=20260804g"></script>
-  <script src="js/english/vocabulary.js?v=20260805d"></script>
+  <script src="js/english/vocabulary.js?v=20260805e"></script>
   <script src="js/english/dict.js?v=20260804d"></script>
   <script src="js/english/freq.js?v=20260804d"></script>
   <script src="js/english/articles.js?v=20260804d"></script>

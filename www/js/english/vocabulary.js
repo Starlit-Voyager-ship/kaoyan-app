@@ -77,7 +77,6 @@ const Vocabulary = {
       await this.loadStreak();
       await this.renderPlanStats();
       this._refreshFireKeepUI();
-      this._updatePrepareSummary();           // plan 加载完后，把今日任务摘要同步进 prepare 视图
       if (typeof app !== 'undefined' && app.updateHomeStats) app.updateHomeStats();
     } catch (e) { /* 统计失败不阻塞 */ }
   },
@@ -116,14 +115,9 @@ const Vocabulary = {
       tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
     });
 
-    // 从词汇表进入背单词（顶部/底部两个开始按钮共用）
-    const startLearningFlow = () => { this.switchTab('learn'); this.startLearning(); };
-    document.getElementById('vocab-start-btn').addEventListener('click', startLearningFlow);
-    const topStart = document.getElementById('vocab-start-btn-top');
-    if (topStart) topStart.addEventListener('click', startLearningFlow);
-    // learn 准备视图里的「开始背单词」按钮（首次学习或断点续学共用）
+    // learn 准备视图里的「开始背单词」按钮（计划统计已合入 prepare 卡片）
     const learnStart = document.getElementById('vocab-start-btn-learn');
-    if (learnStart) learnStart.addEventListener('click', startLearningFlow);
+    if (learnStart) learnStart.addEventListener('click', () => { this.switchTab('learn'); this.startLearning(); });
 
     // 单词操作
     document.getElementById('word-know').addEventListener('click', () => this.markKnown());
@@ -213,7 +207,6 @@ const Vocabulary = {
       this._restoreSpeedUI();
       this._refreshCheckinBtn();
       this.refreshFilterTip();
-      this._updatePrepareSummary();
       this._syncLearningMode();
     }
   },
@@ -232,17 +225,6 @@ const Vocabulary = {
       active.style.display = 'none';
       prep.style.display = '';
     }
-  },
-
-  // 把今日任务摘要（按当前 plan 计算）同步进准备视图
-  _updatePrepareSummary() {
-    const plan = this._plan || this._defaultPlan;
-    const newLimit = plan.newPerDay || 50;
-    const reviewLimit = newLimit * (plan.reviewRatio || 3);
-    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
-    setText('prep-new-count', newLimit);
-    setText('prep-review-count', reviewLimit);
-    setText('prep-total-count', newLimit + reviewLimit);
   },
 
   // ---------- 背单词：艾宾浩斯选词 + 进度多端保留 ----------
@@ -1447,7 +1429,6 @@ const Vocabulary = {
     this._plan.newPerDay = n;
     await this.savePlan();
     await this.renderPlanStats();
-    this._updatePrepareSummary();
     Utils.toast('每日新词：' + n + ' 个');
   },
 
@@ -1456,7 +1437,6 @@ const Vocabulary = {
     this._plan.reviewRatio = r;
     await this.savePlan();
     await this.renderPlanStats();
-    this._updatePrepareSummary();
     Utils.toast('复习比例：1:' + r);
   },
 

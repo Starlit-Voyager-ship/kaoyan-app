@@ -690,6 +690,7 @@ const AIAssistant = {
         'A3) 必须删除这些行：纯页码（行内只有 1-4 位数字）、『2007 年考研试题 第 N 页』、『20XX 年全国硕士研究生入学统一考试』、『Section X / Part X / Reading Comprehension / Use of English』单独成行的标题、试卷代号/科目代码等页眉页脚；\n' +
         'A4) 段首大标题（如 Text 4、Reading Comprehension (Text 4)）可保留为单独一行，前后用空行隔开；\n' +
         'A5) 段内的标点、连词（and/or/but）必须原样保留，不要修改、不要补字、不要漏字。\n' +
+        'A6) 【输出前自检】返回 JSON 前必须自检 article 字符串：若其中不包含 「\\n\\n」（双换行）且 article 长度 > 200，必须先按段落标志（句末标点 + 空格 + 大写新句首）切分后再返回。最终 article 必须显式含 \\n\\n；\n' +
         '【题目判定规则】\n' +
         '1) 题目特征词：What / Which / Why / How / According to the passage / The author / It can be inferred / In the author\'s opinion / We can learn 等开头的句子为题干；\n' +
         '2) 选项特征：紧随题干的下文以 A./B./C./D. 或 a)/b)/c)/d) 开头的若干行；\n' +
@@ -756,12 +757,20 @@ const AIAssistant = {
     s = kept.join('\n');
     // 3) 规范化段落分隔：连续 2 个以上空行折叠成 1 个空行（即段间 \n\n）
     s = s.replace(/\n{3,}/g, '\n\n');
-    // 4) 兜底：若全文无 \n\n 且长度 > 600，按英文句末 + 大写新句首切分
-    if (!s.includes('\n\n') && s.length > 600) {
-      let para = s.replace(/([.!?])\s+([A-Z][a-z])/g, '$1\n\n$2');
-      const parts = para.split('\n\n');
-      if (parts.length >= 3) {
-        // 合并相邻短段直到 <= 6 段
+    // 4) 兜底切段：若全文无 \n\n 且长度 > 200，主动按段落标志切分
+    if (!s.includes('\n\n') && s.length > 200) {
+      const isChinese = /[一-鿿]/.test(s);
+      let para;
+      if (isChinese) {
+        // 中文：按句号/问号/叹号 + 空格/换行切
+        para = s.replace(/([。！？])\s*/g, '$1\n\n');
+      } else {
+        // 英文：句末标点 + 空格 + （引号或大写新句首）→ 切段
+        para = s.replace(/([.!?])\s+(?=["'“”]?[A-Z])/g, '$1\n\n');
+      }
+      let parts = para.split('\n\n').map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        // 收敛段数：目标 4-6 段，超出则合并相邻短段
         while (parts.length > 6) {
           let bestI = 0, bestLen = Infinity;
           for (let i = 0; i < parts.length - 1; i++) {

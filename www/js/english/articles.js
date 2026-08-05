@@ -362,9 +362,27 @@ const Articles = {
     if (!contentEl || !this.currentArticle) return;
     // 段落切分：优先按空行（\n\n）切，兼容单 \n；段内空白折叠为单空格
     const raw = (this.currentArticle.content || '').replace(/\r\n?/g, '\n');
-    const paragraphs = raw.split(/\n\s*\n+/)
+    let paragraphs = raw.split(/\n\s*\n+/)
       .map(p => p.replace(/\s+/g, ' ').trim())
       .filter(Boolean);
+    // 【前端兜底】若 AI 输出的 article 仍是单段（无 \n\n），前端再按句切一次
+    if (paragraphs.length === 1 && paragraphs[0].length > 200) {
+      const single = paragraphs[0];
+      const isChinese = /[一-鿿]/.test(single);
+      const splitRe = isChinese
+        ? /([。！？])\s*/g
+        : /([.!?])\s+(?=["'“”]?[A-Z])/g;
+      const parts = single.split(splitRe);
+      // 切完是 [句子, 标点, 句子, 标点, ...]，重新合成「句子+标点」单元
+      const merged = [];
+      for (let i = 0; i < parts.length; i += 2) {
+        const txt = parts[i] || '';
+        const punct = parts[i + 1] || '';
+        const cell = (txt + punct).trim();
+        if (cell) merged.push(cell);
+      }
+      if (merged.length >= 2) paragraphs = merged;
+    }
     if (!paragraphs.length) { contentEl.innerHTML = ''; return; }
 
     const transParas = (this._translationVisible && this._rawTranslation)

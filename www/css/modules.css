@@ -2039,6 +2039,7 @@
 .reader-en {
   margin: 0;
   line-height: 1.9;
+  text-indent: 2em; /* 段首空两字（用户明确要求） */
 }
 .reader-translation {
   color: var(--text-secondary);

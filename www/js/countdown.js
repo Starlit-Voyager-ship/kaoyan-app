@@ -124,19 +124,25 @@ const Countdown = (() => {
                  placeholder="如：距离考研还有"
                  style="padding:10px 12px;border:1px solid var(--glass-border);border-radius:10px;font-size:0.95rem;font-family:inherit;background:var(--glass-bg-heavy);color:var(--text)" />
           <label style="font-size:0.85rem;color:var(--text-secondary)">目标日期</label>
-          <input id="cd-date" type="date" value="${curDate}"
-                 style="padding:10px 12px;border:1px solid var(--glass-border);border-radius:10px;font-size:0.95rem;font-family:inherit;background:var(--glass-bg-heavy);color:var(--text)" />
+          <button type="button" id="cd-date-btn" class="date-pill" data-date-pill data-target="cd-date-value" data-fmt="YYYY/MM/DD"
+                  style="padding:10px 14px;border:1px solid var(--glass-border);border-radius:10px;font-size:0.95rem;font-family:inherit;background:var(--glass-bg-heavy);color:var(--text);align-self:flex-start">
+            <svg class="ico date-pill-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
+            <span class="date-pill-text">${curDate ? curDate.replace(/-/g,'/') : '选择日期'}</span>
+          </button>
+          <input type="hidden" id="cd-date-value" value="${curDate}">
         </div>`;
       const footer = `
         <button class="btn-danger" id="cd-clear" style="margin-right:auto">清除</button>
         <button class="btn-outline" onclick="Utils.hideModal()">取消</button>
         <button class="btn-primary" id="cd-save">保存</button>`;
       Utils.showModal('设置倒数日', body, footer);
+      // 绑定自定义日期选择器
+      Widgets.init(document.getElementById('modal-body'));
 
       const saveBtn = document.getElementById('cd-save');
       saveBtn.onclick = async () => {
         const name = document.getElementById('cd-name').value.trim();
-        const date = document.getElementById('cd-date').value;
+        const date = document.getElementById('cd-date-value').value;
         if (!date) { Utils.toast('请选择日期'); return; }
         if (!name) { Utils.toast('请填写名称'); return; }
         await save(name, date);

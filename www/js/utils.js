@@ -134,6 +134,17 @@ const Utils = {
       hash |= 0;
     }
     return hash.toString(16);
+  },
+
+  // HTML 转义（用户输入塞进 innerHTML 时用）
+  _escapeHtml(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 };
 

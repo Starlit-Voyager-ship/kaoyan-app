@@ -10,8 +10,13 @@ const Reports = {
   init() {
     this.bindEvents();
     // 初始化日期选择器为今天
-    const dateInput = document.getElementById('daily-date-input');
-    if (dateInput) dateInput.value = Utils.today();
+    const hidden = document.getElementById('daily-date-value');
+    const btn = document.getElementById('daily-date-btn');
+    if (hidden) hidden.value = Utils.today();
+    if (btn) {
+      const textEl = btn.querySelector('.date-pill-text');
+      if (textEl) textEl.textContent = Widgets.formatDate(Utils.today(), 'YYYY/MM/DD');
+    }
     // 初始化周显示
     this.updateWeekLabel();
     // 自动加载当前面板的缓存报告
@@ -32,8 +37,8 @@ const Reports = {
       });
     });
 
-    // 日报：日期切换时加载缓存
-    document.getElementById('daily-date-input')?.addEventListener('change', () => this.loadCachedDaily());
+    // 日报：日期切换时加载缓存（自定义日期 pill 已经在 change 时触发此逻辑）
+    document.getElementById('daily-date-value')?.addEventListener('change', () => this.loadCachedDaily());
 
     // 生成按钮
     document.getElementById('generate-daily')?.addEventListener('click', () => this.generateDaily());
@@ -86,7 +91,7 @@ const Reports = {
   // ---- 日报 ----
 
   async loadCachedDaily() {
-    const dateInput = document.getElementById('daily-date-input');
+    const dateInput = document.getElementById('daily-date-value');
     const date = dateInput?.value || Utils.today();
     const cached = await this.getCachedReport('daily', date);
     // 旧版缓存缺 prev / last7 字段 → 直接当无缓存，逼一次重新生成
@@ -97,7 +102,7 @@ const Reports = {
       // 同一日期重生成（覆盖旧缓存）
       document.getElementById('daily-report-content').innerHTML =
         '<p class="empty-hint" style="padding:24px 0;text-align:center;color:var(--text-light)">正在重新生成今日报表…</p>';
-      const dateInput = document.getElementById('daily-date-input');
+      const dateInput = document.getElementById('daily-date-value');
       // 直接复用 generateDaily（它会读 dateInput 的值覆盖缓存）
       await this.generateDaily();
     }
@@ -105,7 +110,7 @@ const Reports = {
 
   async generateDaily() {
     const user = Store.getCurrentUser();
-    const dateInput = document.getElementById('daily-date-input');
+    const dateInput = document.getElementById('daily-date-value');
     const targetDate = dateInput?.value || Utils.today();
 
     // 昨日对比：只与 targetDate - 1 对比

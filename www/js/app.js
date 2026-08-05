@@ -14,6 +14,9 @@ const app = {
     // 初始化认证系统
     Auth.init();
 
+    // 升级自定义控件（日期 pill / 下拉），替代 Android WebView 原生 UI
+    Widgets.init();
+
     // 挂载桌面宠物（在所有内容层之上，可拖拽、漫游）
     PetUI.mount();
 

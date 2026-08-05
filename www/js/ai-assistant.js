@@ -311,44 +311,36 @@ const AIAssistant = {
         this._afterUploadSuccess();
       } else if (v.type === 'english') {
         const title = source ? source : ('AI上传文章 ' + new Date().toLocaleDateString());
-        // 优先：qwen-vl-max 直看多图，输出结构化 JSON（文章/题目分离更准）
-        // 兜底：老 OCR + 文本模型
+        // 两段式管线（解决「长文识别不全 / 缺词少段」）：
+        //  Stage1 视觉模型只做「逐字抄写」（保真优先，不输出 JSON，避免长文丢字）
+        //  Stage2 文本模型把干净转录拆成 {summary, article, questions[]}
         let analysis = '';
         let articleText = v.text || '';
-        // 估算 aiImages 总 base64 字节数
-        const totalBytes = aiImages.reduce((sum, im) => {
-          const b64 = (im || '').replace(/^data:[^;]+;base64,/, '');
-          return sum + Math.ceil((b64.length || 0) * 0.75);
-        }, 0);
-        const canVL = aiImages.length > 0 && aiImages.length <= 2 && totalBytes < 33 * 1024;
-        if (canVL) {
-          try {
-            Utils.toast('视觉模型直读图片，分析文章与题目…');
-            const parsed = await this.callQwenEnglishAnalyzeVL(settings, aiImages);
-            analysis = JSON.stringify(parsed);
-            // 视觉分析里 article 字段就是纯文章正文——用它作 content
-            if (parsed.article && parsed.article.trim()) articleText = parsed.article;
-          } catch (e) {
-            console.warn('[上传归档] VL 视觉分析失败，回退到文本模型：', e.message);
-            Utils.toast('视觉解析失败，回退到文本模型…');
+        try {
+          Utils.toast('正在逐字识别文章与题目…');
+          const transcribeImages = await this._buildTranscribeImages();
+          const transcript = await this.callQwenEnglishTranscribe(settings, transcribeImages);
+          const parsed = await this.callQwenEnglishAnalyze(settings, transcript);
+          analysis = parsed ? JSON.stringify(parsed) : '';
+          // 优先用结构化 article；若没拆出 article 但转录很长，拿转录全文兜底，保证阅读页有内容
+          if (parsed && parsed.article && parsed.article.trim()) {
+            articleText = parsed.article;
+          } else if (transcript && transcript.trim().length > 200) {
+            articleText = transcript;
+          }
+        } catch (e) {
+          console.warn('[上传归档] 两段式解析失败，回退 OCR 文本：', e.message);
+          if (v.text) {
             try {
               const parsed2 = await this.callQwenEnglishAnalyze(settings, v.text);
               analysis = parsed2 ? JSON.stringify(parsed2) : '';
-              if (parsed2 && parsed2.article) articleText = parsed2.article;
+              if (parsed2 && parsed2.article && parsed2.article.trim()) articleText = parsed2.article;
+              else if (v.text.trim().length > 200) articleText = v.text;
             } catch (e2) {
-              console.warn('[上传归档] 英语解析生成失败，仅保存文章：', e2.message);
+              console.warn('[上传归档] 文本模型解析失败，仅保存文章：', e2.message);
               Utils.toast('阅读解析生成失败（' + e2.message + '），文章已保存');
             }
-          }
-        } else if (v.text) {
-          // 文本模型兜底
-          try {
-            Utils.toast('正在生成阅读解析…');
-            const parsed = await this.callQwenEnglishAnalyze(settings, v.text);
-            analysis = parsed ? JSON.stringify(parsed) : '';
-            if (parsed && parsed.article) articleText = parsed.article;
-          } catch (e) {
-            console.warn('[上传归档] 英语解析生成失败，仅保存文章：', e.message);
+          } else {
             Utils.toast('阅读解析生成失败（' + e.message + '），文章已保存');
           }
         }
@@ -665,7 +657,7 @@ const AIAssistant = {
   /* ---------- 千问文本：英语阅读解析（纯文章正文 + 概括 + 逐题答案） ---------- */
   async callQwenEnglishAnalyze(settings, text) {
     const messages = [
-      { role: 'system', content: '你是考研英语二阅读老师。针对用户提供的英语内容（可能含文章正文和阅读理解题目），请输出严格 JSON：\n' +
+      { role: 'system', content: '你是考研英语二阅读老师。下面是一段「已逐字识别的英文原文」（可能同时含文章正文和阅读理解题目，也可能只有文章或只有题目）。请严格拆分并输出 JSON：\n' +
         '{\n' +
         '  "summary": "用中文概括文章主旨与段落结构（2-4句）",\n' +
         '  "article": "纯文章正文（必须从用户提供的 text 中提取，剔除所有题目、题号、选项 A./B./C./D.、题号 21./22./23. 等干扰项；保留完整段落、不要添油加醋、不要翻译成中文；若用户提供的 text 里看不到独立文章段落只有题目，请填空字符串 \"\"）",\n' +
@@ -684,16 +676,90 @@ const AIAssistant = {
         '2) article 字段必须是「纯净的文章正文」，与 questions 完全不重叠，绝不能含题目/题号/选项；\n' +
         '3) explanation 字段仅针对本题，绝不能复制文章段落；\n' +
         '4) 若 text 中无题目，questions 返回空数组 []；\n' +
-        '只返回 JSON，不要任何额外文字、解释、Markdown 代码块。' },
+        '只返回 JSON 对象本体，不要任何前后缀文字、解释或 Markdown 代码块。' },
       { role: 'user', content: text }
     ];
-    const raw = await this.callQwenChat(settings, messages, '千问英语解析');
+    const raw = await this.callQwenChat(settings, messages, '千问英语解析', { maxTokens: 6000 });
     try {
       const m = raw.match(/\{[\s\S]*\}/);
       return JSON.parse(m ? m[0] : raw);
     } catch (e) {
       return { summary: raw, article: '', questions: [] };
     }
+  },
+
+  /* ---------- 千问VL：英语阅读「逐字转录」（仅抄写，不做结构化输出） ---------- */
+  async callQwenEnglishTranscribe(settings, images) {
+    const imgs = Array.isArray(images) ? images : [images];
+    const MAX_TOTAL = 36 * 1024; // aiProxy 40KB 限制；转录阶段 prompt 极小，把更多字节留给图片
+    let total = 0;
+    const valid = [];
+    for (const raw of imgs) {
+      const b64 = (typeof raw === 'string') ? raw.replace(/^data:[^;]+;base64,/, '') : '';
+      const bytes = Math.ceil((b64.length || 0) * 0.75);
+      if (total + bytes > MAX_TOTAL) break;
+      total += bytes;
+      valid.push(/^data:/.test(raw) ? raw : 'data:image/jpeg;base64,' + raw);
+    }
+    if (!valid.length) throw new Error('图片过大或为空，跳过转录');
+
+    const userContent = [
+      ...valid.map(u => ({ type: 'image_url', image_url: { url: u } })),
+      { type: 'text', text:
+        '请逐字转录以下图片中的全部英文文字，严格按阅读/排版顺序，保留原有段落与换行。规则：\n' +
+        '1) 只输出转录出的原文文本本身，不要加任何说明、不要总结、不要分析、不要翻译；\n' +
+        '2) 文章正文原样保留（英文），题目也原样保留（题干+选项 A./B./C./D.）；\n' +
+        '3) 不要遗漏任何一行、任何一段，即使文字很多也要完整转录；\n' +
+        '4) 若某张图局部看不清，也请尽量转录可见部分，不要整段留空。\n' +
+        '现在开始转录：' }
+    ];
+
+    const url = `${settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`;
+    const res = await this.proxyFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.qwenKey}` },
+      body: JSON.stringify({
+        model: 'qwen-vl-max',
+        messages: [{ role: 'user', content: userContent }],
+        max_tokens: 6000,
+        temperature: 0.1
+      })
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      let detail = '';
+      try { const j = JSON.parse(txt); detail = j.error?.message || j.message || ''; } catch (_) {}
+      throw new Error('千问VL转录：' + (detail || ('HTTP ' + res.status)));
+    }
+    const data = await res.json();
+    const raw = data.choices[0].message.content;
+    console.log('[英语转录] raw.len=' + String(raw || '').length);
+    return String(raw || '').trim();
+  },
+
+  // 为转录阶段构建高质量、低密度的图片集：长图竖向切分（≤2 张时）+ 按总预算压缩
+  async _buildTranscribeImages() {
+    const raws = this.uploadImages || [];
+    if (!raws.length) return [];
+    // 只在上传 ≤2 张时做竖向切分（降低单图文字密度，提升逐字保真）；过多图则直接压缩全图避免过度碎片化
+    const doSplit = raws.length <= 2;
+    const pieces = [];
+    for (const img of raws) {
+      const halves = doSplit ? (await Utils.cropImageHalves(img)) : [img];
+      for (const h of halves) pieces.push(h);
+    }
+    const BUDGET = 36 * 1024;
+    const perTarget = Math.floor(BUDGET / Math.max(1, pieces.length));
+    const out = [];
+    for (const p of pieces) {
+      let c = p;
+      for (const [mw, q] of [[1400,0.82],[1200,0.78],[1100,0.74],[1000,0.7],[900,0.66],[800,0.6],[700,0.54],[600,0.5],[500,0.44],[400,0.4]]) {
+        c = await Utils.compressImg(c, mw, q);
+        if ((c.substring(c.indexOf(',') + 1).length * 0.75) < perTarget) break;
+      }
+      out.push(c);
+    }
+    return out;
   },
 
   /* ---------- 跨平台 API 请求：App 直连，浏览器走本地代理 ---------- */
@@ -837,85 +903,6 @@ const AIAssistant = {
     } catch (e) {
       return null;
     }
-  },
-
-  /* ---------- 千问VL：英语阅读整图分析（多图：文章+题目混合，qwen-vl-max 直出结构化 JSON） ---------- */
-  async callQwenEnglishAnalyzeVL(settings, images) {
-    const imgs = Array.isArray(images) ? images : [images];
-    const MAX_TOTAL = 33 * 1024; // Bmob aiProxy 限制 40KB，给 JSON 留余量
-    let totalBytes = 0;
-    const validImgs = [];
-    for (const raw of imgs) {
-      const b64 = (typeof raw === 'string') ? raw.replace(/^data:[^;]+;base64,/, '') : '';
-      const bytes = Math.ceil((b64.length || 0) * 0.75);
-      if (totalBytes + bytes > MAX_TOTAL) break;
-      totalBytes += bytes;
-      const url = /^data:/.test(raw) ? raw : 'data:image/jpeg;base64,' + raw;
-      validImgs.push(url);
-    }
-    if (!validImgs.length) throw new Error('图片过大或为空，跳过视觉分析');
-
-    const sysPrompt =
-      '你是考研英语二阅读老师。用户上传了 ' + validImgs.length + ' 张图，按上传顺序排列（可能是「文章正文」与「阅读理解题目」混合，先后顺序不定）。请逐图阅读，自行区分哪部分是文章、哪部分是题目。' +
-      '请逐字阅读所有图片，输出严格 JSON（不要任何额外文字、不要 Markdown 代码块、不要解释）：\n' +
-      '{\n' +
-      '  "summary": "用中文概括文章主旨与段落结构（2-4 句）",\n' +
-      '  "article": "纯文章正文（无论出现在第几张图中，只提取纯文章段落，剔除所有题号、题干、选项 A./B./C./D.）。【逐字完整转录】：必须按原图段落顺序拼接、用换行分隔段落；不得意译、不得添加原文没有的内容、更不得省略或截断任何句子——即使文章很长也要一次性完整输出。保留英文原文，不要翻译。",\n' +
-      '  "questions": [\n' +
-      '    {\n' +
-      '      "no": "题号，如 21、22、(A)、(B)",\n' +
-      '      "question": "题干原文（仅题干，不要把 A/B/C/D 选项文字也塞进来）",\n' +
-      '      "options": ["A. ...","B. ...","C. ...","D. ..."],\n' +
-      '      "answer": "正确选项（如 C 或 C. xxx），唯一明确",\n' +
-      '      "explanation": "解析：为何选它、各干扰项错在哪。不要重复题干，不要复制文章段落。"\n' +
-      '    }\n' +
-      '  ]\n' +
-      '}\n' +
-      '【强约束】\n' +
-      '1) 输出必须是合法 JSON（双引号、无尾逗号、无注释）；\n' +
-      '2) article 与 questions 互不重叠——article 中绝不能含题号/题干/选项文字；\n' +
-      '3) explanation 不得复制文章段落，只针对本题解析；\n' +
-      '4) questions 数组按原图题号顺序；\n' +
-      '5) 若图中没有题目，questions 返回 []；若图中没有文章，article 返回 ""；\n' +
-      '6) 只返回 JSON 对象本体，不要任何前后缀文字。';
-
-    const userContent = [
-      ...validImgs.map(u => ({ type: 'image_url', image_url: { url: u } })),
-      { type: 'text', text: '请按系统指令严格输出 JSON。' }
-    ];
-
-    const url = `${settings.qwenBase || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`;
-    const res = await this.proxyFetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.qwenKey}` },
-      body: JSON.stringify({
-        model: 'qwen-vl-max',
-        messages: [
-          { role: 'system', content: sysPrompt },
-          { role: 'user', content: userContent }
-        ],
-        max_tokens: 6000,
-        temperature: 0.2
-      })
-    });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      let detail = '';
-      try { const j = JSON.parse(txt); detail = j.error?.message || j.message || ''; } catch (_) {}
-      throw new Error('千问VL英语解析：' + (detail || ('HTTP ' + res.status)));
-    }
-    const data = await res.json();
-    const raw = data.choices[0].message.content;
-    console.log('[VL英语解析] raw.len=' + String(raw || '').length + ' preview=' + String(raw || '').slice(0, 200));
-    const parsed = this.parseJSONStrict(raw);
-    if (!parsed || typeof parsed !== 'object') {
-      throw new Error('VL 返回非结构化 JSON：' + String(raw).slice(0, 120));
-    }
-    if (typeof parsed.article !== 'string') parsed.article = '';
-    if (!Array.isArray(parsed.questions)) parsed.questions = [];
-    if (typeof parsed.summary !== 'string') parsed.summary = '';
-    console.log('[VL英语解析] OK article=' + parsed.article.length + ' questions=' + parsed.questions.length);
-    return parsed;
   },
 
   /* ---------- 通用：历史 / 渲染 / 错误 ---------- */

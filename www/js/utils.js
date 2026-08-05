@@ -125,6 +125,32 @@ const Utils = {
     });
   },
 
+  // 长图竖向切分：高/宽比过大时切成上下两半，降低单图文字密度，提升 OCR 逐字保真
+  // 返回数组（1 张或 2 张 dataURL）。切分失败/比例正常时返回原图。
+  cropImageHalves(base64) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const ratio = img.height / Math.max(1, img.width);
+        if (ratio < 1.4) { resolve([base64]); return; }
+        try {
+          const half = Math.floor(img.height / 2);
+          const mk = (sy, sh) => {
+            const c = document.createElement('canvas');
+            c.width = img.width; c.height = sh;
+            c.getContext('2d').drawImage(img, 0, sy, img.width, sh, 0, 0, img.width, sh);
+            return c.toDataURL('image/jpeg', 0.9);
+          };
+          resolve([mk(0, half), mk(half, img.height - half)]);
+        } catch (_) {
+          resolve([base64]);
+        }
+      };
+      img.onerror = () => resolve([base64]);
+      img.src = base64;
+    });
+  },
+
   // 简单的hash函数（用于密码存储演示）
   simpleHash(str) {
     let hash = 0;

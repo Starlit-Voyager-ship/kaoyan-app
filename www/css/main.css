@@ -730,7 +730,7 @@ h3 svg, h4 svg { vertical-align: middle; }
     grid-template-columns: repeat(7, 1fr);
   }
   .home-stat-row {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

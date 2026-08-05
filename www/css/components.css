@@ -108,7 +108,7 @@
 /* 次级统计：3 等分卡（毛玻璃） */
 .home-stat-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-bottom: 10px;
 }
@@ -140,6 +140,11 @@
   font-size: var(--t-caption);
   color: var(--text-tertiary);
 }
+
+/* 火花状态（连续打卡） */
+.streak-spark { transition: color .25s, filter .25s; }
+.streak-spark.spark-on { color: #FF7A3C; filter: drop-shadow(0 0 4px rgba(255,122,60,.6)); }
+.streak-spark.spark-off { color: #B7C0CC; }
 
 /* 区块标题 */
 .home-section-title {

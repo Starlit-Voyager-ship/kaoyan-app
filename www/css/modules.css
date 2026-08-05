@@ -878,6 +878,87 @@
 .study-btn-next { margin-top: 10px; background: var(--primary); color: #fff; border: none; }
 .study-btn-next:active { transform: scale(0.98); }
 
+/* 背词计划统计面板 */
+.vocab-plan-card {
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin-bottom: 14px;
+  box-shadow: var(--glass-shadow);
+}
+.plan-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.plan-stat-num {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+.plan-stat-label { font-size: 0.72rem; color: var(--text-tertiary); margin-top: 2px; }
+.plan-config { display: flex; flex-direction: column; gap: 10px; }
+.plan-config-block { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.plan-config-title { font-size: 0.82rem; color: var(--text-secondary); min-width: 84px; font-weight: 600; }
+.plan-opt-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.plan-new-opt, .plan-ratio-opt {
+  border: 1px solid var(--border, #d8dee6);
+  background: var(--surface, #fff);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm, 8px);
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.plan-new-opt.active, .plan-ratio-opt.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.plan-summary {
+  margin: 12px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: center;
+  background: var(--bg-soft, #f4f6fa);
+  padding: 8px;
+  border-radius: var(--radius-sm, 8px);
+}
+/* 续火卡 */
+.firekeep-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+.firekeep-buy-btn {
+  border: 1px solid #FF7A3C;
+  background: rgba(255,122,60,0.08);
+  color: #FF7A3C;
+  border-radius: var(--radius-sm, 8px);
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.firekeep-buy-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.firekeep-apply-btn {
+  border: 1px solid var(--success, #2e9e5b);
+  background: var(--success, #2e9e5b);
+  color: #fff;
+  border-radius: var(--radius-sm, 8px);
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.firekeep-owned { font-size: 0.78rem; color: var(--text-light); }
+
 /* 过滤熟词入口 */
 .learn-filter-row {
   display: flex;

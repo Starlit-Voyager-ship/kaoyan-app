@@ -47,10 +47,36 @@ const Vocabulary = {
   // 艾宾浩斯复习间隔（天）：学完后的第 1/2/4/7/15/30/60 天复习
   EBBINGHAUS: [1, 2, 4, 7, 15, 30, 60],
 
+  // 背词计划（用户可在页面选择，云端双端同步）
+  NEW_WORD_OPTIONS: [30, 50, 60, 70],
+  REVIEW_RATIO_OPTIONS: [1, 2, 3, 4, 5],
+  _planTable: 'vocab_plan',
+  _defaultPlan: { newPerDay: 50, reviewRatio: 3 },
+  // 连续打卡 / 续火卡
+  _streakTable: 'vocab_streak',
+  FIRE_KEEP_PRICE: 750,
+  FIRE_KEEP_WEEKLY_LIMIT: 2,
+  _plan: null,        // 当前计划 {newPerDay, reviewRatio}
+  _streak: 0,         // 当前连续打卡天数
+  _sparkOn: false,    // 火花是否点亮
+  _fireKeepOwned: 0,  // 持有续火卡数量
+  _fireKeepWeekBuy: 0,// 本周已购数量
+
   init() {
     this.bindEvents();
     this._restoreSpeedUI();
     this.renderVocabList('all', 'all');
+    this._initPlanAndStreak();
+  },
+
+  async _initPlanAndStreak() {
+    try {
+      await this.loadPlan();
+      await this.loadStreak();
+      await this.renderPlanStats();
+      this._refreshFireKeepUI();
+      if (typeof app !== 'undefined' && app.updateHomeStats) app.updateHomeStats();
+    } catch (e) { /* 统计失败不阻塞 */ }
   },
 
   // 阅读中点词翻译加入单词：来源标记为 reading
@@ -87,11 +113,11 @@ const Vocabulary = {
       tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
     });
 
-    // 从词汇表进入背单词
-    document.getElementById('vocab-start-btn').addEventListener('click', () => {
-      this.switchTab('learn');
-      this.startLearning();
-    });
+    // 从词汇表进入背单词（顶部/底部两个开始按钮共用）
+    const startLearningFlow = () => { this.switchTab('learn'); this.startLearning(); };
+    document.getElementById('vocab-start-btn').addEventListener('click', startLearningFlow);
+    const topStart = document.getElementById('vocab-start-btn-top');
+    if (topStart) topStart.addEventListener('click', startLearningFlow);
 
     // 单词操作
     document.getElementById('word-know').addEventListener('click', () => this.markKnown());
@@ -156,6 +182,20 @@ const Vocabulary = {
     // 搜索
     document.getElementById('vocab-search-input').addEventListener('input',
       Utils.debounce(() => this.renderVocabList('all', this.currentSource), 300));
+
+    // 背词计划：每日新词档位 / 复习比例
+    document.querySelectorAll('.plan-new-opt').forEach(btn => {
+      btn.addEventListener('click', () => this._setPlanNew(parseInt(btn.dataset.n, 10)));
+    });
+    document.querySelectorAll('.plan-ratio-opt').forEach(btn => {
+      btn.addEventListener('click', () => this._setPlanRatio(parseInt(btn.dataset.r, 10)));
+    });
+
+    // 续火卡：购买 / 补签
+    const fb = document.getElementById('firekeep-buy');
+    if (fb) fb.addEventListener('click', () => this.buyFireKeep());
+    const fa = document.getElementById('firekeep-apply');
+    if (fa) fa.addEventListener('click', () => this.useFireKeep());
   },
 
   switchTab(tabName) {
@@ -197,13 +237,16 @@ const Vocabulary = {
       return;
     }
 
-    // 2) 新建今日队列（150 复习 + 50 新词）
+    // 2) 新建今日队列（按用户计划：复习 = 新词 × 比例）
+    const plan = this._plan || this._defaultPlan;
+    const newLimit = plan.newPerDay;
+    const reviewLimit = newLimit * plan.reviewRatio;
     const all = await Store.getUserData('vocab_words', user);
     const dictLearned = all.filter(w => (w.source || 'reading') === 'dict');
     const known = await this.getKnownSet(); // 已过滤的熟词
     const exclude = new Set([...this.graduated, ...known]); // 今日已毕业 + 熟词 都不重复出现
-    const review = this.pickReviewWords(dictLearned, 150, exclude);
-    const newOnes = this.pickNewWords(all, 50, exclude);
+    const review = this.pickReviewWords(dictLearned, reviewLimit, exclude);
+    const newOnes = this.pickNewWords(all, newLimit, exclude);
 
     // 构建队列：每条词记录来源(isNew)、初始序号(分组显示)、失败次数 failCount
     const queue = [];
@@ -322,10 +365,13 @@ const Vocabulary = {
   },
 
   updateStudyStats() {
+    const plan = this._plan || this._defaultPlan;
+    const newLimit = plan.newPerDay;
+    const reviewLimit = newLimit * plan.reviewRatio;
     const reviewEl = document.getElementById('study-review-count');
     const newEl = document.getElementById('study-new-count');
-    if (reviewEl) reviewEl.textContent = `${Math.min(this.reviewDone || 0, 150)}/150`;
-    if (newEl) newEl.textContent = `${Math.min(this.newDone || 0, 50)}/50`;
+    if (reviewEl) reviewEl.textContent = `${Math.min(this.reviewDone || 0, reviewLimit)}/${reviewLimit}`;
+    if (newEl) newEl.textContent = `${Math.min(this.newDone || 0, newLimit)}/${newLimit}`;
   },
 
   speakCurrent() {
@@ -405,6 +451,8 @@ const Vocabulary = {
     const denom = this.studiedCount + this.queue.length;
     const pct = denom > 0 ? (this.studiedCount / denom) * 100 : 0;
     document.getElementById('word-progress-fill').style.width = `${pct}%`;
+    // 自动发音一次（每次进入新单词读一遍，可点击喇叭多次重播）
+    this.speakCurrent();
   },
 
   showMeaning() {
@@ -654,6 +702,9 @@ const Vocabulary = {
     this._refreshCheckinBtn();
     await this._saveCheckIn();
     Utils.toast('打卡成功，今天继续加油！🎉');
+    await this.loadStreak();        // 重新计算连续天数 + 火花
+    this._refreshFireKeepUI();
+    if (typeof app !== 'undefined' && app.updateHomeStats) app.updateHomeStats();
   },
 
   _checkInTable: 'daily_checkin',
@@ -696,11 +747,18 @@ const Vocabulary = {
       btn.textContent = '今日已打卡 ✓';
       btn.classList.add('checked');
       btn.disabled = true;
-    } else {
-      btn.textContent = '今日打卡';
-      btn.classList.remove('checked');
-      btn.disabled = false;
+      btn.style.display = '';
+      return;
     }
+    // 今日任务未完成：隐藏打卡按钮（完成才出现）
+    if (!this.completed) {
+      btn.style.display = 'none';
+      return;
+    }
+    btn.style.display = '';
+    btn.textContent = '今日打卡';
+    btn.classList.remove('checked');
+    btn.disabled = false;
   },
 
   finishSession() {
@@ -723,6 +781,8 @@ const Vocabulary = {
       : `本次学习完成！记得点「今日打卡」哦 📅`;
     Utils.toast(tip);
     this._saveProgress();
+    this._refreshCheckinBtn();   // 完成后才出现打卡
+    this._refreshFireKeepUI();   // 检查补签按钮
   },
 
   // ---------- 词汇表 / 错词本 ----------
@@ -1301,6 +1361,223 @@ const Vocabulary = {
       Utils.toast('已恢复全部熟词');
       this.refreshFilterTip();
     });
+  },
+
+  // ---------- 背词计划 / 连续打卡 / 续火卡 ----------
+  async loadPlan() {
+    try {
+      const user = Store.getCurrentUser();
+      if (!user) return;
+      const all = await Store.getUserData(this._planTable, user);
+      const rec = (all || []).find(r => r.id === `plan_${user}`);
+      this._plan = rec
+        ? { newPerDay: rec.newPerDay || this._defaultPlan.newPerDay, reviewRatio: rec.reviewRatio || this._defaultPlan.reviewRatio }
+        : Object.assign({}, this._defaultPlan);
+    } catch (e) {
+      this._plan = Object.assign({}, this._defaultPlan);
+    }
+  },
+
+  async savePlan() {
+    try {
+      const user = Store.getCurrentUser();
+      if (!user) return;
+      const plan = this._plan || this._defaultPlan;
+      await Store.put(this._planTable, {
+        id: `plan_${user}`, username: user,
+        newPerDay: plan.newPerDay, reviewRatio: plan.reviewRatio
+      });
+    } catch (e) {}
+  },
+
+  async _setPlanNew(n) {
+    this._plan = this._plan || Object.assign({}, this._defaultPlan);
+    this._plan.newPerDay = n;
+    await this.savePlan();
+    await this.renderPlanStats();
+    Utils.toast('每日新词：' + n + ' 个');
+  },
+
+  async _setPlanRatio(r) {
+    this._plan = this._plan || Object.assign({}, this._defaultPlan);
+    this._plan.reviewRatio = r;
+    await this.savePlan();
+    await this.renderPlanStats();
+    Utils.toast('复习比例：1:' + r);
+  },
+
+  // 统计面板：总词量 / 已背（含熟词）/ 每日任务量 / 预计背完天数
+  async renderPlanStats() {
+    try {
+      const user = Store.getCurrentUser();
+      if (!user) return;
+      const plan = this._plan || this._defaultPlan;
+      const newPerDay = plan.newPerDay;
+      const ratio = plan.reviewRatio;
+      const reviewPerDay = newPerDay * ratio;
+      const totalPerDay = newPerDay + reviewPerDay;
+
+      const dictAll = (typeof window !== 'undefined' && window.EN_DICT) ? window.EN_DICT : {};
+      const totalWords = Object.keys(dictAll).length;
+
+      const all = await Store.getUserData('vocab_words', user);
+      const dictLearned = (all || []).filter(w => (w.source || 'reading') === 'dict' && w.firstLearned);
+      const known = await this.getKnownSet();
+      const learnedCount = dictLearned.length + known.size;
+
+      const remaining = Math.max(0, totalWords - learnedCount);
+      const daysToFinish = remaining > 0 ? Math.ceil(remaining / newPerDay) : 0;
+
+      document.querySelectorAll('.plan-new-opt').forEach(b => b.classList.toggle('active', parseInt(b.dataset.n, 10) === newPerDay));
+      document.querySelectorAll('.plan-ratio-opt').forEach(b => b.classList.toggle('active', parseInt(b.dataset.r, 10) === ratio));
+
+      const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+      set('plan-total-words', totalWords);
+      set('plan-learned', learnedCount);
+      set('plan-new-perday', newPerDay);
+      set('plan-review-perday', reviewPerDay);
+      set('plan-total-perday', totalPerDay);
+      set('plan-days', daysToFinish > 0 ? (daysToFinish + ' 天') : '已完成 🎉');
+    } catch (e) {}
+  },
+
+  // 连续打卡计算
+  _shiftDate(dateStr, delta) {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() + delta);
+    return d.toISOString().slice(0, 10);
+  },
+
+  _weekStart() {
+    const d = new Date();
+    const day = d.getDay(); // 0=周日
+    const diff = (day === 0) ? 6 : (day - 1);
+    const mon = new Date(d);
+    mon.setDate(d.getDate() - diff);
+    return mon.toISOString().slice(0, 10);
+  },
+
+  _computeStreak(dates) {
+    const today = Utils.today();
+    const yest = this._shiftDate(today, -1);
+    // 今天或昨天有打卡 → 火花仍可点亮；否则已断
+    const start = dates.has(today) ? today : (dates.has(yest) ? yest : null);
+    if (!start) return { streak: 0, sparkOn: false };
+    let streak = 0;
+    let cur = start;
+    while (dates.has(cur)) {
+      streak++;
+      cur = this._shiftDate(cur, -1);
+    }
+    return { streak, sparkOn: true };
+  },
+
+  async loadStreak() {
+    try {
+      const user = Store.getCurrentUser();
+      if (!user) return;
+      const checkins = await Store.getUserData(this._checkInTable, user);
+      const dates = new Set((checkins || []).map(r => r.date).filter(Boolean));
+      const info = this._computeStreak(dates);
+      this._streak = info.streak;
+      this._sparkOn = info.sparkOn;
+
+      const all = await Store.getUserData(this._streakTable, user);
+      const rec = (all || []).find(r => r.id === `streak_${user}`);
+      const weekStart = this._weekStart();
+      if (rec) {
+        this._fireKeepOwned = rec.owned || 0;
+        if (rec.weekStart !== weekStart) {
+          // 跨周：重置本周购买计数（库存保留）
+          rec.weekStart = weekStart;
+          rec.weekBuyCount = 0;
+          await Store.put(this._streakTable, rec);
+          this._fireKeepWeekBuy = 0;
+        } else {
+          this._fireKeepWeekBuy = rec.weekBuyCount || 0;
+        }
+      } else {
+        this._fireKeepOwned = 0;
+        this._fireKeepWeekBuy = 0;
+      }
+    } catch (e) {}
+  },
+
+  getStreakInfo() {
+    return { streak: this._streak, sparkOn: this._sparkOn };
+  },
+
+  async _saveStreakRec() {
+    try {
+      const user = Store.getCurrentUser();
+      if (!user) return;
+      await Store.put(this._streakTable, {
+        id: `streak_${user}`, username: user,
+        owned: this._fireKeepOwned,
+        weekBuyCount: this._fireKeepWeekBuy,
+        weekStart: this._weekStart()
+      });
+    } catch (e) {}
+  },
+
+  // 续火卡：购买（扣金币，周限 2）
+  async buyFireKeep() {
+    const user = Store.getCurrentUser();
+    if (!user) return;
+    if (this._fireKeepWeekBuy >= this.FIRE_KEEP_WEEKLY_LIMIT) {
+      Utils.toast(`本周最多购买 ${this.FIRE_KEEP_WEEKLY_LIMIT} 张续火卡`);
+      return;
+    }
+    const coins = await Store.getCoins(user);
+    if (coins < this.FIRE_KEEP_PRICE) {
+      Utils.toast('金币不足，需要 ' + this.FIRE_KEEP_PRICE + ' 金币');
+      return;
+    }
+    const next = await Store.spendCoins(user, this.FIRE_KEEP_PRICE);
+    if (next < 0) { Utils.toast('金币不足'); return; }
+    await Store.addCoinEntry('firekeep', -this.FIRE_KEEP_PRICE, '购买续火卡');
+    this._fireKeepOwned++;
+    this._fireKeepWeekBuy++;
+    await this._saveStreakRec();
+    this._refreshFireKeepUI();
+    if (typeof app !== 'undefined' && app.updateHomeStats) app.updateHomeStats();
+    Utils.toast('已购买续火卡，持有 ' + this._fireKeepOwned + ' 张');
+  },
+
+  // 续火卡：补签（今日背完后，火花灭时可用，补回昨日打卡使连续延续）
+  async useFireKeep() {
+    const user = Store.getCurrentUser();
+    if (!user) return;
+    if (!this.completed) { Utils.toast('请先背完今日单词任务'); return; }
+    if (this._fireKeepOwned <= 0) { Utils.toast('没有续火卡'); return; }
+    if (this._sparkOn) { Utils.toast('打卡连续中，无需补签'); return; }
+    const yest = this._shiftDate(Utils.today(), -1);
+    await Store.put(this._checkInTable, {
+      id: `checkin_${user}_${yest}`, username: user,
+      date: yest, checkInTime: new Date().toISOString(), backfilled: true
+    });
+    this._fireKeepOwned--;
+    await this._saveStreakRec();
+    await this.loadStreak();
+    this._refreshFireKeepUI();
+    if (typeof app !== 'undefined' && app.updateHomeStats) app.updateHomeStats();
+    Utils.toast('已补签昨日！现在点「今日打卡」即可延续连续天数 🔥');
+  },
+
+  _refreshFireKeepUI() {
+    const remain = this.FIRE_KEEP_WEEKLY_LIMIT - this._fireKeepWeekBuy;
+    const buyBtn = document.getElementById('firekeep-buy');
+    if (buyBtn) {
+      buyBtn.textContent = `购买续火卡 ¥${this.FIRE_KEEP_PRICE}（本周剩 ${remain}）`;
+      buyBtn.disabled = remain <= 0;
+    }
+    const ownedEl = document.getElementById('firekeep-owned');
+    if (ownedEl) ownedEl.textContent = `持有 ${this._fireKeepOwned} 张`;
+    const applyBtn = document.getElementById('firekeep-apply');
+    if (applyBtn) {
+      const showApply = this.completed && !this._sparkOn && this._fireKeepOwned > 0;
+      applyBtn.style.display = showApply ? '' : 'none';
+    }
   },
 
   // ---------- 工具 ----------

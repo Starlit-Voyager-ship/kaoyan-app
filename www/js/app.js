@@ -172,6 +172,16 @@ const app = {
     // 同步更新标题中的数字
     const goalEditEl = document.getElementById('home-focus-goal-edit');
     if (goalEditEl) goalEditEl.textContent = goalMin;
+
+    // 单词连续打卡火花
+    const streakInfo = (typeof Vocabulary !== 'undefined') ? Vocabulary.getStreakInfo() : { streak: 0, sparkOn: false };
+    const sv = document.getElementById('home-streak-value');
+    if (sv) sv.textContent = (streakInfo.streak || 0) + ' 天';
+    const spark = document.getElementById('home-streak-spark');
+    if (spark) {
+      spark.classList.toggle('spark-on', !!streakInfo.sparkOn);
+      spark.classList.toggle('spark-off', !streakInfo.sparkOn);
+    }
   },
 
   // 点击铅笔图标修改专注目标

@@ -336,9 +336,9 @@ const AIAssistant = {
           analysis = parsed ? JSON.stringify(parsed) : '';
           // 优先用结构化 article；若没拆出 article 但转录很长，拿转录全文兜底，保证阅读页有内容
           if (parsed && parsed.article && parsed.article.trim()) {
-            articleText = parsed.article;
+            articleText = AIAssistant._cleanArticleText(parsed.article);
           } else if (transcript && transcript.trim().length > 200) {
-            articleText = transcript;
+            articleText = AIAssistant._cleanArticleText(transcript);
           }
         } catch (e) {
           console.warn('[上传归档] 两段式解析失败，回退 OCR 文本：', e.message);
@@ -684,7 +684,13 @@ const AIAssistant = {
         '    }\n' +
         '  ]\n' +
         '}\n' +
-        '判定规则：\n' +
+        '【article 字段硬性规则——保证分段正确】\n' +
+        'A1) 文章里每个自然段之间必须用「一个空行」（\\n\\n）分隔，段内不主动换行；\n' +
+        'A2) 段落数量必须与原文一致（典型一篇阅读 4-6 段），如果原文 5 段 article 必须 5 段，绝不能合并成 1 段；\n' +
+        'A3) 必须删除这些行：纯页码（行内只有 1-4 位数字）、『2007 年考研试题 第 N 页』、『20XX 年全国硕士研究生入学统一考试』、『Section X / Part X / Reading Comprehension / Use of English』单独成行的标题、试卷代号/科目代码等页眉页脚；\n' +
+        'A4) 段首大标题（如 Text 4、Reading Comprehension (Text 4)）可保留为单独一行，前后用空行隔开；\n' +
+        'A5) 段内的标点、连词（and/or/but）必须原样保留，不要修改、不要补字、不要漏字。\n' +
+        '【题目判定规则】\n' +
         '1) 题目特征词：What / Which / Why / How / According to the passage / The author / It can be inferred / In the author\'s opinion / We can learn 等开头的句子为题干；\n' +
         '2) 选项特征：紧随题干的下文以 A./B./C./D. 或 a)/b)/c)/d) 开头的若干行；\n' +
         '3) 题号特征：行首出现的 21./22./23./(1)/(2)/Text 1 第 1 题 等；\n' +
@@ -733,6 +739,46 @@ const AIAssistant = {
     }));
   },
 
+  // 清理文章正文：删页眉页脚/试卷标题/页码，规范化段落分隔（保证段间 \n\n）
+  // 输入：原文（含或不含 \n\n 都行）  输出：分段清晰、过滤干净的 article 文本
+  _cleanArticleText(raw) {
+    if (!raw) return '';
+    // 1) 统一换行符
+    let s = String(raw).replace(/\r\n?/g, '\n');
+    // 2) 删行：纯页码（1-4 位数字）、试卷标题、Section/Part/Reading Comprehension 单独成行
+    const footerRe = /^\s*(?:\d{1,4}|[12]\d{3}\s*年[^\n]{0,40}试题[^\n]*|20\d{2}\s*年[^\n]{0,40}统一考试[^\n]*|Section\s+[IVX]+|Part\s+[ABCD]|Reading\s+Comprehension|Use\s+of\s+English|试卷代号\s*\S+|科目代码\s*\S+|第\s*[一二三四五六七八九十]+\s*页)\s*$/i;
+    const lines = s.split('\n');
+    const kept = [];
+    for (const ln of lines) {
+      if (footerRe.test(ln)) continue;
+      kept.push(ln);
+    }
+    s = kept.join('\n');
+    // 3) 规范化段落分隔：连续 2 个以上空行折叠成 1 个空行（即段间 \n\n）
+    s = s.replace(/\n{3,}/g, '\n\n');
+    // 4) 兜底：若全文无 \n\n 且长度 > 600，按英文句末 + 大写新句首切分
+    if (!s.includes('\n\n') && s.length > 600) {
+      let para = s.replace(/([.!?])\s+([A-Z][a-z])/g, '$1\n\n$2');
+      const parts = para.split('\n\n');
+      if (parts.length >= 3) {
+        // 合并相邻短段直到 <= 6 段
+        while (parts.length > 6) {
+          let bestI = 0, bestLen = Infinity;
+          for (let i = 0; i < parts.length - 1; i++) {
+            const l = parts[i].length + parts[i + 1].length;
+            if (l < bestLen) { bestLen = l; bestI = i; }
+          }
+          parts[bestI] = parts[bestI] + ' ' + parts[bestI + 1];
+          parts.splice(bestI + 1, 1);
+        }
+        s = parts.join('\n\n');
+      } else {
+        s = para;
+      }
+    }
+    return s.trim();
+  },
+
   /* ---------- 千问VL：英语阅读「逐字转录」（仅抄写，不做结构化输出） ---------- */
   async callQwenEnglishTranscribe(settings, images) {
     const imgs = Array.isArray(images) ? images : [images];
@@ -760,13 +806,19 @@ const AIAssistant = {
       { type: 'text', text:
         orderNote +
         '请逐字转录以下图片中的全部英文文字，严格按从上到下的阅读顺序，保留原有段落与换行。\n' +
-        '硬性规则：\n' +
-        '1) 只输出转录出的原文文本本身，不要加任何说明、不要总结、不要分析、不要翻译、不要 JSON；\n' +
-        '2) 文章正文原样保留（英文段落），题目也原样保留（题干 + 选项 A./B./C./D. 或 a)/b)/c)/d)）；\n' +
-        '3) 【最重要】图片中「所有区域」都必须转录：上、中、下三段都看；不要只看图片上半部分就停；\n' +
-        '4) 即使文字很多也要完整转录，不要省略任何一行、任何一段；\n' +
-        '5) 若某处实在看不清，用 "〔看不清〕" 标记但继续往下转录；\n' +
-        '6) 如果图片里有「多篇文章+多组题目」（常见于整张试卷同框），每篇文章和它后面的题目都全部转录，中间用空行分隔。\n' +
+        '【硬性规则——段落处理】\n' +
+        '1) 【最重要】每个自然段（每个段首缩进的段落、每段标题/小标题后的正文）之间用「一个空行」分隔，即两段之间写 \\n\\n；\n' +
+        '2) 段内（即同一段落内的多行文字）不要主动换行，连续抄写直到段末；\n' +
+        '3) 不要把两段合并成一段；如果原图里段落分得清楚，转录时也必须分清楚；\n' +
+        '4) 文章大标题（如"Text 4"）单独一行抄写，前后留空行。\n' +
+        '【其他规则】\n' +
+        '5) 只输出转录出的原文文本本身，不要加任何说明、不要总结、不要分析、不要翻译、不要 JSON；\n' +
+        '6) 文章正文原样保留（英文段落），题目也原样保留（题干 + 选项 A./B./C./D. 或 a)/b)/c)/d)）；\n' +
+        '7) 【关键】图片中「所有区域」都必须转录：上、中、下三段都看；不要只看图片上半部分就停；\n' +
+        '8) 即使文字很多也要完整转录，不要省略任何一行、任何一段；\n' +
+        '9) 若某处实在看不清，用 "〔看不清〕" 标记但继续往下转录；\n' +
+        '10) 如果图片里有「多篇文章+多组题目」（常见于整张试卷同框），每篇文章和它后面的题目都全部转录，中间用空行分隔。\n' +
+        '11) 页眉页脚、试卷标题（如『2007 年考研试题 第 X 页』、『Section II』、『Part B』）原样抄出即可，下一步会专门过滤。\n' +
         '现在开始转录：' }
     ];
 

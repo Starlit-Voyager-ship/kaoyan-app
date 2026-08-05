@@ -360,7 +360,11 @@ const Articles = {
   renderReaderContent() {
     const contentEl = document.getElementById('reader-content');
     if (!contentEl || !this.currentArticle) return;
-    const paragraphs = (this.currentArticle.content || '').split('\n').filter(p => p.trim());
+    // 段落切分：优先按空行（\n\n）切，兼容单 \n；段内空白折叠为单空格
+    const raw = (this.currentArticle.content || '').replace(/\r\n?/g, '\n');
+    const paragraphs = raw.split(/\n\s*\n+/)
+      .map(p => p.replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
     if (!paragraphs.length) { contentEl.innerHTML = ''; return; }
 
     const transParas = (this._translationVisible && this._rawTranslation)

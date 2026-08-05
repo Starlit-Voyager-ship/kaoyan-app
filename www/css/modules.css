@@ -1933,25 +1933,6 @@
   color: var(--text-secondary);
   margin-bottom: 12px;
 }
-.ai-article {
-  font-size: 0.92rem;
-  line-height: 1.75;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.45);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-  margin-bottom: 14px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.ai-block-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--text-light);
-  letter-spacing: 0.06em;
-  margin-bottom: 6px;
-  text-transform: none;
-}
 .ai-questions { display: flex; flex-direction: column; gap: 10px; }
 .ai-q {
   padding: 12px;
@@ -1994,7 +1975,6 @@
 .ai-q-opts li { margin-bottom: 2px; list-style: disc; }
 .ai-q-ans { font-size: 0.88rem; margin-bottom: 4px; color: var(--primary); }
 .ai-q-exp { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; }
-.ai-article-empty { opacity: 0.75; font-style: italic; }
 
 /* 列表错题徽章 */
 .wrong-badge {

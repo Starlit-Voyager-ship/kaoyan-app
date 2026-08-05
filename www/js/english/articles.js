@@ -118,16 +118,9 @@ const Articles = {
     let html = '<div class="reader-ai-card">';
     html += '<h4>AI 阅读解析</h4>';
 
-    // ① 文章区：纯净正文（AI 单独提取的 article 字段）
-    const articleText = (data && typeof data.article === 'string') ? data.article.trim() : '';
-    if (articleText) {
-      html += '<div class="ai-article"><div class="ai-block-label">文章</div>' + this._esc(articleText) + '</div>';
-    } else if (Array.isArray(data.questions) && data.questions.length) {
-      // AI 没把 article 单独抽出来时，给个空状态而不是 fallback 到含题目的全文
-      html += '<div class="ai-article ai-article-empty"><div class="ai-block-label">文章</div>未能从图中单独提取文章正文，请参考下方题目解析。</div>';
-    }
+    // 不在 AI 解析区重复文章正文——原文已在阅读区上方渲染。
 
-    // ② 题目区：题干加粗，选项另起列表
+    // ① 题目区：题干加粗，选项另起列表
     const questions = Array.isArray(data.questions) ? data.questions : [];
     if (questions.length) {
       html += '<div class="ai-questions">';

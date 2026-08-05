@@ -1989,9 +1989,12 @@
   border-color: var(--danger, #e5484d);
   color: #fff;
 }
-.ai-q-text { font-size: 0.9rem; margin-bottom: 6px; }
-.ai-q-ans { font-size: 0.88rem; margin-bottom: 4px; }
+.ai-q-text { font-size: 0.9rem; margin-bottom: 6px; font-weight: 700; color: var(--text); }
+.ai-q-opts { margin: 4px 0 6px; padding-left: 20px; font-size: 0.86rem; color: var(--text-secondary); line-height: 1.6; }
+.ai-q-opts li { margin-bottom: 2px; list-style: disc; }
+.ai-q-ans { font-size: 0.88rem; margin-bottom: 4px; color: var(--primary); }
 .ai-q-exp { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; }
+.ai-article-empty { opacity: 0.75; font-style: italic; }
 
 /* 列表错题徽章 */
 .wrong-badge {

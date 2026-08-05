@@ -631,12 +631,29 @@ const AIAssistant = {
     return await this.callQwenChat(settings, messages, '千问解析');
   },
 
-  /* ---------- 千问文本：英语阅读解析（概括 + 逐题答案） ---------- */
+  /* ---------- 千问文本：英语阅读解析（纯文章正文 + 概括 + 逐题答案） ---------- */
   async callQwenEnglishAnalyze(settings, text) {
     const messages = [
-      { role: 'system', content: '你是考研英语二阅读老师。针对用户提供的英语文章（可能包含阅读理解题目），请输出严格 JSON：' +
-        '{"summary":"用中文概括文章主旨与段落结构（2-4句）","questions":[{"no":"题号，如 21","question":"题干原文（保持完整）","answer":"正确选项及答案内容","explanation":"解析：为何选它、各干扰项错在哪"}]}。' +
-        '请保证 questions 按文章出现顺序排列，题干保持完整。若文章不含明确题目，questions 返回空数组 []。只返回 JSON，不要任何额外文字或解释。' },
+      { role: 'system', content: '你是考研英语二阅读老师。针对用户提供的英语内容（可能含文章正文和阅读理解题目），请输出严格 JSON：\n' +
+        '{\n' +
+        '  "summary": "用中文概括文章主旨与段落结构（2-4句）",\n' +
+        '  "article": "纯文章正文（必须从用户提供的 text 中提取，剔除所有题目、题号、选项 A./B./C./D.、题号 21./22./23. 等干扰项；保留完整段落、不要添油加醋、不要翻译成中文；若用户提供的 text 里看不到独立文章段落只有题目，请填空字符串 \"\"）",\n' +
+        '  "questions": [\n' +
+        '    {\n' +
+        '      "no": "题号，如 21、22、(A)、(B)",\n' +
+        '      "question": "题干原文（保持完整，仅题干，不要把选项 A/B/C/D 的文字也塞进来）",\n' +
+        '      "options": ["A. fair","B. ample","C. trustworthy","D. recommendable"],\n' +
+        '      "answer": "正确选项（如 \"C\" 或 \"C. trustworthy\"），必须明确唯一",\n' +
+        '      "explanation": "解析：为何选它、各干扰项错在哪。不要重复题干和选项文字，不要把文章段落塞进来，只针对本题做解析。"\n' +
+        '    }\n' +
+        '  ]\n' +
+        '}\n' +
+        '请保证：\n' +
+        '1) questions 按题目在原文中出现顺序排列；\n' +
+        '2) article 字段必须是「纯净的文章正文」，与 questions 完全不重叠，绝不能含题目/题号/选项；\n' +
+        '3) explanation 字段仅针对本题，绝不能复制文章段落；\n' +
+        '4) 若 text 中无题目，questions 返回空数组 []；\n' +
+        '只返回 JSON，不要任何额外文字、解释、Markdown 代码块。' },
       { role: 'user', content: text }
     ];
     const raw = await this.callQwenChat(settings, messages, '千问英语解析');
@@ -644,7 +661,7 @@ const AIAssistant = {
       const m = raw.match(/\{[\s\S]*\}/);
       return JSON.parse(m ? m[0] : raw);
     } catch (e) {
-      return { summary: raw, questions: [] };
+      return { summary: raw, article: '', questions: [] };
     }
   },
 

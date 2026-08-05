@@ -111,34 +111,44 @@ const Articles = {
     try {
       const m = raw.match(/\{[\s\S]*\}/);
       data = JSON.parse(m ? m[0] : raw);
-    } catch (e) { data = { summary: raw, questions: [] }; }
+    } catch (e) { data = { summary: raw, article: '', questions: [] }; }
+    if (!data || typeof data !== 'object') data = { summary: String(raw || ''), article: '', questions: [] };
 
     const wrong = Array.isArray(art.wrongQuestions) ? art.wrongQuestions : [];
     let html = '<div class="reader-ai-card">';
     html += '<h4>AI 阅读解析</h4>';
-    // 文章原文放在最前（AI 解析区内部也保证「文章→题目」顺序）
-    const articleText = (data && data.article) || (art && art.content) || '';
+
+    // ① 文章区：纯净正文（AI 单独提取的 article 字段）
+    const articleText = (data && typeof data.article === 'string') ? data.article.trim() : '';
     if (articleText) {
       html += '<div class="ai-article"><div class="ai-block-label">文章</div>' + this._esc(articleText) + '</div>';
+    } else if (Array.isArray(data.questions) && data.questions.length) {
+      // AI 没把 article 单独抽出来时，给个空状态而不是 fallback 到含题目的全文
+      html += '<div class="ai-article ai-article-empty"><div class="ai-block-label">文章</div>未能从图中单独提取文章正文，请参考下方题目解析。</div>';
     }
-    // 题目放在文章之后，题干加粗
-    if (data.questions && data.questions.length) {
+
+    // ② 题目区：题干加粗，选项另起列表
+    const questions = Array.isArray(data.questions) ? data.questions : [];
+    if (questions.length) {
       html += '<div class="ai-questions">';
-      data.questions.forEach((q, i) => {
+      questions.forEach((q, i) => {
         const isWrong = wrong.indexOf(i) !== -1;
+        const opts = Array.isArray(q.options) ? q.options : [];
         html += `<div class="ai-q ${isWrong ? 'wrong' : ''}" data-idx="${i}">
           <div class="ai-q-head">
             <span class="ai-q-no">${this._esc(q.no || ('第' + (i + 1) + '题'))}</span>
             <button type="button" class="ai-q-toggle ${isWrong ? 'on' : ''}" data-idx="${i}">${isWrong ? '✓ 我答错了' : '标记错题'}</button>
           </div>
-          ${q.question ? `<div class="ai-q-text"><strong>${this._esc(q.question)}</strong></div>` : ''}
+          ${q.question ? `<div class="ai-q-text">${this._esc(q.question)}</div>` : ''}
+          ${opts.length ? '<ul class="ai-q-opts">' + opts.map(o => '<li>' + this._esc(o) + '</li>').join('') + '</ul>' : ''}
           ${q.answer ? `<div class="ai-q-ans"><b>答案：</b>${this._esc(q.answer)}</div>` : ''}
           ${q.explanation ? `<div class="ai-q-exp">${this._esc(q.explanation)}</div>` : ''}
         </div>`;
       });
       html += '</div>';
     }
-    // 中文概括放在最后
+
+    // ③ 概括放最后
     if (data.summary) html += `<div class="ai-summary">${this._esc(data.summary)}</div>`;
     html += '</div>';
     box.innerHTML = html;

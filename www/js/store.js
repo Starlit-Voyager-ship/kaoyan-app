@@ -443,11 +443,21 @@ const Store = {
     const sleepMs = this._countSleepMs(last, now);
     const awakeMs = Math.max(0, elapsed - sleepMs);
     const lossPerMs = this._PET_HUNGER_LOSS_PER_TICK / this._PET_DECAY_INTERVAL_MS;
-    // hunger 和 thirst 走相同衰减曲线
-    const hungerLoss = (awakeMs * lossPerMs * 1.0) + (sleepMs * lossPerMs * this._PET_SLEEP_FACTOR);
 
-    pet.hunger = Math.max(0, (pet.hunger || 0) - hungerLoss);
-    pet.thirst = Math.max(0, (pet.thirst || 0) - hungerLoss);
+    let hunger = (pet.hunger || 0);
+    let thirst = (pet.thirst || 0);
+    // 清醒时段：正常扣
+    const awakeLoss = awakeMs * lossPerMs * 1.0;
+    hunger = Math.max(0, hunger - awakeLoss);
+    thirst = Math.max(0, thirst - awakeLoss);
+    // 睡眠时段（22:00-08:00）：地板 20，方便白天起来喂养
+    if (sleepMs > 0) {
+      const sleepLoss = sleepMs * lossPerMs * this._PET_SLEEP_FACTOR;
+      hunger = Math.max(20, hunger - sleepLoss);
+      thirst = Math.max(20, thirst - sleepLoss);
+    }
+    pet.hunger = hunger;
+    pet.thirst = thirst;
     // 心情 = (hunger+thirst)/2 - 5（最低 0 最高 100）
     pet.mood = Math.max(0, Math.min(100, Math.round((pet.hunger + pet.thirst) / 2 - 5)));
     pet.lastUpdate = now;

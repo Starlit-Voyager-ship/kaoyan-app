@@ -489,13 +489,6 @@
   color: var(--text, #222);
   margin-bottom: 4px;
 }
-.pet-adopt-desc {
-  font-size: 0.72rem;
-  color: var(--text-secondary, #666);
-  line-height: 1.4;
-  min-height: 36px;
-  margin-bottom: 8px;
-}
 .pet-adopt-cta {
   font-size: 0.78rem;
   font-weight: 600;

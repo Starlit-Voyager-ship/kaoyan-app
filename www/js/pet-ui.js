@@ -577,7 +577,6 @@ const PetUI = (() => {
           <img class="pet-adopt-img ${t.gifs === null ? 'is-static' : ''}" src="${t.preview}" alt="${_esc(t.name)}">
         </div>
         <div class="pet-adopt-name">${_esc(t.name)}</div>
-        <div class="pet-adopt-desc">${_esc(t.desc)}</div>
         <div class="pet-adopt-cta">${t.id === currentType ? '当前领养中' : '选择 →'}</div>
       </button>
     `).join('');

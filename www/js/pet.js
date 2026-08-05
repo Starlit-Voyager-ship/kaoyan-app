@@ -33,7 +33,6 @@ const Pet = (() => {
     ameath: {
       id: 'ameath',
       name: 'Ameath',
-      desc: '活泼好动的蓝色小猫，热情打招呼',
       accent: '#6E5CA8',
       preview: './assets/pet/ameath_main.gif',
       main:    './assets/pet/ameath_main.gif',
@@ -48,7 +47,6 @@ const Pet = (() => {
     chibi: {
       id: 'chibi',
       name: '小萌',
-      desc: '温暖抱抱的小家伙，喜欢安静陪伴',
       accent: '#E07A9F',
       preview: './assets/pet/chibi.png',
       main:    './assets/pet/chibi.png',

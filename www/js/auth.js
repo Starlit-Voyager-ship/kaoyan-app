@@ -133,53 +133,38 @@ const Auth = {
       errorEl.textContent = '';
       this.enterApp(username);
       Utils.toast(`欢迎回来，${username}！云端同步已开启`);
-
       return;
     } catch (e) {
-      console.warn('[Auth] ❌ Step1 云端登录失败:', e.message, '| status:', e.status, '| name:', e.name);
-      console.warn('[Auth]    完整错误对象:', JSON.stringify(e).substring(0, 300));
+      console.warn('[Auth] ❌ Step1 云端登录失败:', e.message, '| status:', e.status);
 
-      // Step 2: 账号不存在/密码不对 → 用原用户名尝试注册
-      if (/202|101|NotFound|found|不正确|incorrect/i.test(e.message) || [202, 101, 404].includes(e.status)) {
-        try {
-          console.log('[Auth] → 尝试注册原用户名:', username);
-          await Bmob.register(username, password);
-          this.cloudOk = true;
-          Bmob.dataUserId = username;
-          errorEl.textContent = '';
-          this.enterApp(username);
-          Utils.toast(`欢迎，${username}！已开通云同步`);
-          this._ensurePet(username);
-          return;
-        } catch (regErr) {
-          console.warn('[Auth] 注册失败:', regErr.message, '→ 尝试后缀账号');
-        }
-      }
-
-      // Step 3: 原用户名不行 → 用后缀账号
-      const fixed = await this._fixCloudAccount(username, password, errorEl);
-      if (fixed) return;
-
-      // Step 4: 全部失败 → 自动创建全新云端账号（时间戳后缀，保证唯一）
-      console.log('[Auth] → 所有常规方式失败，创建全新云端账号...');
-      const tsAccount = username + '_' + Date.now().toString(36);
+      // Step 2: 登录失败后用「注册试探」区分两种情形（Bmob 对"账号不存在"和
+      // "密码错误"返回相同错误码 101，登录结果本身无法直接判断）：
+      //   - 注册成功        → 新账号开通（保留登录框直接建号的便利）
+      //   - 注册返回 202 占用 → 该账号真实存在，Step1 失败即「密码错误」→ 只提示，绝不建新号
+      //   - 其它注册错误     → 直接提示，不自动创建任何账号（杜绝时间戳垃圾账号 / 烧配额）
+      // 用 cloudUser（而非原 username）试探，可正确命中"已映射后缀账号"的占用判定。
       try {
-        await Bmob.register(tsAccount, password);
-        localStorage.setItem('cloud_user_' + username, tsAccount);
-        Bmob.username = username; // Step4 未自动回写，这里显式把数据归属设回规范名
-        Bmob.dataUserId = username;
+        console.log('[Auth] → 尝试注册云端账号名:', cloudUser);
+        await Bmob.register(cloudUser, password);
         this.cloudOk = true;
+        Bmob.dataUserId = username;
+        if (cloudUser !== username) localStorage.setItem('cloud_user_' + username, cloudUser);
         errorEl.textContent = '';
         this.enterApp(username);
-        Utils.toast(`欢迎，${username}！已自动开通云同步`);
+        Utils.toast(`欢迎，${username}！已开通云同步`);
         this._ensurePet(username);
         return;
-      } catch (e4) {
-        console.error('[Auth] ❌ 创建新账号也失败:', e4.message);
+      } catch (regErr) {
+        console.warn('[Auth] 注册失败:', regErr.message, '| status:', regErr.status);
+        const taken = /202|already|exist|taken|已存在|被占用|重复/i.test(regErr.message) || regErr.status === 202;
+        if (taken) {
+          // 账号存在且密码错误：只提示，绝不进入后缀 / 时间戳建号分支
+          errorEl.textContent = '密码错误，请重试（该账号已存在）';
+        } else {
+          errorEl.textContent = '登录失败：' + (regErr.message || '请检查网络，或改用「注册」标签创建账号');
+        }
+        return;
       }
-
-      // 真的全部失败了
-      errorEl.textContent = '云端登录失败（账号存在但密码不对）。请用「注册」 tab 创建新账号，或换一个账号登录。';
     }
   },
 

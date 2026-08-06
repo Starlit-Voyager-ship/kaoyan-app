@@ -550,12 +550,21 @@ const AIAssistant = {
       if (img) {
         // 图片仅本地压缩识别，不存云端（用户需求：只同步解析后的文字）
         Utils.toast('正在识别图片...');
+        // 平台自适应预算：App 原生直连千问无 aiProxy 40KB 限制，保留高清（与英语转录一致）；
+        //               浏览器走 Bmob 代理受 40KB 上限，保守压缩保识别成功率。
+        const MAX_AI = this.isNativePlatform() ? 220 * 1024 : 36 * 1024;
         let aiImg = img;
-        for (const [mw, q] of [[800, 0.5], [640, 0.45], [512, 0.4], [400, 0.35]]) {
+        for (const [mw, q] of [[1600, 0.85], [1400, 0.8], [1200, 0.75], [1000, 0.7], [900, 0.65], [800, 0.6], [700, 0.55], [600, 0.5], [500, 0.45]]) {
           aiImg = await Utils.compressImg(aiImg, mw, q);
-          if ((aiImg.substring(aiImg.indexOf(',') + 1).length * 0.75) < 15 * 1024) break;
+          if ((aiImg.substring(aiImg.indexOf(',') + 1).length * 0.75) < MAX_AI) break;
         }
         visionText = await this.callQwenVLOcr(settings, [aiImg]);
+        // 识图返回空：明确提示，避免 AI 拿不到内容却反问用户"请用文字描述"
+        if (!visionText || !String(visionText).trim()) {
+          this.hideTyping();
+          this.showError('图片识别失败：千问未能从图片中识别出内容。请重新拍摄（光线充足、文字清晰、避免反光），或直接在输入框输入题目文字。');
+          return;
+        }
         // 不存图片，只同步文字（userMsg.image 保持 null）
         userMsg.image = null;
         const idx = this.messages.findIndex(m => m.id === userMsg.id);
@@ -627,7 +636,10 @@ const AIAssistant = {
       return data.choices[0].message.content;
     } catch (err) {
       if (err.name === 'TypeError' || /fetch|network|failed|abort/i.test(err.message)) {
-        throw new Error(`${taskName}：网络请求失败。浏览器预览可能受 CORS 限制，请在 App 内测试；若已在 App 内，请检查网络连接。`);
+        const hint = this.isNativePlatform()
+          ? `${taskName}：网络请求失败，请检查手机网络连接，或确认千问 Key 是否有效。`
+          : `${taskName}：网络请求失败。浏览器预览可能受 CORS 限制，请在 App 内测试；若已在 App 内，请检查网络连接。`;
+        throw new Error(hint);
       }
       throw err;
     }
@@ -968,7 +980,10 @@ const AIAssistant = {
       return data.choices[0].message.content;
     } catch (err) {
       if (err.name === 'TypeError' || /fetch|network|failed|abort/i.test(err.message)) {
-        throw new Error(`${taskName}：网络请求失败。浏览器预览可能受 CORS 限制，请在 App 内测试；若已在 App 内，请检查网络连接。`);
+        const hint = this.isNativePlatform()
+          ? `${taskName}：网络请求失败，请检查手机网络连接，或确认千问 Key 是否有效。`
+          : `${taskName}：网络请求失败。浏览器预览可能受 CORS 限制，请在 App 内测试；若已在 App 内，请检查网络连接。`;
+        throw new Error(hint);
       }
       throw err;
     }

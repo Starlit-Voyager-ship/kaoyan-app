@@ -23,6 +23,8 @@ const Vocabulary = {
   _progressId: null,    // 今日进度记录在云端的 id
   graduated: [],        // 今日已毕业(不再出现)的词集合
   completed: false,     // 今日 200 词是否全部背完
+  newGoal: 0,           // 动态目标：今日新词额度（点「再背一组」会累加）
+  reviewGoal: 0,        // 动态目标：今日复习额度（同上累加）
   _checkedIn: false,    // 今日是否已打卡
   _checkInTime: null,   // 打卡时间
 
@@ -132,6 +134,16 @@ const Vocabulary = {
       e.stopPropagation();
       this.speakCurrent();
     });
+    // 移动端语音合成解锁：首次用户手势内预热，确保单词出现时能自动发音
+    const onFirstGesture = () => {
+      this._unlockTTS();
+      document.removeEventListener('pointerdown', onFirstGesture);
+      document.removeEventListener('touchstart', onFirstGesture);
+      document.removeEventListener('click', onFirstGesture);
+    };
+    document.addEventListener('pointerdown', onFirstGesture, { passive: true });
+    document.addEventListener('touchstart', onFirstGesture, { passive: true });
+    document.addEventListener('click', onFirstGesture);
     document.getElementById('word-too-easy').addEventListener('click', (e) => {
       e.stopPropagation();
       this.markTooEasy();
@@ -150,6 +162,9 @@ const Vocabulary = {
     if (mkw) mkw.addEventListener('click', () => this.openKnownManager());
     // 手动模式「下一词」
     document.getElementById('word-next').addEventListener('click', () => this._advanceManual());
+    // 再背一组（追加 新词 + 复习词）
+    const addGroupBtn = document.getElementById('word-add-group');
+    if (addGroupBtn) addGroupBtn.addEventListener('click', () => this.addAnotherGroup());
 
     // 测试模式：今日背诵词 / 阅读词
     document.querySelectorAll('.test-mode-btn').forEach(btn => {
@@ -225,6 +240,7 @@ const Vocabulary = {
       active.style.display = 'none';
       prep.style.display = '';
     }
+    this._showAddGroupBtn(this._learningStarted);
   },
 
   // ---------- 背单词：艾宾浩斯选词 + 进度多端保留 ----------
@@ -246,6 +262,7 @@ const Vocabulary = {
       this.graduated = restored.graduated || [];
       this.completed = !!restored.completed;
       this._progressId = restored.id;
+      this._setGoalsFromPlan();
       this.showingMeaning = false;
       this.sessionSeconds = 0;
       this.startSessionTimer();
@@ -258,6 +275,7 @@ const Vocabulary = {
       }
       this.showCurrentWord();
       this.updateStudyStats();
+      this._showAddGroupBtn(true);
       return;
     }
 
@@ -265,6 +283,8 @@ const Vocabulary = {
     const plan = this._plan || this._defaultPlan;
     const newLimit = plan.newPerDay;
     const reviewLimit = newLimit * plan.reviewRatio;
+    this.newGoal = newLimit;
+    this.reviewGoal = reviewLimit;
     const all = await Store.getUserData('vocab_words', user);
     const dictLearned = all.filter(w => (w.source || 'reading') === 'dict');
     const known = await this.getKnownSet(); // 已过滤的熟词
@@ -273,14 +293,21 @@ const Vocabulary = {
     const newOnes = this.pickNewWords(all, newLimit, exclude);
 
     // 构建队列：每条词记录来源(isNew)、初始序号(分组显示)、失败次数 failCount
+    // 新词 + 复习词混合打乱（扇贝式：两类词穿插出现，不按固定先后）
+    const merged = [...review, ...newOnes];
+    for (let i = merged.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [merged[i], merged[j]] = [merged[j], merged[i]];
+    }
     const queue = [];
     let idx = 0;
-    [...review, ...newOnes].forEach(w => {
+    merged.forEach(w => {
       queue.push({
         rec: w,
         isNew: !w.firstLearned,
         initialIndex: idx++,
-        failCount: 0
+        failCount: 0,
+        passes: 0
       });
     });
 
@@ -305,6 +332,7 @@ const Vocabulary = {
     }
     this.showCurrentWord();
     this.updateStudyStats();
+    this._showAddGroupBtn(true);
     this._saveProgress();
   },
 
@@ -366,6 +394,59 @@ const Vocabulary = {
     return newOnes;
   },
 
+  // ---------- 再背一组：在当前队列后追加 新词(按用户计划档位) + 复习词(艾宾浩斯到期) ----------
+  // 适用于：背完一组想继续、或想临时加量。新词取自未背过的词，复习词取自到期复习词，
+  // 两类混合打乱后追加到队列末尾（扇贝式穿插）。目标额度(今日新词/复习)同步累加。
+  async addAnotherGroup() {
+    if (this._advancing) return;
+    const user = Store.getCurrentUser();
+    const plan = this._plan || this._defaultPlan;
+    const newLimit = plan.newPerDay;
+    const reviewLimit = newLimit * plan.reviewRatio;
+
+    const all = await Store.getUserData('vocab_words', user);
+    const dictLearned = all.filter(w => (w.source || 'reading') === 'dict');
+    const known = await this.getKnownSet();
+    // 已在队列 / 今日已毕业 / 已过滤熟词 都不重复选
+    const inQueue = new Set(this.queue.map(q => q.rec.word));
+    const exclude = new Set([...this.graduated, ...known, ...inQueue]);
+
+    const review = this.pickReviewWords(dictLearned, reviewLimit, exclude);
+    const newOnes = this.pickNewWords(all, newLimit, exclude);
+
+    if (newOnes.length === 0 && review.length === 0) {
+      Utils.toast('没有更多可背的单词啦，今天已是满分 ✅');
+      return;
+    }
+
+    // 新词 + 复习词混合打乱（扇贝式：两类词穿插出现）
+    const merged = [...review, ...newOnes];
+    for (let i = merged.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [merged[i], merged[j]] = [merged[j], merged[i]];
+    }
+    // 继续编号，保证分组显示连贯（第 X/Y 组）
+    let idx = this.initialCount;
+    merged.forEach(w => {
+      this.queue.push({
+        rec: w,
+        isNew: !w.firstLearned,
+        initialIndex: idx++,
+        failCount: 0,
+        passes: 0
+      });
+    });
+    this.initialCount = idx;
+    this.newGoal = (this.newGoal || 0) + newOnes.length;
+    this.reviewGoal = (this.reviewGoal || 0) + review.length;
+    this.completed = false;
+
+    this._saveProgress();
+    this.updateStudyStats();
+    this.showCurrentWord();
+    Utils.toast(`已加入一组：新词 ${newOnes.length} + 复习 ${review.length}`);
+  },
+
   daysBetween(a, b) {
     const da = new Date(a + 'T00:00:00');
     const db = new Date(b + 'T00:00:00');
@@ -390,21 +471,63 @@ const Vocabulary = {
 
   updateStudyStats() {
     const plan = this._plan || this._defaultPlan;
-    const newLimit = plan.newPerDay;
-    const reviewLimit = newLimit * plan.reviewRatio;
+    const newGoal = this.newGoal || plan.newPerDay;
+    const reviewGoal = this.reviewGoal || (plan.newPerDay * plan.reviewRatio);
     const reviewEl = document.getElementById('study-review-count');
     const newEl = document.getElementById('study-new-count');
-    if (reviewEl) reviewEl.textContent = `${Math.min(this.reviewDone || 0, reviewLimit)}/${reviewLimit}`;
-    if (newEl) newEl.textContent = `${Math.min(this.newDone || 0, newLimit)}/${newLimit}`;
+    if (reviewEl) reviewEl.textContent = `${Math.min(this.reviewDone || 0, reviewGoal)}/${reviewGoal}`;
+    if (newEl) newEl.textContent = `${Math.min(this.newDone || 0, newGoal)}/${newGoal}`;
+  },
+
+  // 按当前计划设置动态目标额度（新词 + 复习）
+  _setGoalsFromPlan() {
+    const plan = this._plan || this._defaultPlan;
+    this.newGoal = plan.newPerDay;
+    this.reviewGoal = plan.newPerDay * plan.reviewRatio;
+  },
+
+  // 显示/隐藏「再背一组」按钮（标签随用户计划档位动态变化）
+  _showAddGroupBtn(show) {
+    const btn = document.getElementById('word-add-group');
+    if (!btn) return;
+    btn.style.display = show ? '' : 'none';
+    if (show) {
+      const plan = this._plan || this._defaultPlan;
+      btn.textContent = `再背一组（新词 ${plan.newPerDay} + 复习）`;
+    }
   },
 
   speakCurrent() {
     if (!this.queue || this.queue.length === 0) return;
     const w = this.queue[0].rec;
-    if ('speechSynthesis' in window && w && w.word) {
+    if (!w || !w.word) return;
+    if (!('speechSynthesis' in window)) {
+      console.warn('[Vocab] 当前环境不支持语音合成');
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel(); // 先取消，避免 Android WebView 队列堆积
       const u = new SpeechSynthesisUtterance(w.word);
       u.lang = 'en-US';
+      u.rate = 0.95;
       window.speechSynthesis.speak(u);
+    } catch (e) {
+      console.warn('[Vocab] 发音调用失败', e);
+    }
+  },
+
+  // 移动端（WebView）语音合成必须在用户手势内首次触发，否则自动发音会被浏览器拦截。
+  // 在首次交互（点屏/触摸/点击）时预热一次，之后单词出现时的自动发音即可正常播报。
+  _unlockTTS() {
+    if (this._ttsUnlocked) return;
+    this._ttsUnlocked = true;
+    if ('speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+      try {
+        const u = new SpeechSynthesisUtterance(' ');
+        u.lang = 'en-US';
+        window.speechSynthesis.speak(u);
+      } catch (e) {}
     }
   },
 
@@ -488,8 +611,8 @@ const Vocabulary = {
     if (hintEl) hintEl.style.display = 'none';
   },
 
-  // 点击「我认识」：先给意思，停顿(或手动)后再翻页；failCount 为 0 才算真正掌握(不再回插)；
-  // 失败过则认识一次抵消一次，回插队尾直到 failCount 归零才毕业
+  // 点击「我认识」：先给意思，停顿(或手动)后再翻页。扇贝式：第一次「认识」只记一次，
+  // 该词稍后还会再出现一次做确认；累计两次「认识」才毕业（不再出现）。
   async markKnown() {
     if (this._advancing || !this.queue || this.queue.length === 0) return;
     this._advancing = true;
@@ -512,27 +635,26 @@ const Vocabulary = {
     const item = this.queue.shift();
     const w = item.rec;
     this.studiedCount++;
+    item.passes = (item.passes || 0) + 1;
 
-    if (item.failCount === 0) {
+    if (item.passes >= 2) {
+      // 累计两次「认识」→ 真正掌握，毕业不再出现
       this._recordKnown(w, item.isNew, false);
       if (item.isNew) this.newDone++;
       else this.reviewDone++;
       this._addGraduated(w.word);
     } else {
-      item.failCount--;
+      // 第一次「认识」→ 稍后还会出现一次（扇贝式确认复习）
       this._recordKnown(w, item.isNew, true);
-      if (item.failCount <= 0) {
-        this._addGraduated(w.word); // 抵消完，毕业不再出现
-      } else {
-        this.queue.push(item); // 仍需复习，回插队尾
-      }
+      this.queue.push(item);
     }
     this.updateStudyStats();
     this.showCurrentWord();
     this._saveProgress();
   },
 
-  // 点击「不认识」：先给意思，停顿(或手动)后再翻页；failCount+1，回插队尾(后续还会出现)
+  // 点击「不认识」：先给意思，停顿(或手动)后再翻页。扇贝式：failCount+1，
+  // 不认识次数越多，该词越早再次出现（复现权重随失败次数上升）。
   async markUnknown() {
     if (this._advancing || !this.queue || this.queue.length === 0) return;
     this._advancing = true;
@@ -556,7 +678,6 @@ const Vocabulary = {
     const w = item.rec;
     this.studiedCount++;
     item.failCount++;
-    this.queue.push(item); // 回插队尾：本轮后续还会出现
 
     w.wrongCount = (w.wrongCount || 0) + 1;
     w.mastery = Math.max(0, (w.mastery || 0) - 10);
@@ -565,6 +686,11 @@ const Vocabulary = {
     if (!w.firstLearned) w.firstLearned = Utils.today();
     w.ebbinghausStage = 0; // 重置复习阶段
     Store.put('vocab_words', w).catch(() => {});
+
+    // 扇贝式：不认识次数越多，越早再次出现（位置随 failCount 前移，封顶 4）
+    const pos = Math.min(item.failCount, 4);
+    if (pos >= this.queue.length) this.queue.push(item);
+    else this.queue.splice(pos, 0, item);
 
     this.updateStudyStats();
     this.showCurrentWord();
@@ -627,7 +753,8 @@ const Vocabulary = {
           rec: this._rebuildRec(q.word, q.isNew, vocabAll),
           isNew: q.isNew,
           initialIndex: q.initialIndex,
-          failCount: q.failCount || 0
+          failCount: q.failCount || 0,
+          passes: q.passes || 0
         }))
         .filter(x => x.rec);
       return {
@@ -683,7 +810,8 @@ const Vocabulary = {
         word: q.rec.word,
         isNew: q.isNew,
         initialIndex: q.initialIndex,
-        failCount: q.failCount
+        failCount: q.failCount,
+        passes: q.passes || 0
       })),
       initialCount: this.initialCount,
       studiedCount: this.studiedCount,

@@ -877,6 +877,19 @@
 }
 .study-btn-next { margin-top: 10px; background: var(--primary); color: #fff; border: none; }
 .study-btn-next:active { transform: scale(0.98); }
+.study-btn-addgroup {
+  margin-top: 10px;
+  height: 50px;
+  border-radius: var(--radius-md);
+  border: 1.5px dashed var(--primary);
+  background: transparent;
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+.study-btn-addgroup:active { transform: scale(0.98); background: var(--primary-soft, rgba(74,144,226,0.08)); }
 
 /* 背词计划统计面板 */
 .vocab-plan-card {

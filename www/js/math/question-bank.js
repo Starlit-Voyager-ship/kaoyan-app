@@ -66,7 +66,10 @@ const MathBank = {
   search: '',
 
   init() {
-    this.bindEvents();
+    if (!this._bound) {
+      this.bindEvents();
+      this._bound = true;
+    }
     this.render();
   },
 
@@ -281,8 +284,8 @@ const MathBank = {
         : '';
       html += `<div class="question-item" data-id="${q.id}" style="position:relative;padding-right:44px">
         <div class="q-info">
-          <div class="q-topic">${kp} ${img}</div>
-          <div class="q-meta">${q.source || ''} · ${q.createdAt ? new Date(q.createdAt).toLocaleDateString() : ''}</div>
+          <div class="q-topic">${Utils._escapeHtml(kp)} ${img}</div>
+          <div class="q-meta">${Utils._escapeHtml(q.source || '')} · ${q.createdAt ? new Date(q.createdAt).toLocaleDateString() : ''}</div>
         </div>
         <button class="item-del-btn" title="删除此题目" aria-label="删除">${window.TRASH_SVG}</button>
       </div>`;

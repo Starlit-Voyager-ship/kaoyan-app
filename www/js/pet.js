@@ -17,7 +17,7 @@ const Pet = (() => {
     { id: 'toy',        name: '小玩具',    price: 50, hunger: 0,  thirst: 0,  mood: 20, exp: 10, color: '#C28BC9' },
     { id: 'feast',      name: '营养大餐',  price: 80, hunger: 50, thirst: 50, mood: 30, exp: 20, color: '#E5BE6A' },
     { id: 'happy_pill', name: '心情药丸',  price: 60, hunger: 0,  thirst: 0,  mood: 50, exp: 5,  color: '#E08196' },
-    { id: 'exp_drug',   name: '多倍经验药', price: 100, hunger: 0, thirst: 0, mood: 0, exp: 0, color: '#7C6BC4',
+    { id: 'exp_drug',   name: '多倍经验药', price: 100, hunger: 0, thirst: 0, mood: 0, exp: 0, expBuffMs: 30 * 60 * 1000, color: '#7C6BC4',
       apply: (pet) => { pet.expBuffUntil = Date.now() + 30 * 60 * 1000; } },
     // 应急免费道具：每天限 2 份，恢复约 20% 各项属性，不涨经验，防止宠物饿死
     { id: 'free_water', name: '矿泉水',    price: 0,  hunger: 0,  thirst: 20, mood: 5,  exp: 0, color: '#7EC2E8', free: true },

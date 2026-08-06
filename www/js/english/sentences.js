@@ -4,7 +4,10 @@
 
 const Sentences = {
   init() {
-    this.bindEvents();
+    if (!this._bound) {
+      this.bindEvents();
+      this._bound = true;
+    }
     this.renderList();
   },
 
@@ -34,7 +37,7 @@ const Sentences = {
       item.className = 'sentence-item';
       item.style.position = 'relative';
       item.style.paddingRight = '44px';
-      item.innerHTML = `<span class="sentence-original-text">${s.original}</span><button class="item-del-btn" title="删除此长难句" aria-label="删除">${window.TRASH_SVG}</button>`;
+      item.innerHTML = `<span class="sentence-original-text">${Utils._escapeHtml(s.original)}</span><button class="item-del-btn" title="删除此长难句" aria-label="删除">${window.TRASH_SVG}</button>`;
       item.addEventListener('click', () => this.openDetail(s));
       item.querySelector('.item-del-btn').addEventListener('click', (e) => {
         e.stopPropagation();

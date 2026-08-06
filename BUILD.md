@@ -49,19 +49,9 @@ npx cap build android      # 等价于 sync + gradle 打包，按提示选签名
 
 ---
 
-## 五、后端部署（好友叫醒 + 数据同步必须）
-前端「叫醒」是**跨设备实时推送**，必须有一个 WebSocket 后端（`server.js`）：
-```bash
-npm install          # 已含 ws
-node server.js       # 默认端口 3001，监听 /ws
-```
-- **公网**：用支持 Node 的 PaaS（Railway / Render / 腾讯云函数等），或自有服务器 + Nginx 反代启用 **wss**（TLS）。
-- **前端连哪个后端**：编辑 `www/index.html` 顶部
-  ```js
-  window.APP_CONFIG = { wakeServer: 'wss://你的后端域名/ws' };
-  ```
-  留空则用同源 `/ws`（需后端与前端同域部署）。
-- **局域网自测**：手机与电脑同一 WiFi，`wakeServer` 填 `ws://电脑局域网IP:3001/ws`。
+## 五、后端部署（好友叫醒 + 数据同步）
+好友叫醒与数据同步都走 **Bmob 云**（`WakeBind/WakeMsg` + `AppData`），**无需自建 WebSocket 后端**。
+仓库里的 `server.js` 是早期 WebSocket 方案，现仅作历史参考，**不要部署**；`ws` 依赖保留仅用于兼容旧 lockfile。
 
 ---
 
@@ -84,4 +74,4 @@ node server.js       # 默认端口 3001，监听 /ws
 - 资源统一放在 `www/`，Capacitor 用 `webDir: "www"` 同步进 `android/app/src/main/assets/public`。
 - 本沙盒无法编译 APK；原生插件代码（`android/app/.../plugins/`）已在 Android Studio 中按
   Capacitor 6 API 编写，构建时由 Gradle 编译。
-- 后端 `server.js` 为内存存储（重启清空），5 人小范围够用；要持久化可换 Redis / 写文件。
+- `server.js` 为早期 WebSocket 方案，已废弃（好友叫醒走 Bmob 轮询），仅作历史参考，无需部署。

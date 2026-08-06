@@ -56,18 +56,18 @@ const WakeNative = {
     const msg = payload.message;
     if ('Notification' in window) {
       if (Notification.permission === 'granted') {
-        new Notification('⏰ 好友叫醒', { body: msg, requireInteraction: true, tag: 'wake' });
+        new Notification('好友叫醒', { body: msg, requireInteraction: true, tag: 'wake' });
       } else if (Notification.permission !== 'denied') {
         Notification.requestPermission().then(p => {
-          if (p === 'granted') new Notification('⏰ 好友叫醒', { body: msg, requireInteraction: true, tag: 'wake' });
-          else alert('⏰ 好友叫醒：' + msg);
+          if (p === 'granted') new Notification('好友叫醒', { body: msg, requireInteraction: true, tag: 'wake' });
+          else alert('好友叫醒：' + msg);
         });
       } else {
-        alert('⏰ 好友叫醒：' + msg);
+        alert('好友叫醒：' + msg);
       }
-    } else {
-      alert('⏰ 好友叫醒：' + msg);
-    }
+      } else {
+        alert('好友叫醒：' + msg);
+      }
   }
 };
 
@@ -191,6 +191,19 @@ const WakeStore = {
         } catch { resolve(); }
       });
     }
+  },
+
+  // 清理过期云端记录（如 WakeMsg），避免行数无限增长
+  async cleanup(clazz, where) {
+    if (!this.cloudReady()) return;
+    try {
+      const list = await this.query(clazz, where);
+      for (const r of list) {
+        if (r && r.objectId) {
+          try { await Bmob.request('DELETE', '/classes/' + clazz + '/' + r.objectId, undefined, false); } catch (e) {}
+        }
+      }
+    } catch (e) { console.warn('[WakeStore] 清理失败', e.message); }
   }
 };
 
@@ -213,7 +226,10 @@ const FriendWake = {
   _guardStarted: false,
 
   init() {
-    this.bindEvents();
+    if (!this._bound) {
+      this.bindEvents();
+      this._bound = true;
+    }
     this.loadBinding();
     this.startPolling();
   },
@@ -388,7 +404,14 @@ const FriendWake = {
     const me = this.user();
     if (!me) { Utils.toast('请先登录后再生成邀请码'); return; }
     try {
-      const code = Utils.inviteCode() || (Math.random().toString(36).slice(2, 8).toUpperCase());
+      // 生成前先查云端是否已占用，避免两人生成同一邀请码绑错人（最多重试 5 次）
+      let code = '';
+      for (let i = 0; i < 5; i++) {
+        const candidate = Utils.inviteCode() || (Math.random().toString(36).slice(2, 8).toUpperCase());
+        const exists = await WakeStore.query('WakeBind', { code: candidate, type: 'invite' });
+        if (!exists || !exists.length) { code = candidate; break; }
+      }
+      if (!code) { Utils.toast('邀请码生成失败，请重试'); return; }
       this.myCode = code;
       // 清掉旧码，写新码（带 10 分钟有效期）
       await WakeStore.remove('WakeBind', { fromUser: me });
@@ -563,6 +586,7 @@ const FriendWake = {
 
   async triggerWake() {
     if (!this.bound) { Utils.toast('未绑定好友'); return; }
+    // 发送不设次数上限：想叫几次就叫几次；清理只删旧消息，不影响反复叫醒
     const me = this.user();
     const msg = { type: 'wake', fromUser: me, toUser: this.peerUser, message: '该起床学习啦！', ts: Date.now() };
     await WakeStore.save('WakeMsg', {
@@ -636,7 +660,44 @@ const FriendWake = {
       }
     } catch (e) { /* 静默 */ }
 
+    // 定期清理叫醒消息（节流执行），避免云端 WakeMsg 无限增长；不影响叫醒次数
+    this._maybeCleanupWake(me);
     this.updateNetStatus();
+  },
+
+  // 定期清理叫醒消息：15 分钟节流执行一次，避免 Bmob 请求过频；
+  // 只删 3 天前 / 超上限的旧消息，绝不限制反复叫醒次数
+  _maybeCleanupWake(me) {
+    const key = 'wake_cleanup_at_' + me;
+    const now = Date.now();
+    let last = 0;
+    try { last = parseInt(localStorage.getItem(key) || '0', 10) || 0; } catch (e) {}
+    if (now - last < 15 * 60 * 1000) return;
+    try { localStorage.setItem(key, String(now)); } catch (e) { return; }
+    const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    const where = { ts: { $lt: cutoff } };
+    WakeStore.cleanup('WakeMsg', Object.assign({ toUser: me }, where)).catch(() => {});
+    WakeStore.cleanup('WakeMsg', Object.assign({ fromUser: me }, where)).catch(() => {});
+    // 总量封顶：每方向最多保留 100 条（只清理 1 小时前且超出上限的最旧消息）
+    this._capWakeMessages('WakeMsg', { toUser: me });
+    this._capWakeMessages('WakeMsg', { fromUser: me });
+  },
+
+  // 控制 WakeMsg 总量：避免“3 天内仍累积”导致的云端行数无限上升
+  _capWakeMessages(clazz, where) {
+    const CAP = 100;
+    const OLD_MS = 60 * 60 * 1000;
+    WakeStore.query(clazz, where).then((rows) => {
+      const sorted = (rows || []).filter(r => r && r.ts && r.ts < Date.now() - OLD_MS)
+        .sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      const over = sorted.length - CAP;
+      if (over <= 0) return;
+      for (const r of sorted.slice(0, over)) {
+        if (r && r.objectId) {
+          Bmob.request('DELETE', '/classes/' + clazz + '/' + r.objectId, undefined, false).catch(() => {});
+        }
+      }
+    }).catch(() => {});
   },
 
   /* ---------- 视图切换 ---------- */

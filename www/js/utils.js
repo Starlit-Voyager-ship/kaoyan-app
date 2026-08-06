@@ -38,29 +38,45 @@ const Utils = {
     return `${h}:${m}:${s}`;
   },
 
-  // 获取今天的日期字符串 YYYY-MM-DD
+  // 获取今天的日期字符串 YYYY-MM-DD（按中国标准时间 UTC+8，避免东八区凌晨取到前一天）
   today() {
-    return new Date().toISOString().slice(0, 10);
+    return this.cnDate(new Date());
   },
 
-  // 获取本周范围
+  // 把任意时间换算成中国标准日期的 YYYY-MM-DD
+  cnDate(jsDate) {
+    const t = jsDate ? jsDate.getTime() : NaN;
+    if (!Number.isFinite(t)) return '';
+    const d = new Date(t + 8 * 60 * 60 * 1000);
+    return d.toISOString().slice(0, 10);
+  },
+
+  // 中国日历日期加减（对 YYYY-MM-DD 做纯日历运算，不经过设备时区）
+  shiftDate(dateStr, deltaDays) {
+    const m = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return dateStr;
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    d.setUTCDate(d.getUTCDate() + Number(deltaDays || 0));
+    return d.toISOString().slice(0, 10);
+  },
+
+  // 获取本周范围（周一起始，按中国日历日期）
   thisWeek() {
-    const now = new Date();
-    const day = now.getDay() || 7;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - day + 1);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
+    const today = this.today();
+    const m = String(today).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return { start: today, end: today };
+    const weekday = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay() || 7;
     return {
-      start: monday.toISOString().slice(0, 10),
-      end: sunday.toISOString().slice(0, 10)
+      start: this.shiftDate(today, 1 - weekday),
+      end: this.shiftDate(today, 7 - weekday)
     };
   },
 
-  // 格式化日期显示
+  // 格式化日期显示（按日期字符串本身，不依赖设备时区）
   formatDate(dateStr) {
-    const d = new Date(dateStr);
-    return `${d.getMonth()+1}月${d.getDate()}日`;
+    const m = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return dateStr;
+    return `${Number(m[2])}月${Number(m[3])}日`;
   },
 
   // 生成随机ID

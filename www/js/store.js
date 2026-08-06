@@ -8,6 +8,8 @@ const Store = {
   db: null,
   dbName: 'KaoyanHelperDB',
   currentUser: null,
+  _coinQueue: Promise.resolve(),
+  _cloudFailToastAt: 0,
 
   async init() {
     // 初始化本地缓存库（始终可用，离线兜底）
@@ -84,7 +86,10 @@ const Store = {
     // 云端同步（带 userId + ACL 隔离）
     if (Bmob.isLoggedIn()) {
       try { await Bmob.saveAppData(storeName, item); }
-      catch (e) { console.warn('[Store] 云端保存失败（稍后联网重试）', e.message); }
+      catch (e) {
+        console.warn('[Store] 云端保存失败（稍后联网重试）', e.message);
+        this._notifyCloudFailure();
+      }
     }
     return;
   },
@@ -104,7 +109,11 @@ const Store = {
     const user = this.getCurrentUser();
     await this._cachePut(`${user}::${storeName}::${id}`, null);
     if (Bmob.isLoggedIn()) {
-      try { await Bmob.deleteAppData(storeName, id); } catch (e) {}
+      try { await Bmob.deleteAppData(storeName, id); }
+      catch (e) {
+        console.warn('[Store] 云端删除失败（稍后联网重试）', e.message);
+        this._notifyCloudFailure();
+      }
     }
   },
 
@@ -287,12 +296,12 @@ const Store = {
   async getTodayMathCount(username) {
     const today = Utils.today();
     const questions = await this.getUserData('math_questions', username);
-    return questions.filter(q => q.createdAt && q.createdAt.startsWith(today)).length;
+    return questions.filter(q => q.createdAt && Utils.cnDate(new Date(q.createdAt)) === today).length;
   },
   async getTodayChatCount(username) {
     const today = Utils.today();
     const chats = await this.getUserData('ai_chats', username);
-    return chats.filter(c => c.timestamp && c.timestamp.startsWith(today)).length;
+    return chats.filter(c => c.timestamp && Utils.cnDate(new Date(c.timestamp)) === today).length;
   },
 
   // ============================================================
@@ -309,15 +318,36 @@ const Store = {
     } catch (e) { return 0; }
   },
 
+  // 金币读写串行化：避免并发「读余额 → 写回」互相覆盖
+  _withCoinLock(fn) {
+    const run = this._coinQueue.then(fn, fn);
+    this._coinQueue = run.then(() => {}, () => {});
+    return run;
+  },
+
+  // 云同步失败对用户可见：同一会话内最多 30 秒提示一次，避免刷屏
+  _notifyCloudFailure() {
+    const now = Date.now();
+    if (now - (this._cloudFailToastAt || 0) < 30000) return;
+    this._cloudFailToastAt = now;
+    try {
+      if (typeof Utils !== 'undefined' && Utils.toast) {
+        Utils.toast('云端同步失败，数据已保存在本机，联网后会自动重试');
+      }
+    } catch (e) {}
+  },
+
   async addCoins(username, delta) {
     if (!delta) return 0;
     const user = username || this.getCurrentUser();
     if (!user) return 0;
-    const cur = await this.getCoins(user);
-    const next = Math.max(0, cur + delta);
-    await this.put('coins', { id: 'coins_' + user, balance: next });
-    // 不在这里自动写流水，由上层 Pet.onLearnReward 写更精确的 note
-    return next;
+    return this._withCoinLock(async () => {
+      const cur = await this.getCoins(user);
+      const next = Math.max(0, cur + delta);
+      await this.put('coins', { id: 'coins_' + user, balance: next });
+      // 不在这里自动写流水，由上层 Pet.onLearnReward 写更精确的 note
+      return next;
+    });
   },
 
   // 扣金币：余额不足返回 -1；成功返回扣后余额
@@ -325,12 +355,14 @@ const Store = {
     if (!amount || amount <= 0) return await this.getCoins(username);
     const user = username || this.getCurrentUser();
     if (!user) return -1;
-    const cur = await this.getCoins(user);
-    if (cur < amount) return -1;
-    const next = cur - amount;
-    await this.put('coins', { id: 'coins_' + user, balance: next });
-    // 不自动写流水（useItem 会写 item 类型流水）
-    return next;
+    return this._withCoinLock(async () => {
+      const cur = await this.getCoins(user);
+      if (cur < amount) return -1;
+      const next = cur - amount;
+      await this.put('coins', { id: 'coins_' + user, balance: next });
+      // 不自动写流水（useItem 会写 item 类型流水）
+      return next;
+    });
   },
 
   // ============================================================

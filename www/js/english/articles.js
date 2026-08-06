@@ -6,7 +6,10 @@ const Articles = {
   currentArticle: null,
 
   init() {
-    this.bindEvents();
+    if (!this._bound) {
+      this.bindEvents();
+      this._bound = true;
+    }
     this.renderList();
   },
 
@@ -42,8 +45,8 @@ const Articles = {
       item.style.paddingRight = '44px';
       const wrongN = (a.wrongQuestions && a.wrongQuestions.length) ? a.wrongQuestions.length : 0;
       item.innerHTML = `
-        <h4>${a.title}${wrongN ? ` <span class="wrong-badge">${wrongN} 错</span>` : ''}</h4>
-        <p>${a.content.substring(0, 80)}...</p>
+        <h4>${this._esc(a.title)}${wrongN ? ` <span class="wrong-badge">${wrongN} 错</span>` : ''}</h4>
+        <p>${this._esc(a.content.substring(0, 80))}...</p>
         <small style="color:var(--text-light)">${new Date(a.createdAt).toLocaleDateString()}</small>
         <button class="item-del-btn" title="删除此文章" aria-label="删除">${window.TRASH_SVG}</button>
       `;
@@ -278,7 +281,10 @@ const Articles = {
       this._translationVisible = true;
       this.renderReaderContent();
       if (btn) btn.textContent = '收起翻译';
-      Utils.toast('翻译完成，+20 金币');
+      const reward = (typeof Pet !== 'undefined' && Pet.LEARN_REWARDS && Pet.LEARN_REWARDS.article_complete)
+        ? (Pet.LEARN_REWARDS.article_complete.per || 20)
+        : 20;
+      Utils.toast(`翻译完成，+${reward} 金币`);
       Pet.onLearnReward('article_complete', 1).catch(() => {});
     } catch (e) {
       console.error('[翻译失败]', e);
@@ -435,6 +441,68 @@ const Articles = {
 
   startQuiz() {
     if (!this.currentArticle) return;
-    Utils.toast('阅读答题功能开发中...');
+    const data = this._parseAIResponse(this.currentArticle.aiResponse || '');
+    const questions = (data.questions || []).filter(q => q && (q.question || q.text));
+    if (!questions.length) {
+      Utils.toast('本文没有可答题的题目');
+      return;
+    }
+    const qHtml = questions.map((q, i) => {
+      const opts = Array.isArray(q.options) && q.options.length ? q.options : [];
+      const qText = String(q.question || q.text || ('第' + (i + 1) + '题'));
+      const optHtml = opts.map(o => `
+        <button type="button" class="quiz-opt" data-q="${i}" data-v="${Utils._escapeHtml(o)}"
+          style="display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px;border:1px solid var(--glass-border);border-radius:10px;background:var(--glass-bg-heavy);color:var(--text);font-size:0.9rem;cursor:pointer;font-family:inherit">
+          ${Utils._escapeHtml(o)}
+        </button>`).join('');
+      return `
+        <div class="quiz-q" data-q="${i}" style="margin-bottom:18px">
+          <div style="font-weight:700;margin-bottom:6px">${i + 1}. ${Utils._escapeHtml(qText)}</div>
+          ${optHtml || '<div style="color:var(--text-light);font-size:0.85rem">无选项</div>'}
+        </div>`;
+    }).join('');
+    Utils.showModal('阅读答题', `
+      <div id="quiz-body" style="max-height:60vh;overflow-y:auto">
+        ${qHtml}
+      </div>`, `
+      <button class="btn-primary" id="quiz-submit">提交答案</button>
+      <button class="btn-outline" onclick="Utils.hideModal()">取消</button>
+    `);
+    document.querySelectorAll('#quiz-body .quiz-opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const q = btn.dataset.q;
+        document.querySelectorAll('#quiz-body .quiz-opt[data-q="' + q + '"]').forEach(b => {
+          delete b.dataset.sel;
+          b.style.background = 'var(--glass-bg-heavy)';
+          b.style.borderColor = 'var(--glass-border)';
+        });
+        btn.dataset.sel = '1';
+        btn.style.background = 'var(--primary-bg)';
+        btn.style.borderColor = 'var(--primary)';
+      });
+    });
+    document.getElementById('quiz-submit').onclick = () => this.submitQuiz(questions);
+  },
+
+  submitQuiz(questions) {
+    const art = this.currentArticle;
+    if (!art) { Utils.hideModal(); return; }
+    const wrong = new Set(Array.isArray(art.wrongQuestions) ? art.wrongQuestions : []);
+    let correct = 0;
+    questions.forEach((q, i) => {
+      const sel = document.querySelector('#quiz-body .quiz-opt[data-q="' + i + '"][data-sel="1"]');
+      const chosen = sel ? sel.dataset.v : '';
+      const ans = String(q.answer || '');
+      const norm = (s) => String(s || '').toLowerCase().trim().replace(/^[a-d][.\、)]\s*/i, '');
+      const letterOk = /^[a-d]$/i.test(ans.trim()) &&
+        chosen.trim().toLowerCase().charAt(0) === ans.trim().toLowerCase();
+      if (ans && (norm(ans) === norm(chosen) || letterOk)) correct++;
+      else wrong.add(i);
+    });
+    art.wrongQuestions = [...wrong];
+    Store.put('articles', Object.assign({}, art)).catch(() => {});
+    this.renderReaderAI();
+    Utils.hideModal();
+    Utils.toast('答对 ' + correct + ' / ' + questions.length + ' 题');
   }
 };

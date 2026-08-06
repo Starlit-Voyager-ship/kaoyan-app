@@ -14,6 +14,8 @@ const Bmob = {
   // 数据归属用的「规范账号名」（与登录表单输入一致），与认证用的云端账号解耦，
   // 避免多端因 cloud_user_* 映射不同导致数据被拆分到不同云端账号。
   dataUserId: '',
+  // 同设备同 key 保存串行化锁，避免并发「查询 → 创建」产生重复云端行
+  _saveLocks: {},
 
   // 从 APP_CONFIG 初始化；并尝试恢复本地会话
   init(cfg) {
@@ -35,6 +37,12 @@ const Bmob = {
 
   hasCredentials() { return !!(this.appId && this.restKey); },
   isLoggedIn() { return !!(this.sessionToken && this.userObjectId); },
+
+  // 校验本地会话是否仍有效（启动时防止“假登录”卡在失效 session 上）
+  async checkSession() {
+    if (!this.isLoggedIn()) return null;
+    return this.request('GET', '/users/' + this.userObjectId, undefined, true);
+  },
 
   /* 候选 API 域名（Bmob 历史上多个域名，控制台也可能给出不同地址）。
      启动时光 ping 一次，自动选用第一个可用的，避免写死失效域名导致整体降级。 */
@@ -147,6 +155,19 @@ const Bmob = {
   // 保存一条记录（按 userId+module+itemId 去重，存在则更新）
   async saveAppData(module, item) {
     if (!this.hasCredentials()) return null;
+    const key = module + '::' + (item && item.id);
+    // 同设备同 key 串行化：第二个调用复用第一个的 Promise，避免重复建行
+    if (this._saveLocks[key]) return this._saveLocks[key];
+    const p = this._doSaveAppData(module, item);
+    this._saveLocks[key] = p.then(
+      (r) => { delete this._saveLocks[key]; return r; },
+      (e) => { delete this._saveLocks[key]; throw e; }
+    );
+    return this._saveLocks[key];
+  },
+
+  async _doSaveAppData(module, item) {
+    if (!this.hasCredentials()) return null;
     const uid = this.dataUserId || this.username;
     const where = { userId: uid, module, itemId: item.id };
     let existing = null;
@@ -160,10 +181,31 @@ const Bmob = {
       itemId: item.id,
       item
     };
+    let saved;
     if (existing) {
-      return this.request('PUT', '/classes/AppData/' + existing.objectId, payload);
+      saved = await this.request('PUT', '/classes/AppData/' + existing.objectId, payload);
+    } else {
+      saved = await this.request('POST', '/classes/AppData', payload);
     }
-    return this.request('POST', '/classes/AppData', payload);
+    // 跨设备并发可能在同一个 key 上各建一行，保存后清一次重复（保留 updatedAt 最新一条）
+    try { await this._dedupeAppData(module, item.id); }
+    catch (e) { console.warn('[Bmob] 清理重复行失败', e.message); }
+    return saved;
+  },
+
+  // 清掉同 key 的重复云端行，读取端本就会按 id 去重，这里把云端表也收敛干净
+  async _dedupeAppData(module, itemId) {
+    if (!this.hasCredentials()) return;
+    const uid = this.dataUserId || this.username;
+    const where = { userId: uid, module, itemId };
+    const q = await this.request('GET', '/classes/AppData?where=' + encodeURIComponent(JSON.stringify(where)));
+    const rows = q.results || [];
+    if (rows.length <= 1) return;
+    rows.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+    for (const r of rows.slice(1)) {
+      try { await this.request('DELETE', '/classes/AppData/' + r.objectId, undefined, false); } catch (e) {}
+    }
+    console.warn('[Bmob] 清理重复行:', module, itemId, rows.length);
   },
 
   // 取某模块全部记录（返回 item 数组）

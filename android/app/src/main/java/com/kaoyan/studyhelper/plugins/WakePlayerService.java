@@ -81,7 +81,7 @@ public class WakePlayerService extends Service {
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-                .setContentTitle("⏰ 好友叫醒")
+                .setContentTitle("好友叫醒")
                 .setContentText(message)
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)

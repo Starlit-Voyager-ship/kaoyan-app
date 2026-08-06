@@ -110,7 +110,7 @@ public class WakeGuardService extends Service {
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-                .setContentTitle("⏰ 叫醒守护中")
+                .setContentTitle("叫醒守护中")
                 .setContentText("锁屏也能收到好友叫醒")
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setContentIntent(contentIntent)

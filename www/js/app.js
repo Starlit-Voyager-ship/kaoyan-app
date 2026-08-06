@@ -2,17 +2,27 @@
    主应用控制器 - 路���/初始化/协调
    ======================================== */
 
+// 全部业务数据表（Store 同步链路），导出/清空共用
+const DATA_TABLES = [
+  'pomodoro_records', 'pomo_tasks', 'pomo_todos', 'ai_chats',
+  'vocab_words', 'vocab_known', 'vocab_plan', 'learn_progress',
+  'daily_checkin', 'vocab_streak',
+  'articles', 'sentences', 'essays',
+  'math_questions', 'math_weak_points',
+  'reports', 'coins', 'coin_log', 'pet_data', 'pet_pos', 'countdown'
+];
+
 const app = {
   currentPage: 'home',
 
   async init() {
-    console.log('🚀 考研学习助手 启动中...');
+    console.log('考研学习助手 启动中...');
 
     // 初始化数据存储
     await Store.init();
 
-    // 初始化认证系统
-    Auth.init();
+    // 初始化认证系统（含会话有效性校验）
+    await Auth.init();
 
     // 升级自定义控件（日期 pill / 下拉），替代 Android WebView 原生 UI
     Widgets.init();
@@ -26,7 +36,7 @@ const app = {
     // 设置页面标题
     document.title = '考研学习助手';
 
-    console.log('✅ 应用初始化完成');
+    console.log('应用初始化完成');
   },
 
   bindGlobalEvents() {
@@ -140,6 +150,7 @@ const app = {
     Reports.init();
     FriendWake.init();
 
+    if (typeof PetUI !== 'undefined' && PetUI.mount) PetUI.mount();
     this.updateHomeStats();
     if (typeof PetUI !== 'undefined' && PetUI.updateHomeCard) PetUI.updateHomeCard();
     if (typeof Countdown !== 'undefined' && Countdown.renderHome) Countdown.renderHome();
@@ -188,13 +199,25 @@ const app = {
   // 点击铅笔图标修改专注目标
   editFocusGoal() {
     const current = parseInt(localStorage.getItem('focus_goal_min') || '120', 10) || 120;
-    const val = prompt('设置今日专注目标（分钟）', current);
-    if (val === null) return; // 取消
-    const n = parseInt(val, 10);
-    if (!n || n < 1 || n > 999) { Utils.toast('请输入 1-999 之间的数字'); return; }
-    localStorage.setItem('focus_goal_min', String(n));
-    this.updateHomeStats(); // 立即刷新显示
-    Utils.toast('专注目标已设为 ' + n + ' 分钟');
+    Utils.showModal('设置今日专注目标', `
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
+        <label style="font-size:0.85rem;color:var(--text-secondary)">每日专注目标（分钟）</label>
+        <input id="focus-goal-input" type="text" inputmode="numeric" value="${current}"
+               class="setting-input" style="width:100%" placeholder="1-999">
+      </div>
+    `, `
+      <button class="btn-primary" id="focus-goal-save">保存</button>
+      <button class="btn-outline" onclick="Utils.hideModal()">取消</button>
+    `);
+    document.getElementById('focus-goal-save').onclick = () => {
+      const val = document.getElementById('focus-goal-input').value.trim();
+      const n = parseInt(val, 10);
+      if (!n || n < 1 || n > 999) { Utils.toast('请输入 1-999 之间的数字'); return; }
+      localStorage.setItem('focus_goal_min', String(n));
+      Utils.hideModal();
+      this.updateHomeStats(); // 立即刷新显示
+      Utils.toast('专注目标已设为 ' + n + ' 分钟');
+    };
   },
 
   async renderMine() {
@@ -237,14 +260,19 @@ const app = {
     const user = Store.getCurrentUser();
     const data = { username: user, exportedAt: new Date().toISOString(), tables: {} };
 
-    const tables = [
-      'pomodoro_records', 'ai_chats', 'vocab_words', 'articles',
-      'sentences', 'essays', 'math_questions', 'math_weak_points',
-      'friend_bindings', 'reports'
-    ];
-
-    for (const table of tables) {
+    for (const table of DATA_TABLES) {
       data.tables[table] = await Store.getUserData(table, user);
+    }
+    // 好友叫醒走独立 WakeStore 链路
+    if (window.WakeStore) {
+      try {
+        data.tables.WakeBind = (await WakeStore.query('WakeBind', { fromUser: user }))
+          .concat(await WakeStore.query('WakeBind', { toUser: user }));
+        data.tables.WakeMsg = (await WakeStore.query('WakeMsg', { fromUser: user }))
+          .concat(await WakeStore.query('WakeMsg', { toUser: user }));
+      } catch (e) {
+        console.warn('[导出] 好友叫醒数据读取失败', e);
+      }
     }
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -277,16 +305,26 @@ const app = {
 
     document.getElementById('confirm-clear-all').onclick = async () => {
       const user = Store.getCurrentUser();
-      const tables = [
-        'pomodoro_records', 'ai_chats', 'vocab_words', 'articles',
-        'sentences', 'essays', 'math_questions', 'math_weak_points',
-        'friend_bindings', 'reports'
-      ];
-      for (const table of tables) {
+      for (const table of DATA_TABLES) {
         const items = await Store.getUserData(table, user);
         for (const item of items) {
           await Store.delete(table, item.id);
         }
+      }
+      // 好友叫醒独立数据（Bmob WakeBind/WakeMsg + 本地绑定/游标）
+      if (window.WakeStore) {
+        try {
+          await WakeStore.remove('WakeBind', { fromUser: user });
+          await WakeStore.remove('WakeBind', { toUser: user });
+          await WakeStore.remove('WakeMsg', { fromUser: user });
+          await WakeStore.remove('WakeMsg', { toUser: user });
+        } catch (e) {
+          console.warn('[清空] 好友叫醒数据清理失败', e);
+        }
+        try {
+          localStorage.removeItem('wake_binding');
+          localStorage.removeItem('wake_lastts_' + user);
+        } catch (e) {}
       }
       Utils.hideModal();
       Utils.toast('所有数据已清除');

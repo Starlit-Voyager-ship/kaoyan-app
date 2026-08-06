@@ -66,7 +66,10 @@ const Vocabulary = {
   _learningStarted: false, // 本会话是否已开始学习（控制 prep/active 视图切换）
 
   init() {
-    this.bindEvents();
+    if (!this._bound) {
+      this.bindEvents();
+      this._bound = true;
+    }
     this._restoreSpeedUI();
     this.renderVocabList('all', 'all');
     this._initPlanAndStreak();
@@ -415,7 +418,7 @@ const Vocabulary = {
     const newOnes = this.pickNewWords(all, newLimit, exclude);
 
     if (newOnes.length === 0 && review.length === 0) {
-      Utils.toast('没有更多可背的单词啦，今天已是满分 ✅');
+      Utils.toast('没有更多可背的单词啦，今天已是满分');
       return;
     }
 
@@ -849,16 +852,16 @@ const Vocabulary = {
   // 今日打卡（独立每日记录，与背诵进度解耦）
   // 硬规矩：必须先背完当日所有任务才能打卡。未完成直接拒绝。
   async checkIn() {
-    if (this._checkedIn) { Utils.toast('今天已经打卡啦 ✓'); return; }
+    if (this._checkedIn) { Utils.toast('今天已经打卡啦'); return; }
     if (!this.completed) {
-      Utils.toast('请先完成今日背单词任务，再打卡 ✏️');
+      Utils.toast('请先完成今日背单词任务，再打卡');
       return;
     }
     this._checkedIn = true;
     this._checkInTime = new Date().toISOString();
     this._refreshCheckinBtn();
     await this._saveCheckIn();
-    Utils.toast('打卡成功，今天继续加油！🎉');
+    Utils.toast('打卡成功，今天继续加油！');
     await this.loadStreak();        // 重新计算连续天数 + 火花
     this._refreshFireKeepUI();
     if (typeof app !== 'undefined' && app.updateHomeStats) app.updateHomeStats();
@@ -906,7 +909,7 @@ const Vocabulary = {
       this._checkInTime = null;
     }
     if (this._checkedIn) {
-      btn.textContent = '今日已打卡 ✓';
+      btn.textContent = '今日已打卡';
       btn.classList.add('checked');
       btn.disabled = true;
       btn.style.display = '';
@@ -940,7 +943,7 @@ const Vocabulary = {
     if (typeof app !== 'undefined' && app.updateHomeStats) app.updateHomeStats();
     const tip = this._checkedIn
       ? `本次学习完成！认识 ${this.reviewDone + this.newDone} 个`
-      : `本次学习完成！记得点「今日打卡」哦 📅`;
+      : `本次学习完成！记得点「今日打卡」哦`;
     Utils.toast(tip);
     this._saveProgress();
     this._refreshCheckinBtn();   // 完成后才出现打卡
@@ -1599,24 +1602,21 @@ const Vocabulary = {
       set('plan-new-perday', newPerDay);
       set('plan-review-perday', reviewPerDay);
       set('plan-total-perday', totalPerDay);
-      set('plan-days', daysToFinish > 0 ? (daysToFinish + ' 天') : '已完成 🎉');
+      set('plan-days', daysToFinish > 0 ? (daysToFinish + ' 天') : '已完成');
     } catch (e) {}
   },
 
   // 连续打卡计算
   _shiftDate(dateStr, delta) {
-    const d = new Date(dateStr + 'T00:00:00');
-    d.setDate(d.getDate() + delta);
-    return d.toISOString().slice(0, 10);
+    return (typeof Utils !== 'undefined' && Utils.shiftDate)
+      ? Utils.shiftDate(dateStr, delta)
+      : dateStr;
   },
 
   _weekStart() {
-    const d = new Date();
-    const day = d.getDay(); // 0=周日
-    const diff = (day === 0) ? 6 : (day - 1);
-    const mon = new Date(d);
-    mon.setDate(d.getDate() - diff);
-    return mon.toISOString().slice(0, 10);
+    return (typeof Utils !== 'undefined' && Utils.thisWeek)
+      ? Utils.thisWeek().start
+      : Utils.today();
   },
 
   _computeStreak(dates) {
@@ -1723,7 +1723,7 @@ const Vocabulary = {
     await this.loadStreak();
     this._refreshFireKeepUI();
     if (typeof app !== 'undefined' && app.updateHomeStats) app.updateHomeStats();
-    Utils.toast('已补签昨日！现在点「今日打卡」即可延续连续天数 🔥');
+    Utils.toast('已补签昨日！现在点「今日打卡」即可延续连续天数');
   },
 
   _refreshFireKeepUI() {

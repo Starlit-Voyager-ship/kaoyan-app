@@ -35,7 +35,10 @@ const AIAssistant = {
     if (typeof Capacitor !== 'undefined' && Capacitor.registerPlugin) {
       try { Capacitor.registerPlugin('Camera'); } catch (e) {}
     }
-    this.bindEvents();
+    if (!this._bound) {
+      this.bindEvents();
+      this._bound = true;
+    }
     this.checkConfig();
     this.loadHistory();
   },
@@ -138,10 +141,10 @@ const AIAssistant = {
 
   async handleFile(file) {
     const base64 = await Utils.imgToBase64(file);
-    // 上传归档：1024px + 0.7质量（OCR够用，单张约50-100KB，适配Bmob免费版限制）
+    // 上传归档：1400px + 0.85 保 OCR 清晰度（后续步骤会按平台预算收敛大小）
     // AI问答：800px + 0.75（识别用，更小）
-    const quality = this._pendingPanel === 'upload' ? 0.7 : 0.75;
-    const maxWidth = this._pendingPanel === 'upload' ? 1024 : 800;
+    const quality = this._pendingPanel === 'upload' ? 0.85 : 0.75;
+    const maxWidth = this._pendingPanel === 'upload' ? 1400 : 800;
     const compressed = await Utils.compressImg(base64, maxWidth, quality);
     this.setImage(this._pendingPanel || this.activeMode, compressed);
   },
@@ -202,9 +205,9 @@ const AIAssistant = {
 
     try {
       // 图片仅用于本地识别，不存云端（用户需求：只同步解析后的文字）
-      // 文字图压缩策略：总 base64 预算 33KB（aiProxy 限制 40KB，给 JSON 留余量）
+      // 平台自适应预算：App 原生直连无 40KB 限制给足清晰度；浏览器走 aiProxy 保守压缩
       // 单张目标 = 总预算 / 图数，按图数动态分配；文字图优先保分辨率 + 适中质量，避免压糊丢词少段
-      const AI_TOTAL_BUDGET = 33 * 1024;
+      const AI_TOTAL_BUDGET = this.isNativePlatform() ? 220 * 1024 : 36 * 1024;
       const perImgTarget = Math.floor(AI_TOTAL_BUDGET / Math.max(1, this.uploadImages.length));
       const aiImages = [];
       for (const img of this.uploadImages) {
@@ -275,8 +278,9 @@ const AIAssistant = {
             Utils.toast('解析生成失败（' + solveErr.message + '），题目已保存');
           }
         }
+        const qid = Utils.uid();
         await Store.put('math_questions', {
-          id: Utils.uid(),
+          id: qid,
           username: user,
           source,
           topic,
@@ -293,13 +297,13 @@ const AIAssistant = {
         });
 
         // 记录薄弱点
-        const today = new Date().toISOString().slice(0, 10);
+        const today = Utils.today();
         try {
           await Store.put('math_weak_points', {
             id: Utils.uid(),
             username: user,
             topic,
-            questionId: Utils.uid(),
+            questionId: qid,
             count: 1,
             date: today,
             lastReview: new Date().toISOString()
@@ -870,11 +874,16 @@ const AIAssistant = {
   async _buildTranscribeImages() {
     const raws = this.uploadImages || [];
     if (!raws.length) return [];
-    // 始终做竖向切分（splitLongImage 内部按 ratio 自动决定 1/2/3 段）
+    // 长图切分：≤2 张时先切再压（splitLongImage 内部按比例 1/2/3 段）；
+    // >2 张说明用户已按文章/题目分区上传，不再切，避免碎片过多压低单图预算
     const pieces = [];
     for (const img of raws) {
-      const halves = await Utils.splitLongImage(img);
-      for (const h of halves) pieces.push(h);
+      if (raws.length <= 2) {
+        const halves = await Utils.splitLongImage(img);
+        for (const h of halves) pieces.push(h);
+      } else {
+        pieces.push(img);
+      }
     }
     // 预算：App 原生放宽到 220KB（清晰度优先），浏览器仍 36KB
     const BUDGET = this.isNativePlatform() ? 220 * 1024 : 36 * 1024;

@@ -12,7 +12,10 @@ const Pomodoro = {
   statsRange: 'day',
 
   init() {
-    this.bindEvents();
+    if (!this._bound) {
+      this.bindEvents();
+      this._bound = true;
+    }
     this.loadTasks();
     this.loadTodayStats();
     this.renderTasks();
@@ -185,10 +188,18 @@ const Pomodoro = {
     try {
       const cloud = await Store.getAll('pomo_tasks');
       if (Array.isArray(cloud) && cloud.length >= 0) {
-        const localIds = new Set(this.tasks.map(t => t.id));
-        const merged = this.tasks.slice();
-        cloud.forEach(t => { if (t && t.id && !localIds.has(t.id)) merged.push(t); });
-        this.tasks = merged;
+        // 同一 id 保留“更新更晚”的副本：云端新则用云端，本地新则保留并把本地回传云端，
+        // 避免“云端旧副本覆盖刚编辑的本地任务”的竞态
+        const byId = new Map(this.tasks.map(t => [t.id, t]));
+        cloud.forEach(t => {
+          if (!t || !t.id) return;
+          const local = byId.get(t.id);
+          const cloudTs = t.updatedAt || '';
+          const localTs = local && local.updatedAt || '';
+          if (!local || cloudTs >= localTs) byId.set(t.id, t);
+          else this._syncTaskToCloud(local);
+        });
+        this.tasks = [...byId.values()];
         this._saveTasksLocal();
       }
     } catch (e) { console.warn('[Pomodoro] 云端待办拉取失败，使用本地', e); }
@@ -214,6 +225,7 @@ const Pomodoro = {
       if (!t.completed && t.date && t.date < today) {
         t.date = today;
         t.carryOver = (t.carryOver || 0) + 1;
+        t.updatedAt = new Date().toISOString();
         changed = true;
         dirty.push(t);
       }
@@ -317,7 +329,8 @@ const Pomodoro = {
       completed: false,
       completedAt: null,
       carryOver: 0,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     this.tasks.push(task);
     this._saveTasksLocal();
@@ -330,6 +343,7 @@ const Pomodoro = {
     if (!t) return;
     t.completed = !t.completed;
     t.completedAt = t.completed ? new Date().toISOString() : null;
+    t.updatedAt = new Date().toISOString();
     this._saveTasksLocal();
     this._syncTaskToCloud(t);
     this.renderTasks();
@@ -570,8 +584,8 @@ const Pomodoro = {
       `<circle class="pomo-trend-dot${today ? ' today' : ''}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5"/>`).join('');
 
     // 标签（日期 + 数值）
-    const labelSvg = pts.map(([x, y, m, today]) => {
-      const dt = days[pts.indexOf([x, y, m, today])];
+    const labelSvg = pts.map(([x, y, m, today], i) => {
+      const dt = days[i];
       const md = dt.slice(5); // MM-DD
       const isMax = m === Math.max(...mins) && m > 0;
       const showVal = m > 0 ? `<text class="pomo-trend-tip" x="${x.toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle">${m}</text>` : '';

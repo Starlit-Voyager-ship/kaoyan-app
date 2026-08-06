@@ -6,7 +6,10 @@ const EssayModule = {
   editingId: null,
 
   init() {
-    this.bindEvents();
+    if (!this._bound) {
+      this.bindEvents();
+      this._bound = true;
+    }
     this.renderList();
   },
 
@@ -35,8 +38,8 @@ const EssayModule = {
       item.className = 'essay-item';
       item.innerHTML = `
         <div>
-          <span class="title">${e.title}</span>
-          <span class="type-tag">${typeLabels[e.type] || e.type}</span>
+          <span class="title">${Utils._escapeHtml(e.title)}</span>
+          <span class="type-tag">${Utils._escapeHtml(typeLabels[e.type] || e.type)}</span>
         </div>
         <span style="color:var(--text-light);font-size:0.82rem">${new Date(e.createdAt).toLocaleDateString()}</span>
       `;

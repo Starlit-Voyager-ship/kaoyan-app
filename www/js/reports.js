@@ -6,9 +6,13 @@
 
 const Reports = {
   currentWeekOffset: 0, // 0=本周, -1=上周, 1=下周...
+  _REPORT_VERSION: 2,  // 报表数据结构/日期口径版本；变更时 +1，旧缓存自动失效
 
   init() {
-    this.bindEvents();
+    if (!this._bound) {
+      this.bindEvents();
+      this._bound = true;
+    }
     // 初始化日期选择器为今天
     const hidden = document.getElementById('daily-date-value');
     const btn = document.getElementById('daily-date-btn');
@@ -59,16 +63,11 @@ const Reports = {
 
   // ---- 周计算辅助 ----
   getWeekRange(offset = 0) {
-    const now = new Date();
-    // 调整到目标周的周一
-    const day = now.getDay() || 7;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - day + 1 + offset * 7);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
+    // 基于中国日历日期的本周，再按周偏移
+    const base = Utils.thisWeek();
     return {
-      start: monday.toISOString().slice(0, 10),
-      end: sunday.toISOString().slice(0, 10)
+      start: Utils.shiftDate(base.start, offset * 7),
+      end: Utils.shiftDate(base.end, offset * 7)
     };
   },
 
@@ -94,8 +93,9 @@ const Reports = {
     const dateInput = document.getElementById('daily-date-value');
     const date = dateInput?.value || Utils.today();
     const cached = await this.getCachedReport('daily', date);
-    // 旧版缓存缺 prev / last7 字段 → 直接当无缓存，逼一次重新生成
-    const isStale = cached && (!cached.data || cached.data.prev === undefined || !Array.isArray(cached.data.last7));
+    // 旧版缓存缺 prev / last7 字段或版本不匹配 → 直接当无缓存，逼一次重新生成
+    const isStale = cached && (cached.version !== this._REPORT_VERSION || !cached.data ||
+      cached.data.prev === undefined || !Array.isArray(cached.data.last7));
     if (cached && !isStale) {
       this.renderDailyReport(cached.data, date);
     } else {
@@ -137,8 +137,8 @@ const Reports = {
 
     const todayWords = wordsAll.filter(w => w.firstLearned === targetDate && !w.isWrong).length;
     const wrongWords = wordsAll.filter(w => w.isWrong && w.lastReview === targetDate).length;
-    const todayMath = questionsAll.filter(q => q.createdAt && q.createdAt.startsWith(targetDate)).length;
-    const todayChats = chatsAll.filter(c => c.timestamp && c.timestamp.startsWith(targetDate)).length;
+    const todayMath = questionsAll.filter(q => q.createdAt && Utils.cnDate(new Date(q.createdAt)) === targetDate).length;
+    const todayChats = chatsAll.filter(c => c.timestamp && Utils.cnDate(new Date(c.timestamp)) === targetDate).length;
 
     // 待办完成数（按 completedAt 日期归到那一天）
     const myTasks = (tasksAll || []).filter(t => t && t.username === user);
@@ -176,6 +176,7 @@ const Reports = {
       username: user,
       type: 'daily',
       dateKey: targetDate,
+      version: this._REPORT_VERSION,
       data: reportData,
       generatedAt: new Date().toISOString()
     });
@@ -184,9 +185,7 @@ const Reports = {
   },
 
   shiftDate(dateStr, deltaDays) {
-    const d = new Date(dateStr + 'T00:00:00');
-    d.setDate(d.getDate() + deltaDays);
-    return d.toISOString().slice(0, 10);
+    return Utils.shiftDate(dateStr, deltaDays);
   },
 
   renderDailyReport(data, dateStr) {
@@ -289,7 +288,8 @@ const Reports = {
     const w = this.getWeekRange(this.currentWeekOffset);
     const key = w.start; // 用周一起始作为 key
     const cached = await this.getCachedReport('weekly', key);
-    const isStale = cached && (!cached.data || cached.data.prev === undefined);
+    const isStale = cached && (cached.version !== this._REPORT_VERSION || !cached.data ||
+      cached.data.prev === undefined);
     if (cached && !isStale) {
       this.renderWeeklyReport(cached.data, cached.weekStart, cached.weekEnd);
     } else {
@@ -320,13 +320,17 @@ const Reports = {
     const sessions = weekFocus.length;
 
     const weekNewWords = words.filter(w => w.firstLearned >= week.start && w.firstLearned <= week.end && !w.isWrong).length;
-    const weekMath = questions.filter(q => q.createdAt && q.createdAt >= week.start && q.createdAt <= week.end).length;
-    const weekChats = chats.filter(c => c.timestamp && c.timestamp >= week.start && c.timestamp <= week.end).length;
+    const weekMath = questions.filter(q => q.createdAt &&
+      Utils.cnDate(new Date(q.createdAt)) >= week.start &&
+      Utils.cnDate(new Date(q.createdAt)) <= week.end).length;
+    const weekChats = chats.filter(c => c.timestamp &&
+      Utils.cnDate(new Date(c.timestamp)) >= week.start &&
+      Utils.cnDate(new Date(c.timestamp)) <= week.end).length;
 
     // 每日分布
     const dailyDist = [];
-    for (let d = new Date(week.start); d <= new Date(week.end); d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().slice(0, 10);
+    for (let i = 0; i < 7; i++) {
+      const dateStr = Utils.shiftDate(week.start, i);
       const dayMin = weekFocus.filter(r => r.date === dateStr).reduce((s, r) => s + (r.duration || 0), 0);
       dailyDist.push({ date: dateStr, minutes: dayMin });
     }
@@ -336,8 +340,12 @@ const Reports = {
     const prevTotalMinutes = prevFocus.reduce((s, r) => s + (r.duration || 0), 0);
     const prevSessions = prevFocus.length;
     const prevWeekNewWords = words.filter(w => w.firstLearned >= prevWeek.start && w.firstLearned <= prevWeek.end && !w.isWrong).length;
-    const prevWeekMath = questions.filter(q => q.createdAt && q.createdAt >= prevWeek.start && q.createdAt <= prevWeek.end).length;
-    const prevWeekChats = chats.filter(c => c.timestamp && c.timestamp >= prevWeek.start && c.timestamp <= prevWeek.end).length;
+    const prevWeekMath = questions.filter(q => q.createdAt &&
+      Utils.cnDate(new Date(q.createdAt)) >= prevWeek.start &&
+      Utils.cnDate(new Date(q.createdAt)) <= prevWeek.end).length;
+    const prevWeekChats = chats.filter(c => c.timestamp &&
+      Utils.cnDate(new Date(c.timestamp)) >= prevWeek.start &&
+      Utils.cnDate(new Date(c.timestamp)) <= prevWeek.end).length;
 
     const avgDaily = Math.round(totalMinutes / 7);
 
@@ -363,6 +371,7 @@ const Reports = {
       dateKey: week.start,
       weekStart: week.start,
       weekEnd: week.end,
+      version: this._REPORT_VERSION,
       data: reportData,
       generatedAt: new Date().toISOString()
     });

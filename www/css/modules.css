@@ -1857,6 +1857,21 @@
   font-size: 0.85rem;
   border: 1px solid var(--glass-border);
 }
+.wake-guide {
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  box-shadow: var(--glass-shadow);
+  border: 1px solid var(--glass-border);
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+.wake-guide h4 { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.wake-guide p { margin-bottom: 6px; }
 .diag-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed var(--border, rgba(128,128,128,0.22)); }
 .diag-row:last-child { border-bottom: none; }
 .diag-row span { color: var(--text-secondary); }
